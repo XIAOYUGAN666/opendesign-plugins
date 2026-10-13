@@ -1,0 +1,17 @@
+[project]
+name = "fixture-engineering"
+version = "0.1.0"
+requires-python = "==3.12.10"
+dependencies = ["fastmcp==4.0.3", "mcp==2.2.0"]
+
+[project.optional-dependencies]
+test = ["pytest==8.4.2", "pytest-asyncio==1.2.0", "cryptography==50.0.1"]
+build = ["cryptography==50.0.1"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]

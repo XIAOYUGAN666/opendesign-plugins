@@ -2,6 +2,7 @@
 import fnmatch
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -12,6 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def text(path):
     return path.read_text(encoding="utf-8") if path.is_file() else ""
+
+
+def public_candidates(root):
+    """Tracked files plus explicit unignored source candidates; ignored artifacts stay private.
+
+    --cached keeps an accidentally force-added secret/artifact visible to checks.
+    --others --exclude-standard checks prospective public source before staging.
+    """
+    names = subprocess.check_output(
+        ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"]
+    ).decode("utf-8").split("\0")
+    return [root / name for name in sorted(set(names)) if name and (root / name).is_file()]
 
 
 class ContractImportTests(unittest.TestCase):
@@ -75,7 +88,9 @@ class ContractImportTests(unittest.TestCase):
         self.assertEqual(set(contract_inventory), {"schemaVersion", "contracts"})
         for record in contract_inventory["contracts"].values():
             self.assertEqual(set(record), {"owner", "source", "version", "sha256"})
-        for path in ROOT.rglob("*.json"):
+        for path in public_candidates(ROOT):
+            if path.suffix != ".json":
+                continue
             if path.name == "plugin.json" or path.parent.name == "schemas":
                 continue
             value = json.loads(path.read_text())
@@ -88,7 +103,7 @@ class ContractImportTests(unittest.TestCase):
             self.assertIn(required, patterns, f"Missing public-tree protection: {required}")
         prohibited_dirs = {"credentials", ".venv", "runtime", "cache", "dist", "models", "__pycache__"}
         prohibited_files = (".env", ".env.*", "*.key", "*.pem", "*.exe", "*.dll", "*.zip", "*.yak", "*.rf6", "*.3dm", "*.sqlite*", "*.log")
-        for path in ROOT.rglob("*"):
+        for path in public_candidates(ROOT):
             rel = path.relative_to(ROOT)
             if ".git" in rel.parts:
                 continue
@@ -99,6 +114,19 @@ class ContractImportTests(unittest.TestCase):
                 self.assertNotIn(b"-----BEGIN " + b"PRIVATE KEY-----", data, str(rel))
                 self.assertNotIn(b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----", data, str(rel))
                 self.assertNotIn(bytes([0]), data, str(rel))
+
+    def test_public_candidates_allow_ignored_provider_environment_but_scan_tracked_and_untracked_source(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            subprocess.run(["git", "init", "-q", str(base)], check=True)
+            (base / ".gitignore").write_text(".venv/\ndist/\ncache/\n*.pem\n")
+            for name in ("provider/.venv/python.exe", "provider/dist/a.zip", "provider/cache/a.json", "provider/test_fixture.py", "provider/credentials.pem"):
+                path = base / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("source")
+            subprocess.run(["git", "-C", str(base), "add", "-f", "provider/credentials.pem"], check=True)
+            candidates = {path.relative_to(base).as_posix() for path in public_candidates(base)}
+            self.assertEqual(candidates, {".gitignore", "provider/test_fixture.py", "provider/credentials.pem"})
 
     def test_published_is_generated_and_not_development_source(self):
         # Catches placing unapproved development roots into formal discovery.
