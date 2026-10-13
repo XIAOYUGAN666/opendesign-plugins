@@ -4,3 +4,7 @@
 /schemas/host-contract.v3.schema.json -text
 /schemas/plugin-configuration.schema.json -text
 /schemas/agent-plugins-1.0.0.schema.json -text
+# Generated approved views and market bytes must survive checkout unchanged.
+/published/** -text
+/.agents/plugins/marketplace.json -text
+/.agents/plugins/marketplace.snapshot.json -text

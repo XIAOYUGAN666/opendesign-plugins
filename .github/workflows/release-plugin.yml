@@ -1,0 +1,90 @@
+name: Validate and build plugin candidate
+
+# Validation/build only. No tag, Release, signing secret or Stable publication.
+on:
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: Independently validate this plugin; only synthetic fixture artifacts are uploaded
+        required: true
+        default: fixture-engineering
+        type: choice
+        options: [fixture-engineering, dlubal-rfem, rhino]
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    name: Candidate / ${{ inputs.plugin }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve an allowlisted independent project
+        id: project
+        shell: pwsh
+        env:
+          PLUGIN_ID: ${{ inputs.plugin }}
+        run: |
+          if ($env:PLUGIN_ID -eq 'fixture-engineering') {
+            $root = 'tests/fixtures/fixture-engineering'
+          } elseif ($env:PLUGIN_ID -in @('dlubal-rfem', 'rhino')) {
+            $root = "plugins/$env:PLUGIN_ID"
+          } else { throw 'Unknown plugin' }
+          $project = "$root/provider"
+          $hasProject = Test-Path -LiteralPath "$project/pyproject.toml"
+          $hasLock = Test-Path -LiteralPath "$project/uv.lock"
+          if ($hasProject -ne $hasLock) { throw 'Incomplete independent Provider project' }
+          "root=$root" >> $env:GITHUB_OUTPUT
+          "project=$project" >> $env:GITHUB_OUTPUT
+          if ($hasProject) {
+            'present=true' >> $env:GITHUB_OUTPUT
+          } else {
+            'present=false' >> $env:GITHUB_OUTPUT
+            "$env:PLUGIN_ID=notPresent; no candidate built" >> $env:GITHUB_STEP_SUMMARY
+            Write-Output "$env:PLUGIN_ID=notPresent"
+          }
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        if: steps.project.outputs.present == 'true'
+        with:
+          python-version: '3.12.10'
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        if: steps.project.outputs.present == 'true'
+        with:
+          version: '0.9.21'
+          enable-cache: false
+      - name: Verify selected root version and frozen independent project
+        if: steps.project.outputs.present == 'true'
+        working-directory: ${{ steps.project.outputs.project }}
+        shell: pwsh
+        run: |
+          python -B -c "import json,tomllib; from pathlib import Path; root=json.loads(Path('../plugin.json').read_bytes()); project=tomllib.loads(Path('pyproject.toml').read_text('utf-8'))['project']; assert root['version']==project['version']; print('candidate root version='+root['version'])"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv sync --frozen --extra test --extra build --python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --extra test python -B -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build and independently verify synthetic candidate only
+        if: steps.project.outputs.present == 'true'
+        shell: pwsh
+        env:
+          PLUGIN_ID: ${{ inputs.plugin }}
+          PLUGIN_ROOT: ${{ steps.project.outputs.root }}
+        run: |
+          if ($env:PLUGIN_ID -ne 'fixture-engineering') {
+            throw 'Real Provider release builder has not migrated; no public prerelease artifact is permitted'
+          }
+          & "$env:PLUGIN_ROOT/provider/.venv/Scripts/python.exe" -B scripts/build_artifact.py $env:PLUGIN_ROOT --output "$env:RUNNER_TEMP/synthetic-fixture-candidate"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          'Synthetic fixture only; unsigned candidate, no Stable approval, no real software acceptance.' >> $env:GITHUB_STEP_SUMMARY
+      - name: Upload safe synthetic fixture evidence
+        if: success() && inputs.plugin == 'fixture-engineering'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: synthetic-fixture-candidate-${{ github.sha }}
+          path: ${{ runner.temp }}/synthetic-fixture-candidate
+          if-no-files-found: error
+          retention-days: 3

@@ -82,8 +82,6 @@ class ContractImportTests(unittest.TestCase):
             self.assertEqual(path.parent.name, root_identity["name"])
             self.assertTrue(root_identity["version"])
             self.assertTrue(root_identity["author"]["name"])
-            if (ROOT / "published" / path.parent.name / "plugin.json").exists():
-                self.assertEqual((ROOT / "published" / path.parent.name / "plugin.json").read_bytes(), path.read_bytes())
         contract_inventory = json.loads((ROOT / "schemas/owner-contracts.json").read_text())
         self.assertEqual(set(contract_inventory), {"schemaVersion", "contracts"})
         for record in contract_inventory["contracts"].values():
@@ -94,6 +92,11 @@ class ContractImportTests(unittest.TestCase):
             if path.name == "plugin.json" or path.parent.name == "schemas":
                 continue
             value = json.loads(path.read_text())
+            if path == ROOT / ".agents/plugins/marketplace.json":
+                from scripts.generate_marketplace import marketplace_document
+                # The one generated official discovery array is not a manual identity catalog.
+                self.assertEqual(value, marketplace_document([]))
+                continue
             self.assertFalse(isinstance(value, dict) and ("plugins" in value or "catalog" in value), str(path))
 
     def test_public_tree_excludes_credentials_runtime_data_and_models(self):
@@ -131,8 +134,14 @@ class ContractImportTests(unittest.TestCase):
     def test_published_is_generated_and_not_development_source(self):
         # Catches placing unapproved development roots into formal discovery.
         self.assertTrue((ROOT / "README.md").is_file(), "Stable-view policy is missing")
-        self.assertFalse((ROOT / ".agents/plugins/marketplace.json").exists())
+        from scripts.generate_marketplace import generate_marketplace
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "marketplace.json"
+            generate_marketplace([], output, view_root=ROOT)
+            self.assertEqual((ROOT / ".agents/plugins/marketplace.json").read_bytes(), output.read_bytes())
         self.assertFalse((ROOT / "published").exists(), "No approved Stable input in this skeleton")
+        self.assertFalse((ROOT / ".agents/plugins/marketplace.snapshot.json").exists(), "No signed Stable snapshot yet")
+        self.assertIn("/published/** -text", text(ROOT / ".gitattributes").splitlines())
         self.assertFalse((ROOT / "plugins/dlubal-rfem/mcp.json").exists())
         self.assertFalse((ROOT / "plugins/rhino/mcp.json").exists())
 

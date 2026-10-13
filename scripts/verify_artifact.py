@@ -15,6 +15,7 @@ import zipfile
 
 NAMESPACE = "io.github.xiaoyugan666.native"
 MAX_ARCHIVE = 1024 * 1024 * 1024
+MAX_FILE = 256 * 1024 * 1024
 
 
 def canonical(value):
@@ -57,7 +58,7 @@ def extract(archive, root):
             parts = safe_path(item.orig_filename)
             folded = item.orig_filename.casefold()
             total += item.file_size
-            if folded in seen or item.is_dir() or (item.external_attr >> 16) & 0o170000 == 0o120000 or item.flag_bits & 1 or item.file_size > 256 * 1024 * 1024 or total > MAX_ARCHIVE:
+            if folded in seen or item.is_dir() or (item.external_attr >> 16) & 0o170000 == 0o120000 or item.flag_bits & 1 or item.file_size > MAX_FILE or total > MAX_ARCHIVE:
                 raise ValueError("unsafeArchive")
             seen.add(folded)
             target = root.joinpath(*parts)
@@ -71,7 +72,7 @@ def extract(archive, root):
 
 def validate(value, schema, definition=None):
     # Official validator, offline registry: unrecognized references fail closed.
-    from jsonschema import validators
+    from jsonschema import FormatChecker, validators
     from referencing import Registry
     if definition:
         schema = {"$schema": schema.get("$schema", "https://json-schema.org/draft/2020-12/schema"), "$defs": schema["$defs"], "$ref": "#/$defs/" + definition}
@@ -79,7 +80,22 @@ def validate(value, schema, definition=None):
         raise ValueError("externalSchemaReference")
     validator = validators.validator_for(schema)
     validator.check_schema(schema)
-    validator(schema, registry=Registry(retrieve=deny)).validate(value)
+    checker = FormatChecker()
+    # Width semantics extend the official format hook, never copied field schemas.
+    def register_widths(node):
+        if isinstance(node, dict):
+            width = re.fullmatch(r"(u?)int(8|16|32|64)", str(node.get("format", "")))
+            if width:
+                bits = int(width[2])
+                lower, upper = (0, 2**bits) if width[1] else (-2**(bits-1), 2**(bits-1))
+                checker.checks(width[0])(lambda number, lower=lower, upper=upper: type(number) is int and lower <= number < upper)
+            for child in node.values():
+                register_widths(child)
+        elif isinstance(node, list):
+            for child in node:
+                register_widths(child)
+    register_widths(schema)
+    validator(schema, registry=Registry(retrieve=deny), format_checker=checker).validate(value)
 
 
 def release_identity(identity):
