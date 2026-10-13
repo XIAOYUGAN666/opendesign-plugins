@@ -17,3 +17,20 @@ def test_builder_outputs_real_embedded_interpreter_and_frozen_inventory(tmp_path
         json.loads((staged / "plugin.json").read_text())["name"]
         == "fixture-engineering"
     )
+    configuration = json.loads((staged / "configuration.schema.json").read_text())
+    from fixture_engineering.managed_bootstrap import ConfigurationV1
+    assert configuration == ConfigurationV1.model_json_schema()
+    assert configuration.get("title") == "ConfigurationV1", "configuration must come from the typed source"
+    lifecycle_path = staged / "lifecycle.schema.json"
+    lifecycle = json.loads(lifecycle_path.read_text()) if lifecycle_path.exists() else {}
+    assert lifecycle.get("properties", {}).get("kind", {}).get("const") == "ready", "the real ready frame must have a typed lifecycle declaration"
+    preview_schema_path = staged / "tool-preview.schema.json"
+    preview_schema = json.loads(preview_schema_path.read_text()) if preview_schema_path.exists() else {}
+    assert preview_schema.get("properties", {}).get("normalizationVersion", {}).get("const") == 1, "preview normalization must be locked by its typed contract"
+    risk_path = staged / "risk-review.json"
+    risk = json.loads(risk_path.read_text()) if risk_path.exists() else {}
+    assert risk.get("status") == "pending-review/internal-fixture-only", "source and tool declarations must be bound without claiming completed review"
+    sbom = json.loads((staged / "sbom.spdx.json").read_text())
+    names = {package["name"] for package in sbom["packages"]}
+    assert "python" in names, "the shipped interpreter must be in the SBOM"
+    assert "fixture-engineering" in names, "the shipped first-party Provider must be in the SBOM"

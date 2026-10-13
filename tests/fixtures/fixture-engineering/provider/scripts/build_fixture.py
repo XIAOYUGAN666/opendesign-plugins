@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import canonicalize_name, parse_wheel_filename
-from fixture_engineering.managed_bootstrap import StartupEnvelopeV2, provider_build_id
+from fixture_engineering.managed_bootstrap import ConfigurationV1, ReadyV2, RiskReviewV1, StartupEnvelopeV2, ToolPreviewV1, provider_build_id
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = {
@@ -275,11 +275,18 @@ def build_fixture(plugin_root: Path, output_dir: Path) -> Path:
         canonical(StartupEnvelopeV2.model_json_schema())
     )
     (staged / "configuration.schema.json").write_bytes(
-        canonical({"type": "object", "additionalProperties": False, "properties": {}})
+        canonical(ConfigurationV1.model_json_schema())
     )
-    preview = {"normalizationVersion": 1, "tools": asyncio.run(typed_declarations())}
+    (staged / "lifecycle.schema.json").write_bytes(canonical(ReadyV2.model_json_schema()))
+    preview = ToolPreviewV1(normalizationVersion=1, tools=asyncio.run(typed_declarations())).model_dump(mode="json", by_alias=True, exclude_none=True)
+    (staged / "tool-preview.schema.json").write_bytes(canonical(ToolPreviewV1.model_json_schema(by_alias=True)))
     (staged / "tool-preview.json").write_bytes(canonical(preview))
     build_id = provider_build_id(site_packages / "fixture_engineering")
+    source_root = site_packages / "fixture_engineering"
+    source_files = [{"path": p.relative_to(source_root).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(source_root.rglob("*.py"))]
+    risk = RiskReviewV1(schemaVersion=1, status="pending-review/internal-fixture-only", engineeringAcceptance="not-performed", previewDigest=digest(canonical(preview)), providerBuildId=build_id, sourceDigest=digest(canonical(source_files)), sourceFiles=source_files)
+    (staged / "risk-review.json").write_bytes(canonical(risk.model_dump(mode="json")))
+    (staged / "risk-review.schema.json").write_bytes(canonical(RiskReviewV1.model_json_schema()))
     (staged / "fixture-build.json").write_bytes(
         canonical(
             {
@@ -301,6 +308,10 @@ def build_fixture(plugin_root: Path, output_dir: Path) -> Path:
         }
         for w in locked["wheels"]
     ]
+    packages.extend([
+        {"SPDXID": "SPDXRef-python", "name": "python", "versionInfo": "3.12.10", "downloadLocation": locked["python"]["url"], "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "checksums": [{"algorithm": "SHA256", "checksumValue": locked["python"]["sha256"][7:]}]},
+        {"SPDXID": "SPDXRef-provider", "name": identity["name"], "versionInfo": identity["version"], "downloadLocation": "NOASSERTION", "filesAnalyzed": False, "licenseConcluded": "NOASSERTION", "checksums": [{"algorithm": "SHA256", "checksumValue": build_id[7:]}]},
+    ])
     (staged / "sbom.spdx.json").write_bytes(
         canonical(
             {

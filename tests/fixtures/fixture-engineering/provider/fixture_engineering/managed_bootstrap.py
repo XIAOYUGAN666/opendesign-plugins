@@ -18,6 +18,7 @@ from typing import Literal
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import AccessToken, TokenVerifier
+from mcp.types import Tool
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -103,6 +104,46 @@ class StartupEnvelopeV2(ExactModel):
         ):
             raise ValueError("invalidBearer")
         return value
+
+
+class ConfigurationV1(ExactModel):
+    """The fixture has no configurable fields or engineering secrets."""
+
+
+class ReadyV2(ExactModel):
+    """Only the current ready frame; no background execution protocol."""
+
+    schemaVersion: Literal[2]
+    kind: Literal["ready"]
+    mode: Literal["metadata", "execution"]
+    connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
+    generation: int = Field(ge=1, le=2**53 - 1)
+    providerBuildId: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    port: int = Field(ge=1024, le=65535)
+
+
+class ToolPreviewV1(ExactModel):
+    """Complete official MCP Tool declarations, with fixed normalization."""
+
+    normalizationVersion: Literal[1]
+    tools: list[Tool]
+
+
+class SourceFileDigestV1(ExactModel):
+    path: str
+    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class RiskReviewV1(ExactModel):
+    """Pending synthetic evidence only; never a permission or review approval."""
+
+    schemaVersion: Literal[1]
+    status: Literal["pending-review/internal-fixture-only"]
+    engineeringAcceptance: Literal["not-performed"]
+    previewDigest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    providerBuildId: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    sourceDigest: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
+    sourceFiles: list[SourceFileDigestV1]
 
 
 class EchoResult(ExactModel):
@@ -250,18 +291,15 @@ async def serve(envelope: StartupEnvelopeV2, ready_stream):
                     raise ValueError("providerStartFailed")
                 await asyncio.sleep(0.01)
             ready_stream.write(
-                json.dumps(
-                    {
-                        "schemaVersion": 2,
-                        "kind": "ready",
-                        "mode": envelope.mode,
-                        "connectorInstanceId": envelope.connectorInstanceId,
-                        "generation": envelope.generation,
-                        "providerBuildId": envelope.providerBuildId,
-                        "port": envelope.bind.port,
-                    },
-                    separators=(",", ":"),
-                )
+                ReadyV2(
+                    schemaVersion=2,
+                    kind="ready",
+                    mode=envelope.mode,
+                    connectorInstanceId=envelope.connectorInstanceId,
+                    generation=envelope.generation,
+                    providerBuildId=envelope.providerBuildId,
+                    port=envelope.bind.port,
+                ).model_dump_json()
                 + "\n"
             )
             ready_stream.flush()
