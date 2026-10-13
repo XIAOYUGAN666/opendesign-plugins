@@ -1,0 +1,35 @@
+{
+  "contracts": {
+    "agent-control.schema.json": {
+      "owner": "agent",
+      "sha256": "88e84148eba1d26688c8ed540253923c13557c1cf9d4947c739d51d9edde1f6e",
+      "source": "apps/backend/agent-server/schema/plugin-runtime.schema.json",
+      "version": "2"
+    },
+    "agent-plugins-1.0.0.schema.json": {
+      "owner": "agent-plugins",
+      "sha256": "0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883",
+      "source": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+      "version": "1.0.0"
+    },
+    "host-contract.v3.schema.json": {
+      "owner": "host",
+      "sha256": "20ab68796b8510b1f16562f75770cf2469fa164820fa1be8024cfe2178c7a036",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/host-contract.v3.schema.json",
+      "version": "3"
+    },
+    "host-native.schema.json": {
+      "owner": "host",
+      "sha256": "dbfc21a76c95692d981e2d70287716a022e8bfb11661df84f0015f6e364a17c0",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/native-extension-v1.schema.json",
+      "version": "1"
+    },
+    "plugin-configuration.schema.json": {
+      "owner": "host",
+      "sha256": "c3f0ad94c2590ed5a1ace8998a3d61a2a42ed89a9c2488e609573a88557c202b",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/plugin-configuration.schema.json",
+      "version": "1"
+    }
+  },
+  "schemaVersion": 1
+}

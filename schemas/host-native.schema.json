@@ -1,0 +1,293 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NativeExtensionV1",
+  "description": "Host extension, never an Agent Plugins standard root field.",
+  "type": "object",
+  "properties": {
+    "adapter": {
+      "$ref": "#/$defs/AdapterV1"
+    },
+    "agentContract": {
+      "$ref": "#/$defs/ContractRange"
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ComponentV1"
+      }
+    },
+    "configurationSchemaPath": {
+      "type": "string"
+    },
+    "configurationSchemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "entrypoint": {
+      "type": "string"
+    },
+    "hostContract": {
+      "$ref": "#/$defs/ContractRange"
+    },
+    "mcp": {
+      "$ref": "#/$defs/McpTransportV1"
+    },
+    "module": {
+      "type": "string"
+    },
+    "native": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NativePackageV1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "platform": {
+      "$ref": "#/$defs/PlatformV1"
+    },
+    "protocolVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 1,
+      "minimum": 1
+    },
+    "routine": {
+      "$ref": "#/$defs/NativeRoutineV1"
+    },
+    "secretSlots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SecretSlotV1"
+      }
+    },
+    "software": {
+      "$ref": "#/$defs/SoftwareRequirementV1"
+    },
+    "startupEnvelopeVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 2,
+      "minimum": 2
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "protocolVersion",
+    "platform",
+    "hostContract",
+    "agentContract",
+    "startupEnvelopeVersion",
+    "routine",
+    "entrypoint",
+    "module",
+    "components",
+    "mcp",
+    "software",
+    "adapter",
+    "configurationSchemaVersion",
+    "configurationSchemaPath",
+    "secretSlots"
+  ],
+  "$defs": {
+    "AdapterV1": {
+      "type": "object",
+      "properties": {
+        "distribution": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "distribution",
+        "version"
+      ]
+    },
+    "ComponentV1": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "id"
+      ]
+    },
+    "ContractRange": {
+      "type": "object",
+      "properties": {
+        "max": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "min": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "min",
+        "max"
+      ]
+    },
+    "McpTransportV1": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "transport": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "path"
+      ]
+    },
+    "NativePackageV1": {
+      "type": "object",
+      "properties": {
+        "capabilityDigest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contractDigest": {
+          "type": "string"
+        },
+        "contractVersion": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "pluginId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "relativePath": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "version",
+        "relativePath",
+        "sha256",
+        "contractVersion",
+        "contractDigest",
+        "pluginId"
+      ]
+    },
+    "NativeRoutineKindV1": {
+      "type": "string",
+      "enum": [
+        "managed-provider",
+        "rhino-yak-bridge"
+      ]
+    },
+    "NativeRoutineV1": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/NativeRoutineKindV1"
+        },
+        "version": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 1,
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "version"
+      ]
+    },
+    "PlatformV1": {
+      "type": "object",
+      "properties": {
+        "architecture": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "os",
+        "architecture"
+      ]
+    },
+    "SecretSlotV1": {
+      "type": "object",
+      "properties": {
+        "componentId": {
+          "type": "string"
+        },
+        "fieldId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldId",
+        "componentId"
+      ]
+    },
+    "SoftwareRequirementV1": {
+      "type": "object",
+      "properties": {
+        "major": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "product": {
+          "type": "string"
+        },
+        "supportedBuilds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "product",
+        "major",
+        "supportedBuilds"
+      ]
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PluginConfigurationV1",
+  "description": "Ordinary values are accepted only after validation against the derived schema.",
+  "type": "object",
+  "properties": {
+    "configurationSchema": true,
+    "ordinarySchema": true,
+    "packageId": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "format": "uint64",
+      "maximum": 9007199254740991,
+      "minimum": 0
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "secretSlots": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SecretSlotStatusV1"
+      }
+    },
+    "values": true
+  },
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "packageId",
+    "revision",
+    "configurationSchema",
+    "ordinarySchema",
+    "values",
+    "secretSlots"
+  ],
+  "$defs": {
+    "PluginConnectionStateV1": {
+      "type": "string",
+      "enum": [
+        "missingSecret",
+        "storedUnverified",
+        "softwareUnavailable",
+        "unsupportedSoftwareVersion",
+        "verifying",
+        "authenticationFailed",
+        "authorizationRestricted",
+        "quotaRestricted",
+        "apiAccessRestricted",
+        "connected"
+      ]
+    },
+    "SecretSlotStatusV1": {
+      "description": "Safe state only. This DTO has no credential value or opaque secret reference.",
+      "type": "object",
+      "properties": {
+        "componentId": {
+          "type": "string"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "fieldId": {
+          "type": "string"
+        },
+        "requiredForEngineering": {
+          "type": "boolean"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/PluginConnectionStateV1"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldId",
+        "componentId",
+        "requiredForEngineering",
+        "configured",
+        "revision",
+        "status"
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# Fixed owner exports: preserve exact bytes on every checkout.
+/schemas/host-native.schema.json -text
+/schemas/agent-control.schema.json -text
+/schemas/host-contract.v3.schema.json -text
+/schemas/plugin-configuration.schema.json -text
+/schemas/agent-plugins-1.0.0.schema.json -text

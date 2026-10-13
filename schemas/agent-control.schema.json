@@ -1,0 +1,1774 @@
+{
+  "$defs": {
+    "ConnectorDescriptorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactVariantId": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+          "type": "string"
+        },
+        "bearerToken": {
+          "format": "password",
+          "type": "string",
+          "writeOnly": true
+        },
+        "connectorInstanceId": {
+          "pattern": "^ci_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "packageId": {
+          "pattern": "^[a-z][a-z0-9-]{0,63}$",
+          "type": "string"
+        },
+        "pluginVersion": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "providerBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "softwareIdentity": {
+          "pattern": "^si_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectorInstanceId",
+        "packageId",
+        "pluginVersion",
+        "artifactVariantId",
+        "providerBuildId",
+        "generation",
+        "url",
+        "bearerToken",
+        "toolCatalogDigest",
+        "softwareIdentity"
+      ],
+      "title": "ConnectorDescriptorV1",
+      "type": "object"
+    },
+    "ConnectorDescriptorV2": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactVariantId": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+          "type": "string"
+        },
+        "bearerToken": {
+          "format": "password",
+          "type": "string",
+          "writeOnly": true
+        },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "connectionState": {
+          "enum": [
+            "missingSecret",
+            "storedUnverified",
+            "softwareUnavailable",
+            "unsupportedSoftwareVersion",
+            "verifying",
+            "authenticationFailed",
+            "authorizationRestricted",
+            "quotaRestricted",
+            "apiAccessRestricted",
+            "connected"
+          ],
+          "type": "string"
+        },
+        "connectorInstanceId": {
+          "pattern": "^ci_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "ordinaryConfiguration": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "pluginVersion": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "providerBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "resourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "secretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "softwareIdentity": {
+          "pattern": "^si_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity",
+        "pluginVersion",
+        "artifactVariantId",
+        "providerBuildId",
+        "toolCatalogDigest",
+        "configurationRevision",
+        "resourceRevision",
+        "secretRevision",
+        "connectorInstanceId",
+        "generation",
+        "url",
+        "bearerToken",
+        "softwareIdentity",
+        "connectionState"
+      ],
+      "title": "ConnectorDescriptorV2",
+      "type": "object"
+    },
+    "ConnectorStatusV1": {
+      "additionalProperties": false,
+      "properties": {
+        "connectorInstanceId": {
+          "pattern": "^ci_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "pattern": "^[A-Za-z]{1,64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "connectorInstanceId",
+        "generation",
+        "status",
+        "inFlight"
+      ],
+      "title": "ConnectorStatusV1",
+      "type": "object"
+    },
+    "DiagnosticResponseV1": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "mcp",
+            "health",
+            "applicationInfo"
+          ],
+          "type": "string"
+        },
+        "schemaVersion": {
+          "default": 1,
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "connected"
+          ],
+          "type": "string"
+        },
+        "toolCatalogDigest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "status"
+      ],
+      "title": "DiagnosticResponseV1",
+      "type": "object"
+    },
+    "DiagnosticResponseV2": {
+      "additionalProperties": false,
+      "properties": {
+        "failureCategory": {
+          "anyOf": [
+            {
+              "enum": [
+                "authenticationFailed",
+                "authorizationRestricted",
+                "quotaRestricted",
+                "apiAccessRestricted",
+                "softwareUnavailable",
+                "unsupportedSoftwareVersion",
+                "transportUnavailable",
+                "resultUnknown"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "applicationInfo"
+          ],
+          "type": "string"
+        },
+        "operationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "resourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 2,
+          "enum": [
+            2
+          ],
+          "type": "integer"
+        },
+        "secretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "missingSecret",
+            "storedUnverified",
+            "softwareUnavailable",
+            "unsupportedSoftwareVersion",
+            "verifying",
+            "authenticationFailed",
+            "authorizationRestricted",
+            "quotaRestricted",
+            "apiAccessRestricted",
+            "connected"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "operationId",
+        "generation",
+        "revision",
+        "secretRevision",
+        "resourceRevision",
+        "kind",
+        "status"
+      ],
+      "title": "DiagnosticResponseV2",
+      "type": "object"
+    },
+    "DrainResponseV1": {
+      "additionalProperties": false,
+      "properties": {
+        "inFlight": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 1,
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "draining"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "inFlight",
+        "status"
+      ],
+      "title": "DrainResponseV1",
+      "type": "object"
+    },
+    "EndTaskRequestV1": {
+      "additionalProperties": false,
+      "properties": {
+        "checkpointId": {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        "interruptIds": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "requestId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "threadId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "checkpointId",
+        "interruptIds",
+        "requestId"
+      ],
+      "title": "EndTaskRequestV1",
+      "type": "object"
+    },
+    "EndTaskResultV1": {
+      "additionalProperties": false,
+      "properties": {
+        "requestId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ending",
+            "ended",
+            "externalResultUnknown"
+          ],
+          "type": "string"
+        },
+        "threadId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "requestId",
+        "status"
+      ],
+      "title": "EndTaskResultV1",
+      "type": "object"
+    },
+    "ExpectedConnectorV1": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedGeneration": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expectedGeneration",
+        "expectedRevision"
+      ],
+      "title": "ExpectedConnectorV1",
+      "type": "object"
+    },
+    "HostRevisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "hostGeneration": {
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "hostGeneration",
+        "revision"
+      ],
+      "title": "HostRevisionV1",
+      "type": "object"
+    },
+    "HostSnapshotV1": {
+      "additionalProperties": false,
+      "properties": {
+        "connectors": {
+          "items": {
+            "$ref": "#/$defs/ConnectorDescriptorV1"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "hostGeneration": {
+          "type": "string"
+        },
+        "leaseTtlSeconds": {
+          "enum": [
+            30
+          ],
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "hostGeneration",
+        "revision",
+        "leaseTtlSeconds",
+        "connectors"
+      ],
+      "title": "HostSnapshotV1",
+      "type": "object"
+    },
+    "HostSnapshotV2": {
+      "additionalProperties": false,
+      "properties": {
+        "connectors": {
+          "items": {
+            "$ref": "#/$defs/ConnectorDescriptorV2"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "hostGeneration": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "leaseTtlSeconds": {
+          "enum": [
+            30
+          ],
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "enum": [
+            2
+          ],
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "hostGeneration",
+        "revision",
+        "leaseTtlSeconds",
+        "connectors"
+      ],
+      "title": "HostSnapshotV2",
+      "type": "object",
+      "x-body-limit": 65536
+    },
+    "Icon": {
+      "description": "An optionally-sized icon for display in a user interface (2025-11-25+).",
+      "properties": {
+        "mimeType": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "sizes": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "src": {
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "enum": [
+                "light",
+                "dark"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "src"
+      ],
+      "title": "Icon",
+      "type": "object"
+    },
+    "InstalledPluginPublicationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactVariantId": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+          "type": "string"
+        },
+        "configuration": {
+          "$ref": "#/$defs/PluginConfigurationV1"
+        },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "pluginVersion": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "providerBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "resourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "secretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/PluginDeclarationV1"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity",
+        "pluginVersion",
+        "artifactVariantId",
+        "providerBuildId",
+        "toolCatalogDigest",
+        "configurationRevision",
+        "resourceRevision",
+        "secretRevision",
+        "schemaVersion",
+        "configuration",
+        "tools"
+      ],
+      "title": "InstalledPluginPublicationV1",
+      "type": "object",
+      "x-body-limit": 4194304
+    },
+    "MaintenanceCompletionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "update",
+            "uninstall",
+            "purge",
+            "configure",
+            "verify",
+            "activate"
+          ],
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "observed": {
+          "enum": [
+            "completed",
+            "compensated",
+            "repairRequired",
+            "pendingActivation"
+          ],
+          "type": "string"
+        },
+        "operationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/PluginResourceReferenceV2"
+        }
+      },
+      "required": [
+        "operationId",
+        "resource",
+        "expectedRevision",
+        "action",
+        "observed"
+      ],
+      "title": "MaintenanceCompletionV1",
+      "type": "object"
+    },
+    "MaintenanceDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "operationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/PluginResourceReferenceV2"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "granted",
+            "busy",
+            "unverifiable"
+          ],
+          "type": "string"
+        },
+        "threadIds": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        }
+      },
+      "required": [
+        "operationId",
+        "resource",
+        "revision",
+        "status",
+        "threadIds"
+      ],
+      "title": "MaintenanceDecisionV1",
+      "type": "object"
+    },
+    "MaintenanceRequestV1": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "update",
+            "uninstall",
+            "purge",
+            "configure",
+            "verify",
+            "activate"
+          ],
+          "type": "string"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "operationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        },
+        "resource": {
+          "$ref": "#/$defs/PluginResourceReferenceV2"
+        }
+      },
+      "required": [
+        "operationId",
+        "resource",
+        "expectedRevision",
+        "action"
+      ],
+      "title": "MaintenanceRequestV1",
+      "type": "object"
+    },
+    "PluginConfigurationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "configurationSchema": {},
+        "ordinarySchema": {},
+        "packageId": {
+          "type": "string"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "secretSlots": {
+          "items": {
+            "$ref": "#/$defs/SecretSlotStatusV1"
+          },
+          "type": "array"
+        },
+        "values": {}
+      },
+      "required": [
+        "configurationSchema",
+        "ordinarySchema",
+        "packageId",
+        "revision",
+        "schemaVersion",
+        "secretSlots",
+        "values"
+      ],
+      "title": "PluginConfigurationV1",
+      "type": "object"
+    },
+    "PluginDeclarationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolAnnotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolExecution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "icons": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Icon"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "inputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "semanticFingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema",
+        "semanticFingerprint"
+      ],
+      "title": "PluginDeclarationV1",
+      "type": "object"
+    },
+    "PluginIdentityV2": {
+      "additionalProperties": false,
+      "properties": {
+        "packageId": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "sourceIdentity": {
+          "enum": [
+            "github:XIAOYUGAN666/opendesign-plugins"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "sourceIdentity",
+        "packageId"
+      ],
+      "title": "PluginIdentityV2",
+      "type": "object"
+    },
+    "PluginResourceReferenceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactVariantId": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+          "type": "string"
+        },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "pluginVersion": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "providerBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "resourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "secretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "identity",
+        "pluginVersion",
+        "artifactVariantId",
+        "providerBuildId",
+        "toolCatalogDigest",
+        "configurationRevision",
+        "resourceRevision",
+        "secretRevision"
+      ],
+      "title": "PluginResourceReferenceV2",
+      "type": "object"
+    },
+    "PluginToolView": {
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "adapterToolName": {
+          "type": "string"
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolAnnotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "approval": {
+          "enum": [
+            "ask",
+            "always_allow",
+            "block"
+          ],
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolExecution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "icons": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Icon"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "inputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nativeToolName": {
+          "pattern": "^[A-Za-z0-9_.-]{1,128}$",
+          "type": "string"
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "risk": {
+          "enum": [
+            "read_only",
+            "write",
+            "destructive",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema",
+        "nativeToolName",
+        "adapterToolName",
+        "risk",
+        "enabled",
+        "approval"
+      ],
+      "title": "PluginToolView",
+      "type": "object"
+    },
+    "PluginToolsV1": {
+      "additionalProperties": false,
+      "properties": {
+        "connectorInstanceId": {
+          "pattern": "^ci_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 1,
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/PluginToolView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "connectorInstanceId",
+        "generation",
+        "revision",
+        "toolCatalogDigest",
+        "tools"
+      ],
+      "title": "PluginToolsV1",
+      "type": "object"
+    },
+    "PluginToolsV2": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 2,
+          "enum": [
+            2
+          ],
+          "type": "integer"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/PluginDeclarationV1"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity",
+        "revision",
+        "toolCatalogDigest",
+        "tools"
+      ],
+      "title": "PluginToolsV2",
+      "type": "object"
+    },
+    "PreferenceResponseV1": {
+      "additionalProperties": false,
+      "properties": {
+        "connectorInstanceId": {
+          "pattern": "^ci_[0-9a-f]{32}$",
+          "type": "string"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 1,
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolPreferenceV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "connectorInstanceId",
+        "generation",
+        "revision",
+        "tools"
+      ],
+      "title": "PreferenceResponseV1",
+      "type": "object"
+    },
+    "PreferenceResponseV2": {
+      "additionalProperties": false,
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 2,
+          "enum": [
+            2
+          ],
+          "type": "integer"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolPreferenceV2"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity",
+        "revision",
+        "tools"
+      ],
+      "title": "PreferenceResponseV2",
+      "type": "object"
+    },
+    "RFEMDiagnosticV1": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedGeneration": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "health",
+            "applicationInfo"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedGeneration",
+        "expectedRevision",
+        "kind"
+      ],
+      "title": "RFEMDiagnosticV1",
+      "type": "object"
+    },
+    "RFEMDiagnosticV2": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedGeneration": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedResourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedSecretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "kind": {
+          "enum": [
+            "applicationInfo"
+          ],
+          "type": "string"
+        },
+        "operationId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectedGeneration",
+        "expectedRevision",
+        "operationId",
+        "expectedSecretRevision",
+        "expectedResourceRevision",
+        "kind"
+      ],
+      "title": "RFEMDiagnosticV2",
+      "type": "object"
+    },
+    "RegistryStatusV1": {
+      "additionalProperties": false,
+      "properties": {
+        "connectors": {
+          "items": {
+            "$ref": "#/$defs/ConnectorStatusV1"
+          },
+          "type": "array"
+        },
+        "hostGeneration": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "leaseActive": {
+          "type": "boolean"
+        },
+        "revision": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "default": 1,
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        }
+      },
+      "required": [
+        "hostGeneration",
+        "revision",
+        "leaseActive",
+        "connectors"
+      ],
+      "title": "RegistryStatusV1",
+      "type": "object"
+    },
+    "SecretSlotStatusV1": {
+      "additionalProperties": false,
+      "properties": {
+        "componentId": {
+          "type": "string"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "fieldId": {
+          "type": "string"
+        },
+        "requiredForEngineering": {
+          "type": "boolean"
+        },
+        "revision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "missingSecret",
+            "storedUnverified",
+            "softwareUnavailable",
+            "unsupportedSoftwareVersion",
+            "verifying",
+            "authenticationFailed",
+            "authorizationRestricted",
+            "quotaRestricted",
+            "apiAccessRestricted",
+            "connected"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "componentId",
+        "configured",
+        "fieldId",
+        "requiredForEngineering",
+        "revision",
+        "status"
+      ],
+      "title": "SecretSlotStatusV1",
+      "type": "object"
+    },
+    "ToolAnnotations": {
+      "description": "Additional properties describing a Tool to clients.\n\nNOTE: all properties in ToolAnnotations are **hints**.\nThey are not guaranteed to provide a faithful description of\ntool behavior (including descriptive properties like `title`).\n\nClients should never make tool use decisions based on ToolAnnotations\nreceived from untrusted servers.",
+      "properties": {
+        "destructiveHint": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "idempotentHint": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "openWorldHint": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "readOnlyHint": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolAnnotations",
+      "type": "object"
+    },
+    "ToolExecution": {
+      "description": "Execution-related properties for a tool (2025-11-25 only).",
+      "properties": {
+        "taskSupport": {
+          "anyOf": [
+            {
+              "enum": [
+                "forbidden",
+                "optional",
+                "required"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolExecution",
+      "type": "object"
+    },
+    "ToolPreferenceV1": {
+      "additionalProperties": false,
+      "properties": {
+        "approval": {
+          "enum": [
+            "ask",
+            "always_allow",
+            "block"
+          ],
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "nativeToolName": {
+          "pattern": "^[A-Za-z0-9_.-]{1,128}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nativeToolName",
+        "enabled",
+        "approval"
+      ],
+      "title": "ToolPreferenceV1",
+      "type": "object"
+    },
+    "ToolPreferenceV2": {
+      "additionalProperties": false,
+      "properties": {
+        "nativeToolName": {
+          "pattern": "^[A-Za-z0-9_.-]{1,128}$",
+          "type": "string"
+        },
+        "permission": {
+          "enum": [
+            "disabled",
+            "ask",
+            "allow"
+          ],
+          "type": "string"
+        },
+        "semanticFingerprint": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "nativeToolName",
+        "permission",
+        "semanticFingerprint"
+      ],
+      "title": "ToolPreferenceV2",
+      "type": "object"
+    },
+    "ToolPreferencesUpdateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedGeneration": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolPreferenceV1"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "expectedGeneration",
+        "expectedRevision",
+        "tools"
+      ],
+      "title": "ToolPreferencesUpdateV1",
+      "type": "object"
+    },
+    "ToolPreferencesUpdateV2": {
+      "additionalProperties": false,
+      "properties": {
+        "expectedRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/ToolPreferenceV2"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity",
+        "expectedRevision",
+        "tools"
+      ],
+      "title": "ToolPreferencesUpdateV2",
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "ConnectorDescriptorV1": {
+      "$ref": "#/$defs/ConnectorDescriptorV1"
+    },
+    "ConnectorDescriptorV2": {
+      "$ref": "#/$defs/ConnectorDescriptorV2"
+    },
+    "ConnectorStatusV1": {
+      "$ref": "#/$defs/ConnectorStatusV1"
+    },
+    "DiagnosticResponseV1": {
+      "$ref": "#/$defs/DiagnosticResponseV1"
+    },
+    "DiagnosticResponseV2": {
+      "$ref": "#/$defs/DiagnosticResponseV2"
+    },
+    "DrainResponseV1": {
+      "$ref": "#/$defs/DrainResponseV1"
+    },
+    "EndTaskRequestV1": {
+      "$ref": "#/$defs/EndTaskRequestV1"
+    },
+    "EndTaskResultV1": {
+      "$ref": "#/$defs/EndTaskResultV1"
+    },
+    "ExpectedConnectorV1": {
+      "$ref": "#/$defs/ExpectedConnectorV1"
+    },
+    "HostRevisionV1": {
+      "$ref": "#/$defs/HostRevisionV1"
+    },
+    "HostSnapshotV1": {
+      "$ref": "#/$defs/HostSnapshotV1"
+    },
+    "HostSnapshotV2": {
+      "$ref": "#/$defs/HostSnapshotV2"
+    },
+    "Icon": {
+      "$ref": "#/$defs/Icon"
+    },
+    "InstalledPluginPublicationV1": {
+      "$ref": "#/$defs/InstalledPluginPublicationV1"
+    },
+    "MaintenanceCompletionV1": {
+      "$ref": "#/$defs/MaintenanceCompletionV1"
+    },
+    "MaintenanceDecisionV1": {
+      "$ref": "#/$defs/MaintenanceDecisionV1"
+    },
+    "MaintenanceRequestV1": {
+      "$ref": "#/$defs/MaintenanceRequestV1"
+    },
+    "PluginConfigurationV1": {
+      "$ref": "#/$defs/PluginConfigurationV1"
+    },
+    "PluginDeclarationV1": {
+      "$ref": "#/$defs/PluginDeclarationV1"
+    },
+    "PluginIdentityV2": {
+      "$ref": "#/$defs/PluginIdentityV2"
+    },
+    "PluginResourceReferenceV2": {
+      "$ref": "#/$defs/PluginResourceReferenceV2"
+    },
+    "PluginToolView": {
+      "$ref": "#/$defs/PluginToolView"
+    },
+    "PluginToolsV1": {
+      "$ref": "#/$defs/PluginToolsV1"
+    },
+    "PluginToolsV2": {
+      "$ref": "#/$defs/PluginToolsV2"
+    },
+    "PreferenceResponseV1": {
+      "$ref": "#/$defs/PreferenceResponseV1"
+    },
+    "PreferenceResponseV2": {
+      "$ref": "#/$defs/PreferenceResponseV2"
+    },
+    "RFEMDiagnosticV1": {
+      "$ref": "#/$defs/RFEMDiagnosticV1"
+    },
+    "RFEMDiagnosticV2": {
+      "$ref": "#/$defs/RFEMDiagnosticV2"
+    },
+    "RegistryStatusV1": {
+      "$ref": "#/$defs/RegistryStatusV1"
+    },
+    "SecretSlotStatusV1": {
+      "$ref": "#/$defs/SecretSlotStatusV1"
+    },
+    "ToolAnnotations": {
+      "$ref": "#/$defs/ToolAnnotations"
+    },
+    "ToolExecution": {
+      "$ref": "#/$defs/ToolExecution"
+    },
+    "ToolPreferenceV1": {
+      "$ref": "#/$defs/ToolPreferenceV1"
+    },
+    "ToolPreferenceV2": {
+      "$ref": "#/$defs/ToolPreferenceV2"
+    },
+    "ToolPreferencesUpdateV1": {
+      "$ref": "#/$defs/ToolPreferencesUpdateV1"
+    },
+    "ToolPreferencesUpdateV2": {
+      "$ref": "#/$defs/ToolPreferencesUpdateV2"
+    }
+  },
+  "title": "PluginRuntimeContractV2",
+  "type": "object"
+}
