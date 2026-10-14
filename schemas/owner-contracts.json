@@ -2,7 +2,7 @@
   "contracts": {
     "agent-control.schema.json": {
       "owner": "agent",
-      "sha256": "88e84148eba1d26688c8ed540253923c13557c1cf9d4947c739d51d9edde1f6e",
+      "sha256": "f73a5ee222d1de6faacee5b8b1e1d8fa6947e4e3a19462ae56a5ea296e75a1cb",
       "source": "apps/backend/agent-server/schema/plugin-runtime.schema.json",
       "version": "2"
     },

@@ -79,6 +79,7 @@
         },
         "connectionState": {
           "enum": [
+            "unverified",
             "missingSecret",
             "storedUnverified",
             "softwareUnavailable",
@@ -295,6 +296,7 @@
         },
         "status": {
           "enum": [
+            "unverified",
             "missingSecret",
             "storedUnverified",
             "softwareUnavailable",
@@ -796,9 +798,17 @@
       "additionalProperties": false,
       "properties": {
         "configurationSchema": {},
+        "effectiveResourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
         "ordinarySchema": {},
         "packageId": {
           "type": "string"
+        },
+        "pendingApply": {
+          "type": "boolean"
         },
         "revision": {
           "maximum": 9007199254740991,
@@ -819,8 +829,10 @@
       },
       "required": [
         "configurationSchema",
+        "effectiveResourceRevision",
         "ordinarySchema",
         "packageId",
+        "pendingApply",
         "revision",
         "schemaVersion",
         "secretSlots",
@@ -1435,6 +1447,7 @@
         },
         "status": {
           "enum": [
+            "unverified",
             "missingSecret",
             "storedUnverified",
             "softwareUnavailable",
@@ -1576,7 +1589,6 @@
       "additionalProperties": false,
       "properties": {
         "nativeToolName": {
-          "pattern": "^[A-Za-z0-9_.-]{1,128}$",
           "type": "string"
         },
         "permission": {
