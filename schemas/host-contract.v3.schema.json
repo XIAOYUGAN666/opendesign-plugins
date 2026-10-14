@@ -644,9 +644,18 @@
       "type": "object",
       "properties": {
         "configurationSchema": true,
+        "effectiveResourceRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
         "ordinarySchema": true,
         "packageId": {
           "type": "string"
+        },
+        "pendingApply": {
+          "type": "boolean"
         },
         "revision": {
           "type": "integer",
@@ -672,6 +681,8 @@
         "schemaVersion",
         "packageId",
         "revision",
+        "effectiveResourceRevision",
+        "pendingApply",
         "configurationSchema",
         "ordinarySchema",
         "values",
