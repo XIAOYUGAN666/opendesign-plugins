@@ -436,6 +436,72 @@
       "title": "ExpectedConnectorV1",
       "type": "object"
     },
+    "HostExecutionObservationV1": {
+      "additionalProperties": false,
+      "description": "Host safety projection, not the Provider's lifecycle wire protocol.",
+      "properties": {
+        "ageMilliseconds": {
+          "maximum": 5000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "resource": {
+          "$ref": "#/$defs/PluginResourceReferenceV2"
+        },
+        "sequence": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "state": {
+          "enum": [
+            "idle",
+            "running",
+            "unknown",
+            "draining",
+            "unverifiable"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "generation",
+        "sequence",
+        "state",
+        "ageMilliseconds"
+      ],
+      "title": "HostExecutionObservationV1",
+      "type": "object"
+    },
+    "HostInstallationViewV1": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "generation": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "resource": {
+          "$ref": "#/$defs/PluginResourceReferenceV2"
+        }
+      },
+      "required": [
+        "resource",
+        "enabled",
+        "generation"
+      ],
+      "title": "HostInstallationViewV1",
+      "type": "object"
+    },
     "HostRevisionV1": {
       "additionalProperties": false,
       "properties": {
@@ -513,9 +579,23 @@
           "maxItems": 64,
           "type": "array"
         },
+        "executionObservations": {
+          "items": {
+            "$ref": "#/$defs/HostExecutionObservationV1"
+          },
+          "maxItems": 128,
+          "type": "array"
+        },
         "hostGeneration": {
           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
           "type": "string"
+        },
+        "installations": {
+          "items": {
+            "$ref": "#/$defs/HostInstallationViewV1"
+          },
+          "maxItems": 64,
+          "type": "array"
         },
         "leaseTtlSeconds": {
           "enum": [
@@ -540,7 +620,9 @@
         "hostGeneration",
         "revision",
         "leaseTtlSeconds",
-        "connectors"
+        "connectors",
+        "installations",
+        "executionObservations"
       ],
       "title": "HostSnapshotV2",
       "type": "object",
@@ -611,7 +693,7 @@
         },
         "configurationRevision": {
           "maximum": 9007199254740991,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "identity": {
@@ -627,7 +709,7 @@
         },
         "resourceRevision": {
           "maximum": 9007199254740991,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "schemaVersion": {
@@ -667,6 +749,78 @@
         "tools"
       ],
       "title": "InstalledPluginPublicationV1",
+      "type": "object",
+      "x-body-limit": 4292608
+    },
+    "InstalledPluginSubmissionV1": {
+      "additionalProperties": false,
+      "description": "Host submits the signed raw MCP declaration; Agent derives semantics.",
+      "properties": {
+        "artifactVariantId": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,127}$",
+          "type": "string"
+        },
+        "configuration": {
+          "$ref": "#/$defs/PluginConfigurationV1"
+        },
+        "configurationRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "identity": {
+          "$ref": "#/$defs/PluginIdentityV2"
+        },
+        "pluginVersion": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "type": "string"
+        },
+        "providerBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "resourceRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "enum": [
+            1
+          ],
+          "type": "integer"
+        },
+        "secretRevision": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "toolCatalogDigest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "$ref": "#/$defs/Tool"
+          },
+          "maxItems": 1024,
+          "type": "array"
+        }
+      },
+      "required": [
+        "identity",
+        "pluginVersion",
+        "artifactVariantId",
+        "providerBuildId",
+        "toolCatalogDigest",
+        "configurationRevision",
+        "resourceRevision",
+        "secretRevision",
+        "schemaVersion",
+        "configuration",
+        "tools"
+      ],
+      "title": "InstalledPluginSubmissionV1",
       "type": "object",
       "x-body-limit": 4194304
     },
@@ -977,7 +1131,7 @@
         },
         "configurationRevision": {
           "maximum": 9007199254740991,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "identity": {
@@ -993,7 +1147,7 @@
         },
         "resourceRevision": {
           "maximum": 9007199254740991,
-          "minimum": 1,
+          "minimum": 0,
           "type": "integer"
         },
         "secretRevision": {
@@ -1473,6 +1627,106 @@
       "title": "SecretSlotStatusV1",
       "type": "object"
     },
+    "Tool": {
+      "description": "Definition for a tool the client can call.",
+      "properties": {
+        "_meta": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolAnnotations"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "execution": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolExecution"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "icons": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/Icon"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "inputSchema": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "name": {
+          "type": "string"
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema"
+      ],
+      "title": "Tool",
+      "type": "object"
+    },
     "ToolAnnotations": {
       "description": "Additional properties describing a Tool to clients.\n\nNOTE: all properties in ToolAnnotations are **hints**.\nThey are not guaranteed to provide a faithful description of\ntool behavior (including descriptive properties like `title`).\n\nClients should never make tool use decisions based on ToolAnnotations\nreceived from untrusted servers.",
       "properties": {
@@ -1699,6 +1953,12 @@
     "ExpectedConnectorV1": {
       "$ref": "#/$defs/ExpectedConnectorV1"
     },
+    "HostExecutionObservationV1": {
+      "$ref": "#/$defs/HostExecutionObservationV1"
+    },
+    "HostInstallationViewV1": {
+      "$ref": "#/$defs/HostInstallationViewV1"
+    },
     "HostRevisionV1": {
       "$ref": "#/$defs/HostRevisionV1"
     },
@@ -1713,6 +1973,9 @@
     },
     "InstalledPluginPublicationV1": {
       "$ref": "#/$defs/InstalledPluginPublicationV1"
+    },
+    "InstalledPluginSubmissionV1": {
+      "$ref": "#/$defs/InstalledPluginSubmissionV1"
     },
     "MaintenanceCompletionV1": {
       "$ref": "#/$defs/MaintenanceCompletionV1"
@@ -1761,6 +2024,9 @@
     },
     "SecretSlotStatusV1": {
       "$ref": "#/$defs/SecretSlotStatusV1"
+    },
+    "Tool": {
+      "$ref": "#/$defs/Tool"
     },
     "ToolAnnotations": {
       "$ref": "#/$defs/ToolAnnotations"
