@@ -14,7 +14,7 @@
     },
     "host-contract.v3.schema.json": {
       "owner": "host",
-      "sha256": "20ab68796b8510b1f16562f75770cf2469fa164820fa1be8024cfe2178c7a036",
+      "sha256": "171cc2fccfc5989d7dd4982cbd97bf9817e31793576adbaf81ad0acc17ecc65c",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/host-contract.v3.schema.json",
       "version": "3"
     },
@@ -26,7 +26,7 @@
     },
     "plugin-configuration.schema.json": {
       "owner": "host",
-      "sha256": "c3f0ad94c2590ed5a1ace8998a3d61a2a42ed89a9c2488e609573a88557c202b",
+      "sha256": "24be11bd4d2de9413e4c27e6aaf21c999f21301fa4fe261a3c69bc8478cbb335",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/plugin-configuration.schema.json",
       "version": "1"
     }

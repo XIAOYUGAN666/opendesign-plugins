@@ -1,11 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "HostContractV3",
-  "description": "Aggregate used only to export the new authoritative Host contract.\nExisting V2 consumers and registered commands remain supported unchanged.",
+  "description": "Aggregate used only to export the new authoritative Host contract.\nLegacy V2 views and operations remain behind their explicit facade during cutover.",
   "type": "object",
   "properties": {
+    "delete_secret_request": {
+      "$ref": "#/$defs/DeletePluginSecretRequestV1"
+    },
+    "enabled_request": {
+      "$ref": "#/$defs/SetPluginEnabledRequestV1"
+    },
+    "install_request": {
+      "$ref": "#/$defs/InstallPluginRequestV3"
+    },
+    "lifecycle_hint": {
+      "$ref": "#/$defs/PluginLifecycleHintV2"
+    },
     "native_extension": {
       "$ref": "#/$defs/NativeExtensionV1"
+    },
+    "operation": {
+      "$ref": "#/$defs/PluginOperationV3"
     },
     "plugin": {
       "$ref": "#/$defs/PluginViewV2"
@@ -16,14 +31,29 @@
     "previous": {
       "$ref": "#/$defs/HostContractV2"
     },
+    "purge_request": {
+      "$ref": "#/$defs/PurgePluginRequestV1"
+    },
+    "retry_request": {
+      "$ref": "#/$defs/RetryPluginRequestV2"
+    },
     "set_plugin_configuration_request": {
       "$ref": "#/$defs/SetPluginConfigurationRequestV1"
+    },
+    "set_secret_request": {
+      "$ref": "#/$defs/SetPluginSecretRequestV1"
     },
     "signed_marketplace": {
       "$ref": "#/$defs/SignedMarketplaceV1"
     },
     "standard_manifest": {
       "$ref": "#/$defs/AgentPluginsManifestV1"
+    },
+    "uninstall_request": {
+      "$ref": "#/$defs/UninstallPluginRequestV2"
+    },
+    "update_request": {
+      "$ref": "#/$defs/UpdatePluginRequestV1"
     },
     "verify_plugin_connection_request": {
       "$ref": "#/$defs/VerifyPluginConnectionRequestV1"
@@ -37,7 +67,17 @@
     "plugin",
     "verify_plugin_connection_request",
     "set_plugin_configuration_request",
-    "signed_marketplace"
+    "signed_marketplace",
+    "install_request",
+    "enabled_request",
+    "set_secret_request",
+    "delete_secret_request",
+    "update_request",
+    "uninstall_request",
+    "purge_request",
+    "retry_request",
+    "operation",
+    "lifecycle_hint"
   ],
   "$defs": {
     "AdapterV1": {
@@ -223,6 +263,34 @@
         "max"
       ]
     },
+    "DeletePluginSecretRequestV1": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "fieldId": {
+          "type": "string"
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId",
+        "fieldId"
+      ]
+    },
     "DetectedSoftwareV1": {
       "type": "object",
       "properties": {
@@ -284,6 +352,30 @@
         "plugin",
         "operation",
         "lifecycle_hint"
+      ]
+    },
+    "InstallPluginRequestV3": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId"
       ]
     },
     "InstallRequest": {
@@ -608,6 +700,7 @@
     "PluginConnectionStateV1": {
       "type": "string",
       "enum": [
+        "unverified",
         "missingSecret",
         "storedUnverified",
         "softwareUnavailable",
@@ -814,6 +907,30 @@
         "revision"
       ]
     },
+    "PluginLifecycleHintV2": {
+      "type": "object",
+      "properties": {
+        "operationId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "revision"
+      ]
+    },
     "PluginLinkV1": {
       "type": "object",
       "properties": {
@@ -947,6 +1064,94 @@
         "updatedAtMs"
       ]
     },
+    "PluginOperationV3": {
+      "type": "object",
+      "properties": {
+        "bytesCompleted": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "bytesTotal": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "canCancel": {
+          "type": "boolean"
+        },
+        "cancelRequested": {
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PluginError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/PluginOperationKindV2"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "schemaVersion": {
+          "type": "integer",
+          "format": "uint32",
+          "maximum": 3,
+          "minimum": 3
+        },
+        "stage": {
+          "$ref": "#/$defs/PluginOperationStageV2"
+        },
+        "startedAtMs": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "state": {
+          "$ref": "#/$defs/PluginOperationStateV2"
+        },
+        "updatedAtMs": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operationId",
+        "packageId",
+        "kind",
+        "state",
+        "stage",
+        "revision",
+        "cancelRequested",
+        "canCancel",
+        "startedAtMs",
+        "updatedAtMs"
+      ]
+    },
     "PluginPackageIdV2": {
       "type": "string",
       "enum": [
@@ -988,6 +1193,44 @@
         "summary",
         "overview",
         "links"
+      ]
+    },
+    "PluginPresentationV2": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "category": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "iconKey": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "category",
+        "iconKey"
       ]
     },
     "PluginProcessStateV1": {
@@ -1081,7 +1324,7 @@
       ]
     },
     "PluginViewV2": {
-      "description": "New generic declared view; existing runtime continues to return PluginViewV1.",
+      "description": "Generic safe view. Legacy callers retain their explicit V1 facade.",
       "type": "object",
       "properties": {
         "connectionSettings": {
@@ -1099,6 +1342,9 @@
         "enabled": {
           "type": "boolean"
         },
+        "engineeringReady": {
+          "type": "boolean"
+        },
         "error": {
           "anyOf": [
             {
@@ -1112,6 +1358,9 @@
         "installationState": {
           "$ref": "#/$defs/PluginInstallationStateV1"
         },
+        "mcpReady": {
+          "type": "boolean"
+        },
         "packageId": {
           "type": "string"
         },
@@ -1121,15 +1370,20 @@
             "null"
           ]
         },
+        "presentation": {
+          "$ref": "#/$defs/PluginPresentationV2"
+        },
         "revision": {
           "type": "integer",
           "format": "uint64",
+          "maximum": 9007199254740991,
           "minimum": 0
         },
         "schemaVersion": {
           "type": "integer",
           "format": "uint32",
-          "minimum": 0
+          "maximum": 2,
+          "minimum": 2
         }
       },
       "additionalProperties": false,
@@ -1137,10 +1391,37 @@
         "schemaVersion",
         "packageId",
         "displayName",
+        "presentation",
+        "mcpReady",
+        "engineeringReady",
         "revision",
         "enabled",
         "installationState",
         "connectionSettings"
+      ]
+    },
+    "PurgePluginRequestV1": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId"
       ]
     },
     "RefreshPluginRequestV1": {
@@ -1287,6 +1568,30 @@
         "expectedRevision"
       ]
     },
+    "RetryPluginRequestV2": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId"
+      ]
+    },
     "SecretRequest": {
       "type": "object",
       "properties": {
@@ -1372,7 +1677,8 @@
         "expectedRevision": {
           "type": "integer",
           "format": "uint64",
-          "minimum": 0
+          "maximum": 9007199254740991,
+          "minimum": 1
         },
         "packageId": {
           "type": "string"
@@ -1389,6 +1695,66 @@
         "expectedRevision",
         "requestId",
         "values"
+      ]
+    },
+    "SetPluginEnabledRequestV1": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId",
+        "enabled"
+      ]
+    },
+    "SetPluginSecretRequestV1": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "fieldId": {
+          "type": "string"
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId",
+        "fieldId",
+        "value"
       ]
     },
     "SignedMarketplaceV1": {
@@ -1630,6 +1996,30 @@
         "mode"
       ]
     },
+    "UninstallPluginRequestV2": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId"
+      ]
+    },
     "UninstallRequest": {
       "type": "object",
       "properties": {
@@ -1657,14 +2047,39 @@
         "deleteConfiguration"
       ]
     },
-    "VerifyPluginConnectionRequestV1": {
-      "description": "New contract declarations only; runtime handlers are migrated by their owners.",
+    "UpdatePluginRequestV1": {
       "type": "object",
       "properties": {
         "expectedRevision": {
           "type": "integer",
           "format": "uint64",
-          "minimum": 0
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "expectedRevision",
+        "requestId"
+      ]
+    },
+    "VerifyPluginConnectionRequestV1": {
+      "description": "Narrow connection intent; actual verification is integrated by its runtime owner.",
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
         },
         "packageId": {
           "type": "string"

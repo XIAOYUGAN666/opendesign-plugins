@@ -42,6 +42,7 @@
     "PluginConnectionStateV1": {
       "type": "string",
       "enum": [
+        "unverified",
         "missingSecret",
         "storedUnverified",
         "softwareUnavailable",
