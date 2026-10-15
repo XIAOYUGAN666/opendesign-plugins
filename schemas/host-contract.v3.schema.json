@@ -1376,6 +1376,12 @@
         "mcpReady": {
           "type": "boolean"
         },
+        "operationId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "packageId": {
           "type": "string"
         },
