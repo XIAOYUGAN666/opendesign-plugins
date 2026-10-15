@@ -1352,6 +1352,14 @@
     "PluginToolsV2": {
       "additionalProperties": false,
       "properties": {
+        "activeThreadIds": {
+          "items": {
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
         "identity": {
           "$ref": "#/$defs/PluginIdentityV2"
         },
@@ -1383,7 +1391,8 @@
         "identity",
         "revision",
         "toolCatalogDigest",
-        "tools"
+        "tools",
+        "activeThreadIds"
       ],
       "title": "PluginToolsV2",
       "type": "object"
