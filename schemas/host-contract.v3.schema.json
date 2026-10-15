@@ -962,7 +962,9 @@
       "type": "string",
       "enum": [
         "install",
-        "update"
+        "update",
+        "uninstall",
+        "purge"
       ]
     },
     "PluginOperationStageV2": {
@@ -976,6 +978,8 @@
         "publishing",
         "activating",
         "reconciling",
+        "removing",
+        "purging",
         "completed"
       ]
     },
