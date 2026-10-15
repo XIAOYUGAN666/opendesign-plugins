@@ -106,7 +106,7 @@ jobs:
         working-directory: plugins/${{ matrix.plugin }}/provider
         shell: pwsh
         run: |
-          uv sync --frozen --extra test --extra build --python (Get-Command python).Source
+          uv sync --frozen --extra test --python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           uv run --frozen --extra test python -B -m pytest -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
