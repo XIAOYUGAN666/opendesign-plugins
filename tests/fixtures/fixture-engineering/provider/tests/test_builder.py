@@ -23,7 +23,15 @@ def test_builder_outputs_real_embedded_interpreter_and_frozen_inventory(tmp_path
     assert configuration.get("title") == "ConfigurationV1", "configuration must come from the typed source"
     lifecycle_path = staged / "lifecycle.schema.json"
     lifecycle = json.loads(lifecycle_path.read_text()) if lifecycle_path.exists() else {}
-    assert lifecycle.get("properties", {}).get("kind", {}).get("const") == "ready", "the real ready frame must have a typed lifecycle declaration"
+    from fixture_engineering.managed_bootstrap import lifecycle_schema
+    from jsonschema import validate, ValidationError
+    assert lifecycle == lifecycle_schema()
+    ready = {"schemaVersion":2,"kind":"ready","mode":"metadata","connectorInstanceId":"ci_"+"1"*32,"generation":1,"providerBuildId":"sha256:"+"a"*64,"port":8123}
+    status = {"schemaVersion":1,"kind":"status","connectorInstanceId":"ci_"+"1"*32,"generation":1,"sequence":1,"state":"unknown","inFlight":0}
+    validate(ready,lifecycle)
+    validate(status,lifecycle)
+    for invalid in ({**status,"sequence":0},{**status,"state":"fabricated"},{**ready,"port":80},{**status,"secret":"forbidden"}):
+        with pytest.raises(ValidationError): validate(invalid,lifecycle)
     preview_schema_path = staged / "tool-preview.schema.json"
     preview_schema = json.loads(preview_schema_path.read_text()) if preview_schema_path.exists() else {}
     assert preview_schema.get("properties", {}).get("normalizationVersion", {}).get("const") == 1, "preview normalization must be locked by its typed contract"

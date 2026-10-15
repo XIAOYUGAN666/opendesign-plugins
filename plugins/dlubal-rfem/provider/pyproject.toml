@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dlubal-rfem-mcp"
+version = "0.1.0"
+description = "Independent RFEM-only MCP Provider for a managed desktop host"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastmcp==4.0.3",
+    "mcp==2.2.0",
+    "dlubal.api==2.14.13",
+    "pydantic>=2.13,<3",
+    "pydantic-settings>=2.11,<3",
+    "uvicorn[standard]>=0.30,<1",
+    "starlette>=1,<2",
+]
+
+[project.optional-dependencies]
+test = [
+    "cryptography==50.0.1",
+    "httpx>=0.28,<1",
+    "mypy>=1.15,<2",
+    "pytest>=8,<10",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+]
+
+[project.scripts]
+dlubal-rfem-mcp = "dlubal_rfem_mcp.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dlubal_rfem_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "live_rfem: opt-in test against a licensed local RFEM instance",
+]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.mypy]
+python_version = "3.12"
+check_untyped_defs = true
+ignore_missing_imports = true

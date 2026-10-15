@@ -17,6 +17,19 @@ NAMESPACE = "io.github.xiaoyugan666.native"
 MAX_ARCHIVE = 1024 * 1024 * 1024
 MAX_FILE = 256 * 1024 * 1024
 
+PROBE_PHASES = frozenset({"startup", "ready", "connect", "initialize", "listTools", "metadataCall", "runtime"})
+SAFE_ERRORS = frozenset({"outputMustBeFreshAndOutsideRepository", "missingSource", "reparseSource", "unsafeProviderModule", "rootChangedDuringBuild", "typedStagedCatalogMismatch", "invalidArtifact", "archiveReceiptMismatch", "releaseReceiptMismatch", "rootReleaseMismatch", "providerRootVersionMismatch", "providerRootInputsMismatch", "filesDigestMismatch", "invalidFileInventory", "fileDigestMismatch", "undeclaredFile", "toolCatalogDigestMismatch", "unsupportedPreviewNormalization", "startupDeclarationVersionMismatch", "sbomDigestMismatch", "riskEvidenceMismatch", "unknownBuildIdentityProfile", "buildIdentityMismatch", "sbomRuntimeMismatch", "stagedToolCatalogMismatch", "runtimeIsolationMismatch", "stagedProviderProbeFailed", "stagedProviderProbeTimeout", "providerReadyTimeout"}) | frozenset("stagedProviderProbeFailed_" + phase for phase in PROBE_PHASES)
+
+
+def safe_error_category(error):
+    if isinstance(error, ValueError) and str(error) in SAFE_ERRORS:
+        return str(error)
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "buildStepTimeout"
+    if isinstance(error, subprocess.CalledProcessError):
+        return "buildStepFailed"
+    return "verificationFailed"
+
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
@@ -119,12 +132,16 @@ PROBE = r'''
 import asyncio,json,os,socket,sys,uuid,platform
 from pathlib import Path
 from importlib.metadata import version
-from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
+from mcp import ClientSession
+from mcp.client.streamable_http import streamable_http_client
+from mcp.types import PaginatedRequestParams
+import httpx2
 from jsonschema import validators
 from referencing import Registry
 sys.stdout.reconfigure(encoding='utf-8')
+probe_stage='startup'
 async def main():
+ global probe_stage
  root=Path(sys.argv[1]); release=json.loads((root/'release.json').read_text('utf-8'))
  with socket.socket() as sock:
   sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
@@ -138,19 +155,58 @@ async def main():
  process=await asyncio.create_subprocess_exec(sys.executable,'-I','-s','-B','-m',release['module'],cwd=root,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.DEVNULL)
  try:
   process.stdin.write(json.dumps(envelope,separators=(',',':')).encode()); await process.stdin.drain(); process.stdin.close()
-  ready=json.loads(await asyncio.wait_for(process.stdout.readline(),30))
+  probe_stage='ready'
+  try: ready=json.loads(await asyncio.wait_for(process.stdout.readline(),30))
+  except TimeoutError: raise ValueError('providerReadyTimeout') from None
   expected={'schemaVersion':2,'kind':'ready','mode':'metadata','connectorInstanceId':connector,'generation':1,'providerBuildId':release['providerBuildId'],'port':port}
   if ready!=expected: raise ValueError('invalidReady')
-  async with Client(StreamableHttpTransport(f'http://127.0.0.1:{port}/mcp',auth=token)) as client:
-   tools=sorted([t.model_dump(mode='json',by_alias=True,exclude_none=True) for t in await client.list_tools()],key=lambda t:t['name'])
-  print(json.dumps({'preview':{'normalizationVersion':1,'tools':tools},'ready':ready,'runtime':{'python':platform.python_version(),'architecture':platform.machine(),'isolated':sys.flags.isolated,'fastmcp':version('fastmcp'),'mcp':version('mcp'),'executable':sys.executable}},ensure_ascii=False,separators=(',',':')))
+  async def drain_lifecycle():
+   sequence=0
+   lifecycle=json.loads((root/'lifecycle.schema.json').read_text('utf-8'))
+   while True:
+    line=await process.stdout.readline()
+    if not line: return
+    if len(line)>4096: raise ValueError('oversizedLifecycleFrame')
+    frame=json.loads(line)
+    validators.validator_for(lifecycle)(lifecycle,registry=Registry(retrieve=deny)).validate(frame)
+    if frame.get('kind')!='status' or frame.get('generation')!=1 or frame.get('connectorInstanceId')!=connector or type(frame.get('sequence')) is not int or frame['sequence']<=sequence: raise ValueError('invalidLifecycleStatus')
+    sequence=frame['sequence']
+  drain=asyncio.create_task(drain_lifecycle())
+  probe_stage='connect'
+  async with httpx2.AsyncClient(headers={'Authorization':'Bearer '+token},trust_env=False) as http:
+   async with streamable_http_client(f'http://127.0.0.1:{port}/mcp',http_client=http) as streams:
+    async with ClientSession(streams[0],streams[1]) as client:
+     probe_stage='initialize'
+     await client.initialize(); declarations=[]; cursor=None; seen=set()
+     probe_stage='listTools'
+     while True:
+      page=await client.list_tools(params=PaginatedRequestParams(cursor=cursor) if cursor else None)
+      declarations.extend(t.model_dump(mode='json',by_alias=True,exclude_none=True) for t in page.tools)
+      cursor=page.next_cursor
+      if not cursor: break
+      if cursor in seen or len(seen)>1024: raise ValueError('invalidToolPagination')
+      seen.add(cursor)
+     tools=sorted(declarations,key=lambda t:t['name'])
+     if len({t['name'] for t in tools})!=len(tools): raise ValueError('duplicateToolIdentity')
+     probe_stage='metadataCall'
+     for tool in tools:
+      result=await client.call_tool(tool['name'],{})
+      if not getattr(result,'is_error',False): raise ValueError('metadataToolDispatched')
+  probe_stage='runtime'
+  if drain.done() and drain.exception(): raise drain.exception()
+  print(json.dumps({'preview':{'normalizationVersion':1,'tools':tools},'ready':ready,'runtime':{'python':platform.python_version(),'architecture':platform.machine(),'isolated':sys.flags.isolated,'packages':{w['name']:version(w['name']) for w in json.loads((root/'runtime-lock.json').read_text('utf-8'))['wheels']},'executable':sys.executable}},ensure_ascii=False,separators=(',',':')))
  finally:
   if process.returncode is None: process.kill()
   await process.wait()
+  if 'drain' in locals():
+   drain.cancel()
+   try: await drain
+   except asyncio.CancelledError: pass
 try:
  asyncio.run(asyncio.wait_for(main(),65))
-except Exception:
- print('stagedProviderProbeFailed',file=sys.stderr)
+except Exception as error:
+ failure='providerReadyTimeout' if isinstance(error,ValueError) and str(error)=='providerReadyTimeout' else 'stagedProviderProbeTimeout' if isinstance(error,TimeoutError) else 'stagedProviderProbeFailed_'+probe_stage if probe_stage in {'startup','ready','connect','initialize','listTools','metadataCall','runtime'} else 'stagedProviderProbeFailed'
+ print(json.dumps({'probeFailure':failure},separators=(',',':')))
  raise SystemExit(1) from None
 '''
 
@@ -189,8 +245,37 @@ def discover(root):
         reader.join(timeout=10)
         process.stdout.close()
     if process.returncode or oversized.is_set() or reader.is_alive():
+        try:
+            failure = read_json(b"".join(chunks))
+            if set(failure) == {"probeFailure"} and failure["probeFailure"] in ({"providerReadyTimeout", "stagedProviderProbeTimeout"} | {"stagedProviderProbeFailed_" + phase for phase in PROBE_PHASES}):
+                raise ValueError(failure["probeFailure"])
+        except (TypeError, KeyError, json.JSONDecodeError):
+            pass
         raise ValueError("stagedProviderProbeFailed")
     return read_json(b"".join(chunks))
+
+
+def verify_build_identity(root, module, identity, expected):
+    """Rebuild a fixed public input profile from extracted bytes, never code."""
+    if set(identity) != {"profile", "files"} or identity["profile"] != "input-manifest-v1":
+        raise ValueError("unknownBuildIdentityProfile")
+    parts = module.split(".")
+    if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts):
+        raise ValueError("unsafeProviderModule")
+    base = root / "runtime/python/Lib/site-packages"
+    for name in ("pyproject.toml", "uv.lock"):
+        outer, embedded = root / name, base / name
+        if not outer.is_file() or not embedded.is_file() or outer.read_bytes() != embedded.read_bytes():
+            raise ValueError("providerRootInputsMismatch")
+    source = base / parts[0]
+    files = list(source.rglob("*.py")) + [base / "pyproject.toml", base / "uv.lock"]
+    for name in ("runtime-lock.json", "release-input.json"):
+        path = base / "packaging" / name
+        if path.exists():
+            files.append(path)
+    manifest = {path.relative_to(base).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
+    if not list(source.rglob("*.py")) or identity["files"] != manifest or expected != digest(canonical(manifest)):
+        raise ValueError("buildIdentityMismatch")
 
 
 def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, trusted_keys=None, unsigned_candidate=False) -> dict[str, str]:
@@ -275,8 +360,12 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
             raise ValueError("unsafeProviderModule")
         source_root = root / "runtime/python/Lib/site-packages" / module[0]
         sources = [{"path": p.relative_to(source_root).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(source_root.rglob("*.py"))]
-        if not sources or risk["sourceFiles"] != sources or risk["sourceDigest"] != digest(canonical(sources)) or risk["providerBuildId"] != release["providerBuildId"] or risk["providerBuildId"] != digest(canonical(sources)) or risk["previewDigest"] != release["toolCatalogDigest"] or risk["status"] != "pending-review/internal-fixture-only" or risk["engineeringAcceptance"] != "not-performed":
+        if not sources or risk["sourceFiles"] != sources or risk["sourceDigest"] != digest(canonical(sources)) or risk["providerBuildId"] != release["providerBuildId"] or risk["previewDigest"] != release["toolCatalogDigest"] or risk["status"] not in {"pending-review/internal-fixture-only", "pending-review/provider-candidate"} or risk["engineeringAcceptance"] != "not-performed":
             raise ValueError("riskEvidenceMismatch")
+        if "buildIdentity" in risk:
+            verify_build_identity(root, release["module"], risk["buildIdentity"], release["providerBuildId"])
+        elif risk["providerBuildId"] != digest(canonical(sources)):
+            raise ValueError("buildIdentityMismatch")
         locked = read_json((root / "runtime-lock.json").read_bytes())
         sbom = read_json((root / "sbom.spdx.json").read_bytes())
         expected_packages = {(x["name"], x["version"], x["url"], x["sha256"][7:]) for x in locked["wheels"]}
@@ -290,7 +379,7 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
             raise ValueError("stagedToolCatalogMismatch")
         validate(observed["ready"], read_json((root / "lifecycle.schema.json").read_bytes()))
         runtime = observed["runtime"]
-        if runtime["python"] != "3.12.10" or runtime["architecture"].upper() != "AMD64" or runtime["isolated"] != 1 or runtime["fastmcp"] != "4.0.3" or runtime["mcp"] != "2.2.0" or not Path(runtime["executable"]).is_relative_to(root):
+        if runtime["python"] != "3.12.10" or runtime["architecture"].upper() != "AMD64" or runtime["isolated"] != 1 or runtime["packages"] != {w["name"]:w["version"] for w in locked["wheels"]} or not Path(runtime["executable"]).is_relative_to(root):
             raise ValueError("runtimeIsolationMismatch")
     return {"archiveDigest": digest(data), "filesDigest": release["filesDigest"], "toolCatalogDigest": release["toolCatalogDigest"], "verification": "unsigned-candidate" if unsigned_candidate else "signed-receipt"}
 
@@ -307,8 +396,8 @@ def main():
     try:
         keys = {args.key_id: bytes.fromhex(args.public_key)} if args.public_key and args.key_id else None
         print(canonical(verify_artifact(args.archive, args.receipt, args.schema_bundle, trusted_keys=keys, unsigned_candidate=args.unsigned)).decode())
-    except Exception:
-        parser.exit(1, "artifactVerificationFailed\n")
+    except Exception as error:
+        parser.exit(1, "artifactVerificationFailed:" + safe_error_category(error) + "\n")
 
 
 if __name__ == "__main__":

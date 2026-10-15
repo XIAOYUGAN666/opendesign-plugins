@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "description": "RFEM 插件已安装。使用建模、计算和结果读取功能前，需要配置 Dlubal API Key。",
+  "properties": {
+    "dlubal-api-key": {
+      "description": "[Dlubal 官方 API Key 获取指南](https://apidocs.dlubal.com/access_control.html)",
+      "format": "password",
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Dlubal API Key",
+      "type": "string",
+      "writeOnly": true
+    }
+  },
+  "required": [
+    "dlubal-api-key"
+  ],
+  "title": "Dlubal RFEM",
+  "type": "object"
+}

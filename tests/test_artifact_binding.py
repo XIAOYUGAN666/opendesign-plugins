@@ -4,11 +4,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
 from scripts.build_artifact import check_source_closure
-from scripts.verify_artifact import safe_path
+from scripts.verify_artifact import safe_path, SAFE_ERRORS
+from scripts import verify_artifact as verifier
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "tests/fixtures/fixture-engineering"
@@ -26,7 +28,13 @@ class ArtifactBindingTests(unittest.TestCase):
         else:
             # RED baseline is the real T09 builder, not an import/path failure.
             command = [str(PYTHON), "-B", "-m", "scripts.build_fixture", "--output", str(cls.folder / "first")]
-        subprocess.run(command, cwd=PLUGIN / "provider", check=True, capture_output=True)
+        built = subprocess.run(command, cwd=PLUGIN / "provider", check=False, capture_output=True)
+        if built.returncode:
+            detail = built.stderr.decode("utf-8", errors="replace").strip()
+            prefix = "artifactBuildFailed:"
+            category = detail.removeprefix(prefix)
+            allowed = SAFE_ERRORS | {"buildStepTimeout", "buildStepFailed", "verificationFailed"}
+            raise AssertionError(detail if detail == prefix + category and category in allowed else "fixtureBuildFailed")
         cls.staged = cls.folder / "first/artifact"
         cls.release = json.loads((cls.staged / "release.json").read_text()) if (cls.staged / "release.json").exists() else {}
         cls.candidate = cls.folder / "first/unsigned-receipt.json"
@@ -35,6 +43,42 @@ class ArtifactBindingTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.temporary.cleanup()
+
+    def test_metadata_discovery_never_sends_loopback_bearer_through_system_proxy(self):
+        import http.server
+        import threading
+        from unittest.mock import patch
+
+        requests = []
+        class ProxyTrap(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                requests.append(True)
+                self.send_response(502)
+                self.end_headers()
+            do_GET = do_POST
+            def log_message(self, *args):
+                pass
+
+        proxy = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ProxyTrap)
+        worker = threading.Thread(target=proxy.serve_forever, daemon=True)
+        worker.start()
+        try:
+            url = "http://127.0.0.1:" + str(proxy.server_port)
+            injected = verifier.PROBE.replace("import httpx2\n", "import httpx2\nimport httpx2._utils\nhttpx2._utils.getproxies=lambda:{'http':" + repr(url) + "}\n")
+            failure = None
+            with patch("scripts.verify_artifact.PROBE", injected):
+                try:
+                    observed = verifier.discover(self.staged)
+                except ValueError as error:
+                    failure = error
+            self.assertEqual(requests, [], "loopback credentials were routed through the proxy")
+            if failure is not None:
+                raise failure
+            self.assertEqual({tool["name"] for tool in observed["preview"]["tools"]}, {"echo", "synthetic_write"})
+        finally:
+            proxy.shutdown()
+            proxy.server_close()
+            worker.join(timeout=5)
 
     def test_root_identity_drives_release(self):
         root = json.loads((self.staged / "plugin.json").read_text())
@@ -300,6 +344,93 @@ assert accepted,'valid required-secret declaration was treated as empty user con
             finally:
                 self.assertEqual(junction.parent, root / "skills")
                 os.rmdir(junction)  # Remove this owned junction, never its target.
+
+
+class InputManifestIdentityTests(unittest.TestCase):
+    def test_probe_failure_reports_only_a_fixed_stage_not_exception_text(self):
+        prefix, separator, _ = verifier.PROBE.rpartition("try:\n asyncio.run(asyncio.wait_for(main(),65))")
+        self.assertTrue(separator)
+        handler = verifier.PROBE[len(prefix):]
+        for phase in ("ready", "connect", "initialize", "listTools", "metadataCall", "runtime", "private-unknown-phase"):
+            injection = "\nasync def main():\n global probe_stage\n probe_stage=" + repr(phase) + "\n raise ExceptionGroup('private-token-and-path', [OSError('private-secret')])\n"
+            result = subprocess.run([str(PYTHON), "-B", "-c", prefix + injection + handler], cwd=ROOT, capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(result.stderr, "")
+            expected = "stagedProviderProbeFailed" if phase == "private-unknown-phase" else "stagedProviderProbeFailed_" + phase
+            self.assertEqual(json.loads(result.stdout), {"probeFailure": expected})
+            self.assertNotIn("private", result.stdout)
+
+    def test_input_manifest_rejects_mismatched_or_missing_root_project_inputs(self):
+        with tempfile.TemporaryDirectory(prefix="profile-root-input-") as folder:
+            root = Path(folder)
+            base = root / "runtime/python/Lib/site-packages"
+            (base / "example_provider").mkdir(parents=True)
+            (base / "example_provider/__init__.py").write_bytes(b"source")
+            for name in ("pyproject.toml", "uv.lock"):
+                (base / name).write_bytes(name.encode())
+                (root / name).write_bytes(name.encode())
+            manifest = {p.relative_to(base).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in base.rglob("*") if p.is_file()}
+            identity = {"profile":"input-manifest-v1","files":manifest}
+            build_id = verifier.digest(verifier.canonical(manifest))
+            verifier.verify_build_identity(root,"example_provider.managed_bootstrap",identity,build_id)
+            for name in ("pyproject.toml", "uv.lock"):
+                original = (root / name).read_bytes()
+                (root / name).write_bytes(original+b"changed")
+                with self.assertRaises(ValueError):
+                    verifier.verify_build_identity(root,"example_provider.managed_bootstrap",identity,build_id)
+                (root / name).unlink()
+                with self.assertRaises(ValueError):
+                    verifier.verify_build_identity(root,"example_provider.managed_bootstrap",identity,build_id)
+                (root / name).write_bytes(original)
+                (base / name).unlink()
+                with self.assertRaises(ValueError):
+                    verifier.verify_build_identity(root,"example_provider.managed_bootstrap",identity,build_id)
+                (base / name).write_bytes(original)
+
+    def test_build_cli_keeps_safe_stage_category_without_private_inputs(self):
+        result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/build_artifact.py"), str(PLUGIN), "--output", str(PLUGIN)], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stderr.strip(), "artifactBuildFailed:outputMustBeFreshAndOutsideRepository")
+        self.assertNotIn(str(PLUGIN), result.stderr)
+
+    def test_verify_cli_keeps_safe_category_without_private_filename(self):
+        with tempfile.TemporaryDirectory(prefix="safe-cli-") as folder:
+            archive = Path(folder) / "synthetic-secret-input.zip"
+            archive.write_bytes(b"")
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/verify_artifact.py"), str(archive), str(archive), str(ROOT / "schemas"), "--unsigned"], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stderr.strip(), "artifactVerificationFailed:invalidArtifact")
+            self.assertNotIn("synthetic-secret", result.stderr)
+
+    def test_input_manifest_binds_source_and_frozen_build_inputs(self):
+        self.assertTrue(callable(getattr(verifier, "verify_build_identity", None)), "input-manifest profile is unsupported")
+        with tempfile.TemporaryDirectory(prefix="build-identity-") as folder:
+            root = Path(folder)
+            base = root / "runtime/python/Lib/site-packages"
+            source = base / "example_provider"
+            source.mkdir(parents=True)
+            inputs = {"example_provider/__init__.py": b"source", "pyproject.toml": b"project", "uv.lock": b"lock", "packaging/runtime-lock.json": b"runtime", "packaging/release-input.json": b"release"}
+            for name, data in inputs.items():
+                path = base / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            for name in ("pyproject.toml", "uv.lock"):
+                (root / name).write_bytes(inputs[name])
+            manifest = {name: hashlib.sha256(data).hexdigest() for name, data in inputs.items()}
+            identity = {"profile": "input-manifest-v1", "files": manifest}
+            build_id = verifier.digest(verifier.canonical(manifest))
+            verifier.verify_build_identity(root, "example_provider.managed_bootstrap", identity, build_id)
+            for name in inputs:
+                with self.subTest(tampered=name):
+                    path = base / name
+                    original = path.read_bytes()
+                    path.write_bytes(original + b"tampered")
+                    with self.assertRaises(ValueError):
+                        verifier.verify_build_identity(root, "example_provider.managed_bootstrap", identity, build_id)
+                    path.write_bytes(original)
+            for declared in ({"profile": "unknown", "files": manifest}, {"profile": "input-manifest-v1", "files": {k: v for k, v in manifest.items() if k != "uv.lock"}}, {"profile": "input-manifest-v1", "files": {**manifest, "../outside": "0" * 64}}, {**identity, "base": "attacker"}):
+                with self.subTest(declaration=declared["profile"]), self.assertRaises(ValueError):
+                    verifier.verify_build_identity(root, "example_provider.managed_bootstrap", declared, build_id)
 
 
 if __name__ == "__main__":

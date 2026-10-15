@@ -8,9 +8,9 @@ import time
 import zipfile
 
 try:
-    from .verify_artifact import canonical, digest, discover, read_json, release_identity
+    from .verify_artifact import canonical, digest, discover, read_json, release_identity, safe_error_category
 except ImportError:
-    from verify_artifact import canonical, digest, discover, read_json, release_identity
+    from verify_artifact import canonical, digest, discover, read_json, release_identity, safe_error_category
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/fixture-engineering"
@@ -41,23 +41,28 @@ def check_source_closure(plugin_root):
                 check(path)
 
 
-def build_artifact(plugin_root: Path, output_dir: Path) -> Path:
+def build_artifact(plugin_root: Path, output_dir: Path, *, cache_dir: Path | None = None) -> Path:
     plugin_root = plugin_root.resolve(strict=True)
     output_dir = output_dir.resolve()
-    if plugin_root != FIXTURE.resolve():
-        raise ValueError("providerBuilderNotMigrated")
     if output_dir.is_relative_to(ROOT) or output_dir.exists():
         raise ValueError("outputMustBeFreshAndOutsideRepository")
     check_source_closure(plugin_root)
     tool_python = plugin_root / "provider/.venv/Scripts/python.exe"
     environment = {k: os.environ[k] for k in ("SystemRoot", "WINDIR", "TEMP", "TMP", "PATH", "USERPROFILE", "LOCALAPPDATA", "APPDATA") if k in os.environ}
-    subprocess.run([str(tool_python), "-B", "-m", "scripts.build_fixture", "--output", str(output_dir)], cwd=plugin_root / "provider", env=environment, check=True, capture_output=True, timeout=180)
+    fixture = plugin_root == FIXTURE.resolve()
+    command = [str(tool_python), "-B", "-m", "scripts.build_fixture", "--output", str(output_dir)] if fixture else [str(tool_python), "-B", "-m", "scripts.build_plugin", "--plugin-root", str(plugin_root), "--stage-only", "--output", str(output_dir), "--cache", str(cache_dir or plugin_root / "provider/cache/downloads")]
+    subprocess.run(command, cwd=plugin_root / "provider", env=environment, check=True, capture_output=True, timeout=600)
+    return _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture)
+
+
+def _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture):
+    """One mandatory finalization path; existing stages are reused only by tests."""
     staged = output_dir / "artifact"
     identity = read_json((staged / "plugin.json").read_bytes())
     if (staged / "plugin.json").read_bytes() != (plugin_root / "plugin.json").read_bytes():
         raise ValueError("rootChangedDuringBuild")
     release = release_identity(identity)
-    release["providerBuildId"] = read_json((staged / "fixture-build.json").read_bytes())["providerBuildId"]
+    release["providerBuildId"] = read_json((staged / ("fixture-build.json" if fixture else "provider-build.json")).read_bytes())["providerBuildId"]
     # The public startup/MCP probe needs only this provisional release identity.
     (staged / "release.json").write_bytes(canonical(release))
     observed = discover(staged)
@@ -65,7 +70,8 @@ def build_artifact(plugin_root: Path, output_dir: Path) -> Path:
     if preview != read_json((staged / "tool-preview.json").read_bytes()):
         raise ValueError("typedStagedCatalogMismatch")
     (staged / "tool-preview.json").write_bytes(canonical(preview))
-    (staged / "README.md").write_bytes(
+    if fixture:
+        (staged / "README.md").write_bytes(
         ("# Internal fixture\n\nSynthetic test artifact only; never authorizes Stable publication.\n"
          "Standard clients may read workflow skills. Native MCP tools require the compatible Windows Host; "
          "metadata mode lists tools and refuses execution. No engineering software or credential is used.\n").encode()
@@ -88,7 +94,7 @@ def build_artifact(plugin_root: Path, output_dir: Path) -> Path:
     receipt = output_dir / "unsigned-receipt.json"
     receipt.write_bytes(canonical(candidate))
     # Independently extract final bytes in the fixture's tool environment.
-    subprocess.run([str(tool_python), "-B", str(ROOT / "scripts/verify_artifact.py"), str(archive_path), str(receipt), str(ROOT / "schemas"), "--unsigned"], cwd=ROOT, env=environment, check=True, capture_output=True, timeout=120)
+    subprocess.run([str(tool_python), "-B", str(ROOT / "scripts/verify_artifact.py"), str(archive_path), str(receipt), str(ROOT / "schemas"), "--unsigned"], cwd=ROOT, env=environment, check=True, capture_output=True, timeout=300)
     return archive_path
 
 
@@ -96,6 +102,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("plugin_root", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--cache", type=Path)
     parser.add_argument("--generate-release-input", action="store_true")
     args = parser.parse_args()
     try:
@@ -107,9 +114,9 @@ def main():
         else:
             if not args.output:
                 parser.error("--output required")
-            print(build_artifact(args.plugin_root, args.output))
-    except Exception:
-        parser.exit(1, "artifactBuildFailed\n")
+            print(build_artifact(args.plugin_root, args.output, cache_dir=args.cache))
+    except Exception as error:
+        parser.exit(1, "artifactBuildFailed:" + safe_error_category(error) + "\n")
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import canonicalize_name, parse_wheel_filename
-from fixture_engineering.managed_bootstrap import ConfigurationV1, ReadyV2, RiskReviewV1, StartupEnvelopeV2, ToolPreviewV1, provider_build_id
+from fixture_engineering.managed_bootstrap import ConfigurationV1, RiskReviewV1, StartupEnvelopeV2, ToolPreviewV1, provider_build_id, lifecycle_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = {
@@ -277,7 +277,7 @@ def build_fixture(plugin_root: Path, output_dir: Path) -> Path:
     (staged / "configuration.schema.json").write_bytes(
         canonical(ConfigurationV1.model_json_schema())
     )
-    (staged / "lifecycle.schema.json").write_bytes(canonical(ReadyV2.model_json_schema()))
+    (staged / "lifecycle.schema.json").write_bytes(canonical(lifecycle_schema()))
     preview = ToolPreviewV1(normalizationVersion=1, tools=asyncio.run(typed_declarations())).model_dump(mode="json", by_alias=True, exclude_none=True)
     (staged / "tool-preview.schema.json").write_bytes(canonical(ToolPreviewV1.model_json_schema(by_alias=True)))
     (staged / "tool-preview.json").write_bytes(canonical(preview))

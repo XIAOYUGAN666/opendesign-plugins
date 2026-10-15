@@ -26,6 +26,7 @@ from pydantic import (
     SecretStr,
     field_validator,
     model_validator,
+    TypeAdapter,
 )
 
 
@@ -75,6 +76,7 @@ class StartupEnvelopeV2(ExactModel):
     providerBuildId: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
     data: Data | None = None
     software: Software | None = None
+    configuration: ConfigurationV1 | None = None
 
     @model_validator(mode="after")
     def execution_requires_binding(self):
@@ -107,7 +109,9 @@ class StartupEnvelopeV2(ExactModel):
 
 
 class ConfigurationV1(ExactModel):
-    """The fixture has no configurable fields or engineering secrets."""
+    """Explicit synthetic lifecycle state for production Host integration tests."""
+
+    lifecycleTestState: Literal["unknown", "idle", "running"] = "unknown"
 
 
 class ReadyV2(ExactModel):
@@ -127,6 +131,20 @@ class ToolPreviewV1(ExactModel):
 
     normalizationVersion: Literal[1]
     tools: list[Tool]
+
+
+class ProviderLifecycleStatusV1(ExactModel):
+    schemaVersion: Literal[1] = 1
+    kind: Literal["status"] = "status"
+    connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
+    generation: int = Field(ge=1, le=2**53 - 1)
+    sequence: int = Field(ge=1, le=2**53 - 1)
+    state: Literal["unknown", "idle", "running"]
+    inFlight: int = Field(ge=0)
+
+
+def lifecycle_schema():
+    return TypeAdapter(ReadyV2 | ProviderLifecycleStatusV1).json_schema()
 
 
 class SourceFileDigestV1(ExactModel):
@@ -303,6 +321,17 @@ async def serve(envelope: StartupEnvelopeV2, ready_stream):
                 + "\n"
             )
             ready_stream.flush()
+            sequence = 0
+            while not server.should_exit:
+                sequence += 1
+                state = envelope.configuration.lifecycleTestState if envelope.configuration else "unknown"
+                ready_stream.write(ProviderLifecycleStatusV1(
+                    connectorInstanceId=envelope.connectorInstanceId,
+                    generation=envelope.generation, sequence=sequence,
+                    state=state, inFlight=1 if state == "running" else 0,
+                ).model_dump_json() + "\n")
+                ready_stream.flush()
+                await asyncio.sleep(0.25)
 
         async with asyncio.TaskGroup() as group:
             group.create_task(server.serve(sockets=[sock]))
