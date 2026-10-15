@@ -1,0 +1,9 @@
+---
+name: rhino-mcp-bridge
+version: 0.1.2
+authors:
+  - Rhino MCP Developer
+keywords:
+  - guid:74a1e8f4-1134-4686-a3e5-ee8bf393dec9
+description: >
+  Managed connection between Rhino 8, Grasshopper, and the MCP provider.

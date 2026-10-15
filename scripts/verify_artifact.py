@@ -1,5 +1,7 @@
 """Independent extracted-byte verification; no Provider private imports."""
 import argparse
+import ast
+import email.parser
 import hashlib
 import io
 import json
@@ -257,6 +259,8 @@ def discover(root):
 
 def verify_build_identity(root, module, identity, expected):
     """Rebuild a fixed public input profile from extracted bytes, never code."""
+    if identity.get("profile") == "native-build-record-v1":
+        return verify_native_build_identity(root, module, identity, expected)
     if set(identity) != {"profile", "files"} or identity["profile"] != "input-manifest-v1":
         raise ValueError("unknownBuildIdentityProfile")
     parts = module.split(".")
@@ -276,6 +280,161 @@ def verify_build_identity(root, module, identity, expected):
     manifest = {path.relative_to(base).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
     if not list(source.rglob("*.py")) or identity["files"] != manifest or expected != digest(canonical(manifest)):
         raise ValueError("buildIdentityMismatch")
+
+
+def verify_native_build_identity(root, module, identity, expected):
+    """Verify public source records against deployed bytes; never execute them."""
+    if identity != {"profile": "native-build-record-v1", "recordPath": "contracts/provider-build.json"}:
+        raise ValueError("unknownBuildIdentityProfile")
+    try:
+        _verify_native_build_identity(root, module, expected)
+    except (OSError, ValueError, TypeError, KeyError, SyntaxError, UnicodeError, RecursionError):
+        raise ValueError("buildIdentityMismatch") from None
+
+
+def _verify_native_build_identity(root, module, expected):
+    parts = module.split(".")
+    if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts):
+        raise ValueError("invalidModule")
+    record = read_json((root / "contracts/provider-build.json").read_bytes())
+    if set(record) != {"schemaVersion", "packageId", "releaseVersion", "providerSource", "contractSource", "buildInputs", "pythonRuntime", "native"} or record["schemaVersion"] != 1 or type(record["schemaVersion"]) is not int:
+        raise ValueError("invalidRecord")
+    plugin = read_json((root / "plugin.json").read_bytes())
+    if record["packageId"] != plugin["name"] or record["releaseVersion"] != plugin["version"] or expected != digest(canonical(record)):
+        raise ValueError("invalidRecordIdentity")
+    native = record["native"]
+    if set(native) != {"targetFrameworks", "pluginId", "inputs"} or native["targetFrameworks"] != ["net48", "net8.0"] or not re.fullmatch(r"[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}", native["pluginId"]):
+        raise ValueError("invalidNativeRecord")
+
+    def records(items):
+        result, seen = {}, set()
+        if not isinstance(items, list) or not items:
+            raise ValueError("missingInputs")
+        for item in items:
+            if set(item) != {"path", "sha256"}:
+                raise ValueError("invalidInput")
+            path = item["path"]
+            safe_path(path)
+            if path.casefold() in seen or not re.fullmatch(r"sha256:[a-f0-9]{64}", item["sha256"]):
+                raise ValueError("duplicateInput")
+            seen.add(path.casefold())
+            result[path] = item["sha256"]
+        return result
+
+    base = root / "runtime/python/Lib/site-packages"
+    source = base / parts[0]
+    actual = {}
+    for path in sorted(source.rglob("*")):
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
+        data = path.read_bytes()
+        if path == source / "build_identity.py":
+            text = data.decode("utf-8")
+            tree = ast.parse(text)
+            stores = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id == "PROVIDER_BUILD_ID"]
+            assignment = 'PROVIDER_BUILD_ID = "' + expected + '"'
+            if len(stores) != 1 or text.splitlines().count(assignment) != 1:
+                raise ValueError("invalidBuildAssignment")
+            data = text.replace(assignment, 'PROVIDER_BUILD_ID = "<provider-build-id>"', 1).encode("utf-8")
+        actual[path.relative_to(base).as_posix()] = digest(data)
+    declared = records(record["providerSource"])
+    if source / "build_identity.py" not in source.rglob("*.py") or declared != actual:
+        raise ValueError("providerInputMismatch")
+    actual_contracts = {path.relative_to(root).as_posix(): digest(path.read_bytes()) for path in sorted((root / "contracts").rglob("*.json")) if path.name not in {"provider-build.json", "tool-catalog.json"}}
+    if records(record["contractSource"]) != actual_contracts:
+        raise ValueError("contractInputMismatch")
+    build_inputs = records(record["buildInputs"])
+    native_inputs = records(native["inputs"])
+    required = {"provider/pyproject.toml", "provider/uv.lock", "global.json", "provider/packaging/runtime-lock.json", "native/packages.lock.json", "native/package/manifest.yml"}
+    projects = {name for name in native_inputs if re.fullmatch(r"native/[^/]+\.csproj", name)}
+    if len(projects) != 1 or set(build_inputs) != required | projects or not all(name.startswith("native/") and (name.endswith(".cs") or name in projects or name in {"native/packages.lock.json", "native/package/manifest.yml"}) for name in native_inputs):
+        raise ValueError("invalidInputSet")
+    all_inputs = dict(build_inputs)
+    for name, value in native_inputs.items():
+        if name in all_inputs and all_inputs[name] != value:
+            raise ValueError("conflictingInput")
+        all_inputs[name] = value
+    staged_inputs = {path.relative_to(root / "source-inputs").as_posix(): digest(path.read_bytes()) for path in (root / "source-inputs").rglob("*") if path.is_file()}
+    if staged_inputs != all_inputs:
+        raise ValueError("sourceInputMismatch")
+    for name in ("pyproject.toml", "uv.lock"):
+        original = root / "source-inputs/provider" / name
+        if original.read_bytes() != (root / name).read_bytes() or original.read_bytes() != (base / name).read_bytes():
+            raise ValueError("deployedInputMismatch")
+    runtime_bytes = (root / "source-inputs/provider/packaging/runtime-lock.json").read_bytes()
+    if runtime_bytes != (base / "packaging/runtime-lock.json").read_bytes():
+        raise ValueError("runtimeInputMismatch")
+    runtime = read_json(runtime_bytes)["python"]
+    if record["pythonRuntime"] != {key: runtime[key] for key in ("version", "architecture", "byteLength", "sha256")}:
+        raise ValueError("runtimeIdentityMismatch")
+    effective = read_json((root / "runtime-lock.json").read_bytes())
+    if set(effective) != {"schemaVersion", "python", "platform", "wheels", "native"} or effective["schemaVersion"] != 1 or type(effective["schemaVersion"]) is not int or effective["platform"] != "windows-x86_64-cp312" or effective["python"] != runtime:
+        raise ValueError("effectiveRuntimeMismatch")
+    frozen = tomllib.loads((base / "uv.lock").read_text("utf-8"))
+    normalize = lambda name: re.sub(r"[-_.]+", "-", name).lower()
+    installed = {}
+    installed_tags = {}
+    for path in base.glob("*.dist-info/METADATA"):
+        metadata = email.parser.BytesParser().parsebytes(path.read_bytes())
+        name, version = normalize(metadata["Name"]), metadata["Version"]
+        if name in installed or not isinstance(version, str):
+            raise ValueError("duplicateDistribution")
+        installed[name] = version
+        wheel_metadata = email.parser.BytesParser().parsebytes((path.parent / "WHEEL").read_bytes())
+        installed_tags[name] = set(wheel_metadata.get_all("Tag", []))
+    # The verifier runs in the locked Windows CP312 tool environment, not the
+    # extracted Provider. Reuse public wheel rules rather than copy tag logic.
+    from packaging.tags import sys_tags
+    from packaging.utils import parse_wheel_filename
+    target_tags = {tag: rank for rank, tag in enumerate(sys_tags())}
+    selected = {}
+    for wheel in effective["wheels"]:
+        if set(wheel) != {"name", "version", "filename", "url", "byteLength", "sha256"} or wheel["name"] != normalize(wheel["name"]) or wheel["name"] in selected:
+            raise ValueError("invalidRuntimeWheel")
+        packages = [package for package in frozen["package"] if normalize(package["name"]) == wheel["name"] and package["version"] == wheel["version"]]
+        if len(packages) != 1 or not any(wheel["url"] == candidate["url"] and wheel["sha256"] == candidate["hash"] and wheel["byteLength"] == candidate["size"] and wheel["filename"] == candidate["url"].rsplit("/", 1)[-1] for candidate in packages[0].get("wheels", [])):
+            raise ValueError("unfrozenRuntimeWheel")
+        candidates = []
+        for candidate in packages[0].get("wheels", []):
+            filename = candidate["url"].rsplit("/", 1)[-1]
+            tags = parse_wheel_filename(filename)[3]
+            matches = [target_tags[tag] for tag in tags if tag in target_tags]
+            if matches:
+                candidates.append((min(matches), filename))
+        if not candidates or wheel["filename"] != min(candidates)[1] or {str(tag) for tag in parse_wheel_filename(wheel["filename"])[3]} != installed_tags.get(wheel["name"]):
+            raise ValueError("runtimeWheelTargetMismatch")
+        selected[wheel["name"]] = wheel["version"]
+    if selected != installed:
+        raise ValueError("installedRuntimeMismatch")
+
+
+def native_runtime_packages(root, release, locked):
+    """Native components contributed to the exact runtime package inventory."""
+    native = release.get("native")
+    if native is None:
+        if locked.get("native", []) != []:
+            raise ValueError("nativeArtifactMismatch")
+        return set()
+    try:
+        path = native["relativePath"]
+        data = root.joinpath(*safe_path(path)).read_bytes()
+        expected_lock = [{"name": native["packageId"], "version": native["version"], "path": path, "sha256": native["sha256"]}]
+        record = read_json((root / "contracts/provider-build.json").read_bytes())
+        if locked.get("native") != expected_lock or digest(data) != native["sha256"] or record["native"]["pluginId"] != native["pluginId"] or record["native"]["targetFrameworks"] != ["net48", "net8.0"] or digest((root / "contracts/protocol.json").read_bytes()) != native["contractDigest"]:
+            raise ValueError("invalidNativeBinding")
+        # This checks container closure, not assembly semantics. The existing
+        # trusted native verifier checks GUID/build metadata and capability.
+        with tempfile.TemporaryDirectory(prefix="native-container-") as temporary:
+            extracted = Path(temporary)
+            extract(io.BytesIO(data), extracted)
+            names = {p.relative_to(extracted).as_posix() for p in extracted.rglob("*") if p.is_file()}
+            if "manifest.yml" not in names or not all(name == "manifest.yml" or re.fullmatch(r"(?:net48|net8\.0)/[^/]+\.(?:rhp|dll)", name) for name in names) or any(not any(name.startswith(target + "/") and name.endswith(".rhp") for name in names) for target in ("net48", "net8.0")):
+                raise ValueError("invalidNativeMembers")
+            if any(Path(name).name.casefold() in {"rhinocommon.dll", "rhino.ui.dll", "eto.dll", "grasshopper.dll", "gh_io.dll"} or (Path(name).name.casefold().startswith("eto.") and name.lower().endswith(".dll")) for name in names):
+                raise ValueError("bundledSoftwareAssembly")
+    except (OSError, ValueError, TypeError, KeyError, zipfile.BadZipFile):
+        raise ValueError("nativeArtifactMismatch") from None
+    return {(native["packageId"], native["version"], "NOASSERTION", native["sha256"][7:])}
 
 
 def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, trusted_keys=None, unsigned_candidate=False) -> dict[str, str]:
@@ -371,6 +530,7 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         expected_packages = {(x["name"], x["version"], x["url"], x["sha256"][7:]) for x in locked["wheels"]}
         expected_packages.add(("python", "3.12.10", locked["python"]["url"], locked["python"]["sha256"][7:]))
         expected_packages.add((identity["name"], identity["version"], "NOASSERTION", release["providerBuildId"][7:]))
+        expected_packages.update(native_runtime_packages(root, release, locked))
         actual_packages = {(x["name"], x["versionInfo"], x["downloadLocation"], x["checksums"][0]["checksumValue"]) for x in sbom["packages"]}
         if sbom["name"] != identity["name"] or len(sbom["packages"]) != len(expected_packages) or actual_packages != expected_packages or any(x["checksums"][0]["algorithm"] != "SHA256" for x in sbom["packages"]):
             raise ValueError("sbomRuntimeMismatch")

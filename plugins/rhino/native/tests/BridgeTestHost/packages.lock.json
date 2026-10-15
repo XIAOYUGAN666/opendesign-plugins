@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Grasshopper": {
+        "type": "Direct",
+        "requested": "[8.17.25066.7001, )",
+        "resolved": "8.17.25066.7001",
+        "contentHash": "hBT1wDALyQbsmb1t73dXCgP90zr3PTiU6U00WfCl+m+N1MfI54vK0foRT9sAHe9UaHfNeT9GILQRtswrAXrtww==",
+        "dependencies": {
+          "RhinoCommon": "[8.17.25066.7001]"
+        }
+      },
+      "RhinoCommon": {
+        "type": "Direct",
+        "requested": "[8.17.25066.7001, )",
+        "resolved": "8.17.25066.7001",
+        "contentHash": "FJfat3RJww5RM9vT6v9P2U1FoOwBOrj8io8r3Tv9H/e5GJVjjQtxpER76TA47PnZLcu1158P/I0f0qUCsWHWog=="
+      }
+    }
+  }
+}

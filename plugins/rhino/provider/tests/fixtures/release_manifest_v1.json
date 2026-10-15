@@ -1,0 +1,39 @@
+{
+  "manifestSchemaVersion": 1,
+  "packageId": "rhino",
+  "pluginVersion": "0.1.0",
+  "releaseSequence": 1,
+  "artifactVariantId": "windows-x86_64-rhino-8",
+  "platform": {"os": "windows", "architecture": "x86_64"},
+  "hostContract": {"min": 1, "max": 1},
+  "agentContract": {"min": 1, "max": 1},
+  "startupEnvelopeVersion": 1,
+  "entrypoint": "runtime/python/python.exe",
+  "module": "rhino_mcp.managed_bootstrap",
+  "components": [
+    {"kind": "provider", "id": "rhino"},
+    {"kind": "native", "id": "rhino-mcp-bridge"}
+  ],
+  "mcp": {"transport": "streamable-http", "path": "/mcp"},
+  "software": {
+    "product": "rhino",
+    "major": 8,
+    "supportedBuilds": ["8.17.25066.7001"]
+  },
+  "adapter": {"distribution": "rhino-common", "version": "8.17.0"},
+  "providerBuildId": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "toolCatalogDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "configurationSchemaVersion": 1,
+  "filesDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "sbomDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "native": {
+    "packageId": "rhino-mcp-bridge",
+    "version": "0.1.0",
+    "relativePath": "native/rhino-mcp-bridge-0.1.0-rh8-win.yak",
+    "sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "contractVersion": 1,
+    "contractDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "capabilityDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9"
+  }
+}

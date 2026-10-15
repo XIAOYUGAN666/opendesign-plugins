@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=75,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rhino-mcp-provider"
+version = "0.1.2"
+description = "Managed MCP provider for Rhino 8"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "mcp==2.2.0",
+    "jsonschema>=4.23,<5",
+    "pydantic>=2.13,<3",
+    "starlette>=1,<2",
+    "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+test = [
+    "build>=1,<2",
+    "cryptography==50.0.1",
+    "httpx>=0.28,<1",
+    "mypy>=1.15,<2",
+    "pytest>=8,<10",
+    "pytest-asyncio>=1,<2",
+    "ruff>=0.12,<1",
+    "types-jsonschema>=4.26,<4.27",
+]
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rhino_mcp*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+rhino_mcp = ["guides/*.md", "static/*.py", "static/source/*.py"]
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = ["rhino_mcp/static/source/**"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.format]
+# These docstrings are MCP Tool.description payloads; formatting whitespace changes the frozen catalog.
+exclude = [
+    "rhino_mcp/tools/create_objects.py",
+    "rhino_mcp/tools/delete_layer.py",
+    "rhino_mcp/tools/get_object_info.py",
+    "rhino_mcp/tools/get_or_set_current_layer.py",
+    "rhino_mcp/tools/get_selected_objects_info.py",
+    "rhino_mcp/tools/modify_objects.py",
+    "rhino_mcp/tools/select_objects.py",
+]
+
+[tool.mypy]
+exclude = '^rhino_mcp/static/source/'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = [".", "scripts"]

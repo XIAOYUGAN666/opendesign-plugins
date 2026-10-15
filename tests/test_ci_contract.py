@@ -9,6 +9,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CiContractTests(unittest.TestCase):
+    def test_native_provider_ci_builds_its_owned_test_host_before_python_tests(self):
+        workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
+        provider_job = workflow.split("\n  provider:\n", 1)[1]
+        build = "dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true"
+        self.assertIn(build, provider_job, "Real process interoperability requires the native host to be built, not skipped")
+        self.assertLess(provider_job.index(build), provider_job.index("uv run --frozen --extra test python -B -m pytest -q"))
+        self.assertIn("working-directory: plugins/${{ matrix.plugin }}\n", provider_job)
+        self.assertRegex(provider_job, r"actions/setup-dotnet@[a-f0-9]{40}")
+
     def test_verify_sync_requests_only_extras_owned_by_each_project(self):
         # Catches reusing fixture-only extras for a migrated real Provider.
         workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")

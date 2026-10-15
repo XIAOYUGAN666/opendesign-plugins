@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net48;net8.0</TargetFrameworks>
+    <LangVersion>12.0</LangVersion>
+    <AssemblyName>RhinoMcpBridge</AssemblyName>
+    <RootNamespace>RhinoMcpBridge</RootNamespace>
+    <Version>0.1.2</Version>
+    <AssemblyVersion>0.1.2.0</AssemblyVersion>
+    <FileVersion>0.1.2.0</FileVersion>
+    <InformationalVersion>0.1.2</InformationalVersion>
+    <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <TargetExt>.rhp</TargetExt>
+    <NoWarn>$(NoWarn);NU1701;NETSDK1086</NoWarn>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RhinoCommonVersion>8.17.25066.7001</RhinoCommonVersion>
+    <RhinoProviderBuildId Condition="'$(RhinoProviderBuildId)' == ''">sha256:0000000000000000000000000000000000000000000000000000000000000000</RhinoProviderBuildId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
+    <EmbeddedResource Include="..\contracts\protocol.json" LogicalName="RhinoMcpBridge.contracts.protocol.json" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net48'" />
+    <PackageReference Include="RhinoCommon" Version="$(RhinoCommonVersion)" ExcludeAssets="runtime" />
+    <PackageReference Include="Grasshopper" Version="$(RhinoCommonVersion)" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Text.Json" Version="10.0.12" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" Version="4.8.0" />
+    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+  </ItemGroup>
+
+  <Target Name="GenerateRhinoProviderBuildMetadata" BeforeTargets="CoreCompile">
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>RhinoProviderBuildId</_Parameter1>
+        <_Parameter2>$(RhinoProviderBuildId)</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+    <WriteCodeFragment
+      AssemblyAttributes="@(AssemblyAttribute)"
+      Language="C#"
+      OutputDirectory="$(IntermediateOutputPath)"
+      OutputFile="RhinoProviderBuildMetadata.g.cs">
+      <Output TaskParameter="OutputFile" ItemName="Compile" />
+      <Output TaskParameter="OutputFile" ItemName="FileWrites" />
+    </WriteCodeFragment>
+  </Target>
+</Project>

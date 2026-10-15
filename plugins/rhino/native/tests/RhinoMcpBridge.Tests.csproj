@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="BridgeTestHost\**\*.cs" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
+    <PackageReference Include="xunit.v3" Version="4.0.1" />
+    <PackageReference Include="System.Text.Json" Version="10.0.12" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference
+      Include="RhinoCommon"
+      Version="8.17.25066.7001"
+      GeneratePathProperty="true"
+      ExcludeAssets="runtime"
+    />
+    <PackageReference Include="Grasshopper" Version="8.17.25066.7001" GeneratePathProperty="true" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RhinoMcpBridge.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="BridgeTestHost\BridgeTestHost.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None
+      Include="$(PkgRhinoCommon)\lib\net48\RhinoCommon.dll"
+      Link="RhinoCommon.dll"
+      CopyToOutputDirectory="PreserveNewest"
+    />
+    <None Include="$(PkgGrasshopper)\lib\net48\Grasshopper.dll" Link="Grasshopper.dll" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="$(PkgGrasshopper)\lib\net48\GH_IO.dll" Link="GH_IO.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

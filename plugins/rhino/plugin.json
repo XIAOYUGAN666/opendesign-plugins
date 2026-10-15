@@ -55,7 +55,17 @@
         "version": 1
       },
       "configurationSchemaPath": "configuration.schema.json",
-      "secretSlots": []
+      "secretSlots": [],
+      "native": {
+        "capabilityDigest": "sha256:31deb833e6191571e9e05103f5af047347d685a020d129ed983b1a365b8dfab6",
+        "contractDigest": "sha256:3deffd5de2f9f7b44a968b63aaad67334cdf7a1f6c9a6bc847b914d8b615c9a9",
+        "contractVersion": 1,
+        "packageId": "rhino-mcp-bridge",
+        "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
+        "relativePath": "native/rhino-mcp-bridge-0.1.2-rh8-win.yak",
+        "sha256": "sha256:b04a9c36c2fca97eb5b9a1ddf6294a4b2a4e175bdcbf2f46630002359d90c391",
+        "version": "0.1.2"
+      }
     }
   }
 }

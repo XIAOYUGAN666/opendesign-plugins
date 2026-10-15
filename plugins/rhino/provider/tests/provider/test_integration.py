@@ -1,0 +1,1556 @@
+"""
+Integration tests using the mock Rhino server.
+
+These tests verify the full flow from MCP tools through to the server response.
+"""
+
+import json
+import pytest
+import socket
+import time
+from tests.fixtures.mock_rhino_server import MockRhinoServer
+from rhino_mcp.bridge import BridgeClient
+
+
+@pytest.fixture(scope="module")
+def mock_server():
+    """Start mock server for the test module."""
+    server = MockRhinoServer()
+    server.start()
+    time.sleep(0.1)  # Give server time to start
+
+    yield server
+
+    server.stop()
+
+
+@pytest.fixture(autouse=True)
+def request_scoped_connection(mock_server, monkeypatch):
+    """Give each direct-command test its own explicit Bridge test dependency."""
+    import rhino_mcp.server as server_module
+    from rhino_mcp.server import RhinoConnection
+
+    bridge = BridgeClient(mock_server.provider_config())
+    connection = RhinoConnection(bridge)
+    bridge.connect()
+    monkeypatch.setattr(
+        server_module, "get_rhino_connection", lambda ctx=None: connection
+    )
+    yield connection
+    bridge.disconnect()
+
+
+@pytest.fixture
+def legacy_mock_server():
+    """A plugin from before dry_run existed, on its own port. Tests reach it
+    through an explicit connection, so the global one is left alone."""
+    server = MockRhinoServer(legacy_plugin=True)
+    server.start()
+    time.sleep(0.1)
+
+    yield server
+
+    server.stop()
+
+
+class TestCreateObject:
+    """Integration tests for create_object."""
+
+    def test_create_box(self, mock_server):
+        """Test creating a box."""
+        from rhino_mcp.server import get_rhino_connection
+
+        # Reset connection for fresh start
+        conn = get_rhino_connection()
+        result = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "TestBox",
+                "params": {"width": 1, "length": 2, "height": 3},
+            },
+        )
+
+        assert result["name"] == "TestBox"
+        assert result["type"] == "BOX"
+        assert "id" in result
+
+    def test_create_sphere_with_color(self, mock_server):
+        """Test creating a sphere with color."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        result = conn.send_command(
+            "create_object",
+            {
+                "type": "SPHERE",
+                "name": "RedSphere",
+                "color": [255, 0, 0],
+                "params": {"radius": 5},
+            },
+        )
+
+        assert result["name"] == "RedSphere"
+        assert result["color"]["r"] == 255
+
+    def test_create_multiple_objects(self, mock_server):
+        """Test batch object creation."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        result = conn.send_command(
+            "create_objects",
+            {
+                "Box1": {
+                    "type": "BOX",
+                    "name": "Box1",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+                "Box2": {
+                    "type": "BOX",
+                    "name": "Box2",
+                    "params": {"width": 2, "length": 2, "height": 2},
+                },
+            },
+        )
+
+        assert result["success_count"] == 2
+        assert result["failure_count"] == 0
+
+
+class TestModifyObject:
+    """Integration tests for modify_object."""
+
+    def test_rename_object(self, mock_server):
+        """Test renaming an object."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create object first
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "OriginalName",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        # Rename it
+        result = conn.send_command(
+            "modify_object", {"id": created["id"], "new_name": "NewName"}
+        )
+
+        assert result["name"] == "NewName"
+
+    def test_change_color(self, mock_server):
+        """Test changing object color."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        created = conn.send_command(
+            "create_object",
+            {"type": "SPHERE", "name": "ColorTest", "params": {"radius": 1}},
+        )
+
+        result = conn.send_command(
+            "modify_object", {"id": created["id"], "new_color": [0, 255, 0]}
+        )
+
+        assert result["color"]["g"] == 255
+
+
+class TestObjectAttributes:
+    """Integration tests for object attribute read/update commands."""
+
+    def test_get_and_update_object_attributes(self, mock_server):
+        """Test reading and updating user strings and common metadata."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        conn.send_command("create_layer", {"name": "Parts"})
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "RawBox",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        updated = conn.send_command(
+            "update_object_attributes",
+            {
+                "id": created["id"],
+                "new_name": "Panel",
+                "layer": "Parts",
+                "color": [10, 20, 30],
+                "user_strings": {"PartNo": "A-100", "Count": 3},
+            },
+        )
+
+        assert updated["name"] == "Panel"
+        assert updated["layer"]["name"] == "Parts"
+        assert updated["color"]["r"] == 10
+        assert updated["user_strings"]["PartNo"] == "A-100"
+        assert updated["user_strings"]["Count"] == "3"
+
+        attributes = conn.send_command("get_object_attributes", {"id": created["id"]})
+
+        assert attributes["name"] == "Panel"
+        assert attributes["user_strings"]["PartNo"] == "A-100"
+
+    def test_update_object_attributes_deletes_user_strings(self, mock_server):
+        """Test deleting user strings without shipping full object geometry."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "AttrBox",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+        conn.send_command(
+            "update_object_attributes",
+            {"id": created["id"], "user_strings": {"Keep": "yes", "Drop": "no"}},
+        )
+
+        updated = conn.send_command(
+            "update_object_attributes",
+            {"id": created["id"], "delete_user_strings": ["Drop"]},
+        )
+
+        assert updated["user_strings"] == {"Keep": "yes"}
+
+    def test_update_object_attributes_clears_material_index(self, mock_server):
+        """material_index=-1 restores layer material inheritance."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "MaterialBox",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+        conn.send_command(
+            "update_object_attributes", {"id": created["id"], "material_index": 0}
+        )
+
+        updated = conn.send_command(
+            "update_object_attributes", {"id": created["id"], "material_index": -1}
+        )
+
+        assert updated["material_index"] == -1
+        assert updated["material_source"] == "MaterialFromLayer"
+
+
+class TestAnalyzeObjects:
+    """Integration tests for analyze_objects."""
+
+    def test_analyze_line_length(self, mock_server):
+        """Analyze a line and get length/bounding-box feedback."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "LINE",
+                "name": "MeasuredLine",
+                "params": {"start": [0, 0, 0], "end": [3, 4, 0]},
+            },
+        )
+
+        result = conn.send_command("analyze_objects", {"id": created["id"]})
+
+        assert result["object_count"] == 1
+        analysis = result["analyses"][0]
+        assert analysis["valid"] is True
+        assert analysis["type"] == "LINE"
+        assert analysis["metrics"]["length"] == 5
+
+    def test_analyze_multiple_objects(self, mock_server):
+        """Analyze multiple objects in one command."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        box = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "MeasuredBox",
+                "params": {"width": 2, "length": 3, "height": 4},
+            },
+        )
+        line = conn.send_command(
+            "create_object",
+            {
+                "type": "LINE",
+                "name": "MeasuredLine2",
+                "params": {"start": [0, 0, 0], "end": [1, 0, 0]},
+            },
+        )
+
+        result = conn.send_command(
+            "analyze_objects", {"object_ids": [box["id"], line["id"]]}
+        )
+
+        assert result["object_count"] == 2
+        metrics_by_name = {item["name"]: item["metrics"] for item in result["analyses"]}
+        assert metrics_by_name["MeasuredBox"]["volume"] == 24
+        assert metrics_by_name["MeasuredLine2"]["length"] == 1
+
+    def test_analyze_rejects_empty_object_ids(self, mock_server):
+        """Strict schema validation refuses the request before Bridge dispatch."""
+        from rhino_mcp.bridge import BridgeContractViolation
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        sent_before = mock_server.received_commands.count("analyze_objects")
+
+        with pytest.raises(BridgeContractViolation, match="object_ids"):
+            conn.send_command("analyze_objects", {"object_ids": []})
+        assert mock_server.received_commands.count("analyze_objects") == sent_before
+
+
+class TestDeleteObject:
+    """Integration tests for delete_object."""
+
+    def test_delete_by_id(self, mock_server):
+        """Test deleting object by ID."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        created = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "ToDelete",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        result = conn.send_command("delete_object", {"id": created["id"]})
+
+        assert result["deleted"] is True
+
+    def test_delete_all(self, mock_server):
+        """Test deleting all objects. The mock must return the same shape as
+        C# (deleted, count, scope:'all') — the wrapper relied on `name` and
+        would crash on a successful delete-all before P0.2."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create some objects
+        conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        conn.send_command("create_object", {"type": "SPHERE", "params": {"radius": 1}})
+
+        result = conn.send_command("delete_object", {"all": True})
+
+        assert result["deleted"] is True
+        assert result["scope"] == "all"
+        assert "count" in result
+        # The successful response must NOT include a "name" — confirming the
+        # wrapper has to branch on scope/count rather than assuming `name`.
+        assert "name" not in result
+
+
+class TestUndoRedo:
+    """Integration tests for undo/redo."""
+
+    def test_undo_single(self, mock_server):
+        """Test undoing a single operation."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create an object (pushes to undo stack)
+        conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+
+        result = conn.send_command("undo", {"steps": 1})
+
+        assert result["undone_steps"] == 1
+
+    def test_undo_multiple(self, mock_server):
+        """Test undoing multiple operations."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create multiple objects
+        conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        conn.send_command("create_object", {"type": "SPHERE", "params": {"radius": 1}})
+        conn.send_command(
+            "create_object", {"type": "CYLINDER", "params": {"radius": 1, "height": 2}}
+        )
+
+        result = conn.send_command("undo", {"steps": 2})
+
+        assert result["undone_steps"] == 2
+
+    def test_redo(self, mock_server):
+        """Test redo after undo."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        conn.send_command("undo", {"steps": 1})
+
+        result = conn.send_command("redo", {"steps": 1})
+
+        assert result["redone_steps"] == 1
+
+
+class TestBooleanOperations:
+    """Integration tests for boolean operations."""
+
+    def test_boolean_union(self, mock_server):
+        """Test boolean union."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create two objects
+        obj1 = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        obj2 = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+
+        result = conn.send_command(
+            "boolean_union",
+            {"object_ids": [obj1["id"], obj2["id"]], "name": "UnionResult"},
+        )
+
+        assert result["count"] == 1
+        assert len(result["result_ids"]) == 1
+
+    def test_boolean_difference(self, mock_server):
+        """Test boolean difference."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        base = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        subtract = conn.send_command(
+            "create_object", {"type": "SPHERE", "params": {"radius": 1}}
+        )
+
+        result = conn.send_command(
+            "boolean_difference",
+            {"base_id": base["id"], "subtract_ids": [subtract["id"]]},
+        )
+
+        assert result["count"] == 1
+
+    def test_boolean_intersection(self, mock_server):
+        """Test boolean intersection."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        obj1 = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        obj2 = conn.send_command(
+            "create_object", {"type": "SPHERE", "params": {"radius": 1}}
+        )
+
+        result = conn.send_command(
+            "boolean_intersection", {"object_ids": [obj1["id"], obj2["id"]]}
+        )
+
+        assert result["count"] == 1
+
+    def test_boolean_union_dry_run_predicts_then_commits(self, mock_server):
+        """A dry_run union returns a prediction and leaves the document
+        untouched; the same inputs then commit for real."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        obj1 = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        obj2 = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+
+        before = conn.send_command("get_document_summary", {})["object_count"]
+
+        prediction = conn.send_command(
+            "boolean_union",
+            {
+                "object_ids": [obj1["id"], obj2["id"]],
+                "dry_run": True,
+            },
+        )
+
+        after = conn.send_command("get_document_summary", {})["object_count"]
+
+        assert prediction["dry_run"] is True
+        assert prediction["would_succeed"] is True
+        assert prediction["count"] == 1
+        assert "result_ids" not in prediction
+        entry = prediction["results"][0]
+        assert entry["valid"] is True
+        assert entry["is_solid"] is True
+        assert entry["volume"] > 0
+        assert "area" in entry
+        assert "bounding_box" in entry
+
+        # The preview added and removed nothing, so both inputs still resolve.
+        assert after == before
+        conn.send_command("get_object_info", {"id": obj1["id"]})
+        conn.send_command("get_object_info", {"id": obj2["id"]})
+
+        committed = conn.send_command(
+            "boolean_union",
+            {
+                "object_ids": [obj1["id"], obj2["id"]],
+                "name": "CommittedUnion",
+            },
+        )
+        assert committed["count"] == 1
+        assert len(committed["result_ids"]) == 1
+
+    def test_boolean_difference_dry_run_leaves_inputs(self, mock_server):
+        """A dry_run difference previews without deleting the base or subtract
+        inputs."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        base = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        subtract = conn.send_command(
+            "create_object", {"type": "SPHERE", "params": {"radius": 1}}
+        )
+
+        prediction = conn.send_command(
+            "boolean_difference",
+            {
+                "base_id": base["id"],
+                "subtract_ids": [subtract["id"]],
+                "dry_run": True,
+            },
+        )
+
+        assert prediction["dry_run"] is True
+        assert "result_ids" not in prediction
+        assert prediction["results"][0]["bounding_box"] is not None
+        conn.send_command("get_object_info", {"id": base["id"]})
+        conn.send_command("get_object_info", {"id": subtract["id"]})
+
+
+class TestDryRunContract:
+    """dry_run is a declared, per-command capability: unsupported commands
+    reject it, and both boolean shapes hold up under strict response validation."""
+
+    def test_dry_run_rejected_on_unsupported_command(self, mock_server):
+        """create_object does not declare dry_run support, so the client refuses
+        to send it at all: the flag never reaches the plugin."""
+        from rhino_mcp.server import get_rhino_connection
+
+        mock_server.received_commands.clear()
+        conn = get_rhino_connection()
+        with pytest.raises(Exception, match="does not report dry_run support"):
+            conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                    "dry_run": True,
+                },
+            )
+        assert "create_object" not in mock_server.received_commands
+
+    def test_plugin_still_rejects_dry_run_it_cannot_honor(self, mock_server):
+        """The plugin keeps its own fail-closed check for clients that don't gate,
+        mirroring the Rhino bridge command dispatcher."""
+        response = mock_server._process_command(
+            {
+                "type": "create_object",
+                "params": {
+                    "type": "BOX",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                    "dry_run": True,
+                },
+            }
+        )
+
+        assert response["status"] == "error"
+        assert "does not support dry_run" in response["message"]
+
+    def test_real_and_dry_run_validate_in_strict_mode(self, mock_server):
+        """Under strict response validation, a real boolean and a dry_run boolean
+        both pass responses/boolean_result.json; a shape drift would raise here."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        a = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        b = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+
+        preview = conn.send_command(
+            "boolean_union",
+            {
+                "object_ids": [a["id"], b["id"]],
+                "dry_run": True,
+            },
+        )
+        assert preview["dry_run"] is True
+        assert "result_ids" not in preview
+
+        committed = conn.send_command(
+            "boolean_union",
+            {
+                "object_ids": [a["id"], b["id"]],
+                "name": "StrictUnion",
+            },
+        )
+        assert "result_ids" in committed
+        assert committed["count"] == 1
+
+
+class TestDryRunCapabilityGate:
+    """The server and the plugin ship separately, so a server that knows dry_run
+    can end up talking to a plugin that doesn't. That plugin drops the flag it
+    has never heard of and runs the real boolean, deleting the sources, while the
+    caller believes it asked for a preview. So the client refuses to send a
+    preview unless the plugin advertises support for that exact command.
+
+    Each test drives its own connection at an explicit port, the way
+    TestPerceptionPassthrough does: hermetic, never able to fall back to a real
+    Rhino on the default port, and immune to the module-reload ordering that can
+    leave a wrapper's import-time binding pointed elsewhere.
+    """
+
+    def _connection(self, monkeypatch, mock_server):
+        from rhino_mcp.server import RhinoConnection
+        import rhino_mcp.tools.boolean_operations as boolean_mod
+
+        conn = RhinoConnection(mock_server.provider_config())
+        monkeypatch.setattr(boolean_mod, "get_rhino_connection", lambda ctx=None: conn)
+        return conn
+
+    def _two_boxes(self, conn):
+        a = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "GateA",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+        b = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "GateB",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+        return a["id"], b["id"]
+
+    def test_old_plugin_would_run_the_real_boolean(self, legacy_mock_server):
+        """What the gate is there to stop, pinned: drive the old plugin directly
+        and the dry_run union deletes both sources and reports real result ids."""
+        a = legacy_mock_server._create_object({"type": "BOX", "name": "IgnoredA"})
+        b = legacy_mock_server._create_object({"type": "BOX", "name": "IgnoredB"})
+
+        response = legacy_mock_server._process_command(
+            {
+                "type": "boolean_union",
+                "params": {"object_ids": [a["id"], b["id"]], "dry_run": True},
+            }
+        )
+
+        assert response["status"] == "success"
+        assert "result_ids" in response["result"]
+        assert a["id"] not in legacy_mock_server.objects
+        assert b["id"] not in legacy_mock_server.objects
+
+    def test_union_dry_run_refused_and_sources_survive(
+        self, legacy_mock_server, monkeypatch
+    ):
+        conn = self._connection(monkeypatch, legacy_mock_server)
+        a, b = self._two_boxes(conn)
+        before = set(legacy_mock_server.objects)
+
+        with pytest.raises(Exception, match="does not report dry_run support"):
+            conn.send_command(
+                "boolean_union",
+                {
+                    "object_ids": [a, b],
+                    "delete_sources": True,
+                    "dry_run": True,
+                },
+            )
+
+        assert set(legacy_mock_server.objects) == before
+        assert a in legacy_mock_server.objects
+        assert b in legacy_mock_server.objects
+        assert "boolean_union" not in legacy_mock_server.received_commands
+
+    def test_difference_dry_run_refused_and_sources_survive(
+        self, legacy_mock_server, monkeypatch
+    ):
+        conn = self._connection(monkeypatch, legacy_mock_server)
+        base, subtract = self._two_boxes(conn)
+        before = set(legacy_mock_server.objects)
+
+        with pytest.raises(Exception, match="does not report dry_run support"):
+            conn.send_command(
+                "boolean_difference",
+                {
+                    "base_id": base,
+                    "subtract_ids": [subtract],
+                    "delete_sources": True,
+                    "dry_run": True,
+                },
+            )
+
+        assert set(legacy_mock_server.objects) == before
+        assert base in legacy_mock_server.objects
+        assert subtract in legacy_mock_server.objects
+        assert "boolean_difference" not in legacy_mock_server.received_commands
+
+    def test_intersection_dry_run_refused_and_sources_survive(
+        self, legacy_mock_server, monkeypatch
+    ):
+        conn = self._connection(monkeypatch, legacy_mock_server)
+        a, b = self._two_boxes(conn)
+        before = set(legacy_mock_server.objects)
+
+        with pytest.raises(Exception, match="does not report dry_run support"):
+            conn.send_command(
+                "boolean_intersection",
+                {
+                    "object_ids": [a, b],
+                    "delete_sources": True,
+                    "dry_run": True,
+                },
+            )
+
+        assert set(legacy_mock_server.objects) == before
+        assert a in legacy_mock_server.objects
+        assert b in legacy_mock_server.objects
+        assert "boolean_intersection" not in legacy_mock_server.received_commands
+
+    def test_the_wrapper_surfaces_the_refusal_as_a_tool_error(
+        self, legacy_mock_server, monkeypatch
+    ):
+        """What the user gets: asking boolean_union for a preview against an old
+        plugin fails the tool call and leaves both objects standing."""
+        from rhino_mcp.tools.boolean_operations import boolean_union
+
+        conn = self._connection(monkeypatch, legacy_mock_server)
+        a, b = self._two_boxes(conn)
+        before = set(legacy_mock_server.objects)
+
+        with pytest.raises(Exception, match="does not report dry_run support"):
+            boolean_union(ctx=None, object_ids=[a, b], dry_run=True)
+
+        assert set(legacy_mock_server.objects) == before
+
+    def test_old_plugin_serves_a_normal_boolean_unchanged(
+        self, legacy_mock_server, monkeypatch
+    ):
+        """Without dry_run nothing else is gated: after the one capabilities read
+        every connection makes, the command goes straight out and the old plugin
+        is served exactly as it was before."""
+        from rhino_mcp.tools.boolean_operations import boolean_union
+
+        conn = self._connection(monkeypatch, legacy_mock_server)
+        a, b = self._two_boxes(conn)
+
+        result = boolean_union(ctx=None, object_ids=[a, b], name="OldPluginUnion")
+
+        assert "Boolean union created" in result
+        assert legacy_mock_server.received_commands.count("describe_capabilities") == 1
+
+    def test_dry_run_runs_end_to_end_when_the_plugin_advertises_it(
+        self, mock_server, monkeypatch
+    ):
+        from rhino_mcp.tools.boolean_operations import boolean_union
+
+        conn = self._connection(monkeypatch, mock_server)
+        a, b = self._two_boxes(conn)
+
+        result = boolean_union(ctx=None, object_ids=[a, b], dry_run=True)
+
+        assert "Boolean union would create" in result
+        assert "Predicted results" in result
+        assert a in mock_server.objects
+        assert b in mock_server.objects
+
+    def test_capabilities_read_once_per_connection(self, mock_server, monkeypatch):
+        """The answer is cached, so several previews share one lookup, and the
+        lookup itself never re-enters the gate."""
+        from rhino_mcp.tools.boolean_operations import boolean_union
+
+        conn = self._connection(monkeypatch, mock_server)
+        mock_server.received_commands.clear()
+        a, b = self._two_boxes(conn)
+
+        for _ in range(3):
+            boolean_union(ctx=None, object_ids=[a, b], dry_run=True)
+
+        assert mock_server.received_commands.count("describe_capabilities") == 1
+        assert mock_server.received_commands.count("boolean_union") == 3
+
+    def test_reconnect_rereads_capabilities(self, mock_server, monkeypatch):
+        """A reconnect can land on a different plugin, so the cached answer dies
+        with the socket."""
+        from rhino_mcp.tools.boolean_operations import boolean_union
+
+        conn = self._connection(monkeypatch, mock_server)
+        mock_server.received_commands.clear()
+        a, b = self._two_boxes(conn)
+
+        boolean_union(ctx=None, object_ids=[a, b], dry_run=True)
+        conn.disconnect()
+        boolean_union(ctx=None, object_ids=[a, b], dry_run=True)
+
+        assert mock_server.received_commands.count("describe_capabilities") == 2
+
+    def test_describe_capabilities_is_callable_normally(self, mock_server, monkeypatch):
+        """The gate reads capabilities by sending describe_capabilities, so that
+        command has to stay callable in its own right."""
+        conn = self._connection(monkeypatch, mock_server)
+
+        result = conn.send_command("describe_capabilities", {})
+
+        by_name = {c["name"]: c for c in result["commands"]}
+        assert by_name["boolean_union"]["supports_dry_run"] is True
+        assert by_name["create_object"]["supports_dry_run"] is False
+
+
+class TestLayers:
+    """Integration tests for layer operations."""
+
+    def test_create_layer(self, mock_server):
+        """Test creating a layer."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        result = conn.send_command(
+            "create_layer", {"name": "TestLayer", "color": [100, 150, 200]}
+        )
+
+        assert result["name"] == "TestLayer"
+        assert result["color"]["r"] == 100
+
+    def test_set_current_layer(self, mock_server):
+        """Test setting current layer."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        conn.send_command("create_layer", {"name": "NewLayer"})
+        result = conn.send_command("get_or_set_current_layer", {"name": "NewLayer"})
+
+        assert result["name"] == "NewLayer"
+
+    def test_delete_layer(self, mock_server):
+        """Test deleting a layer."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        conn.send_command("create_layer", {"name": "ToDeleteLayer"})
+        result = conn.send_command("delete_layer", {"name": "ToDeleteLayer"})
+
+        assert result["deleted"] is True
+
+
+class TestDocumentInfo:
+    """Integration tests for document summary."""
+
+    def test_get_document_summary(self, mock_server):
+        """Test getting document summary."""
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+
+        # Create some objects
+        conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "DocInfoBox",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        result = conn.send_command("get_document_summary", {})
+
+        assert "objects_by_type" in result
+        assert "objects_by_layer" in result
+        assert "layer_hierarchy" in result
+        assert result["object_count"] >= 1
+
+
+class TestAdvancedGeometry:
+    """Smoke tests for the geometry commands added with the schema fill-in.
+
+    These exercise the wire path end-to-end against the mock so a shape
+    mismatch between schema / Python wrapper / mock surface is caught by
+    CI instead of silently passing unit tests that mock send_command.
+    """
+
+    def test_loft(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        c1 = conn.send_command(
+            "create_object",
+            {"type": "LINE", "params": {"start": [0, 0, 0], "end": [1, 0, 0]}},
+        )
+        c2 = conn.send_command(
+            "create_object",
+            {"type": "LINE", "params": {"start": [0, 1, 0], "end": [1, 1, 0]}},
+        )
+        result = conn.send_command("loft", {"curve_ids": [c1["id"], c2["id"]]})
+        assert result["count"] == 1
+        assert result["result_ids"]
+
+    def test_extrude_curve(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        c = conn.send_command(
+            "create_object",
+            {"type": "LINE", "params": {"start": [0, 0, 0], "end": [1, 0, 0]}},
+        )
+        result = conn.send_command(
+            "extrude_curve", {"curve_id": c["id"], "direction": [0, 0, 1]}
+        )
+        assert result["result_id"]
+
+    def test_pipe_rejects_zero_radius(self, mock_server):
+        from rhino_mcp.bridge import BridgeContractViolation
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        c = conn.send_command(
+            "create_object",
+            {"type": "LINE", "params": {"start": [0, 0, 0], "end": [1, 0, 0]}},
+        )
+        sent_before = mock_server.received_commands.count("pipe")
+        with pytest.raises(BridgeContractViolation, match="radius"):
+            conn.send_command("pipe", {"curve_id": c["id"], "radius": 0})
+        assert mock_server.received_commands.count("pipe") == sent_before
+
+    def test_modify_objects(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        a = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        b = conn.send_command(
+            "create_object",
+            {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}},
+        )
+        result = conn.send_command(
+            "modify_objects",
+            {
+                "objects": [
+                    {"id": a["id"], "new_name": "A2"},
+                    {"id": b["id"], "new_color": [255, 0, 0]},
+                ]
+            },
+        )
+        assert result["success_count"] == 2
+        assert result["failure_count"] == 0
+
+    def test_capture_viewport_returns_decodable_image(self, mock_server):
+        import base64
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        result = conn.send_command(
+            "capture_viewport", {"viewport": "perspective", "width": 100, "height": 100}
+        )
+        # image_data must be valid base64 the wrapper can decode.
+        base64.b64decode(result["image_data"])
+        assert result["viewport_name"] == "perspective"
+
+
+class TestPerceptionPassthrough:
+    """End-to-end: the create/modify tool wrappers must surface the spatial
+    feedback (bounding_box) the plugin serializes, through the full
+    wrapper -> socket -> plugin -> wrapper path. This is the CI-runnable
+    end-to-end of Scene Perception Layer stage 0, against the mock whose
+    create/modify responses mirror the plugin's Serializer.RhinoObject shape.
+
+    The wrappers' get_rhino_connection is monkeypatched to a connection aimed
+    explicitly at the mock port. That keeps the test hermetic: it can never
+    fall back to a real Rhino on the default port (which would mutate a live
+    document), and it doesn't depend on module-reload ordering elsewhere in the
+    suite that can leave the wrapper's import-time binding pointed at the
+    default port.
+    """
+
+    def _mock_conn(self, monkeypatch, mock_server):
+        from rhino_mcp.server import RhinoConnection
+        import rhino_mcp.tools.create_object as create_mod
+        import rhino_mcp.tools.modify_object as modify_mod
+
+        conn = RhinoConnection(mock_server.provider_config())
+        monkeypatch.setattr(create_mod, "get_rhino_connection", lambda ctx=None: conn)
+        monkeypatch.setattr(modify_mod, "get_rhino_connection", lambda ctx=None: conn)
+        return create_mod.create_object, modify_mod.modify_object
+
+    def test_create_wrapper_surfaces_bounding_box(self, mock_server, monkeypatch):
+        create_object, _ = self._mock_conn(monkeypatch, mock_server)
+
+        result = create_object(
+            ctx=None,
+            type="BOX",
+            name="PerceptionBox",
+            params={"width": 1, "length": 1, "height": 1},
+        )
+
+        assert result["success"] is True
+        assert result["id"] is not None
+        # The bbox the plugin computed is now visible to the client end to end.
+        assert result["bounding_box"] == [[-1, -1, -1], [1, 1, 1]]
+
+    def test_modify_wrapper_surfaces_bounding_box(self, mock_server, monkeypatch):
+        create_object, modify_object = self._mock_conn(monkeypatch, mock_server)
+
+        created = create_object(
+            ctx=None,
+            type="BOX",
+            name="ToMove",
+            params={"width": 1, "length": 1, "height": 1},
+        )
+        moved = modify_object(ctx=None, id=created["id"], translation=[5, 0, 0])
+
+        assert moved["success"] is True
+        # A modify now reports the object's extent rather than just id/name.
+        assert "bounding_box" in moved
+
+
+class TestWireProtocol:
+    """Wire-level tests enforce auth-first framing and reject legacy transport."""
+
+    def _read_frame(self, sock):
+        header = b""
+        while len(header) < 4:
+            chunk = sock.recv(4 - len(header))
+            assert chunk, "connection closed mid-header"
+            header += chunk
+        length = int.from_bytes(header, "big")
+        body = b""
+        while len(body) < length:
+            chunk = sock.recv(length - len(body))
+            assert chunk, "connection closed mid-body"
+            body += chunk
+        return json.loads(body.decode("utf-8"))
+
+    def test_command_frame_before_authentication_is_rejected(self, mock_server):
+        mock_server.received_commands.clear()
+        command = json.dumps({"type": "get_document_summary", "params": {}}).encode(
+            "utf-8"
+        )
+        sock = socket.create_connection(("127.0.0.1", mock_server.port), timeout=5)
+        try:
+            sock.sendall(len(command).to_bytes(4, "big") + command)
+            response = self._read_frame(sock)
+        finally:
+            sock.close()
+
+        assert response == {"type": "authenticationRejected"}
+        assert mock_server.received_commands == []
+
+    def test_legacy_unframed_client_is_closed_without_fallback(self, mock_server):
+        """Bare JSON is never sniffed or dispatched as an unauthenticated command."""
+        mock_server.received_commands.clear()
+        cmd = json.dumps({"type": "get_document_summary", "params": {}}).encode("utf-8")
+
+        sock = socket.create_connection(("127.0.0.1", mock_server.port), timeout=5)
+        try:
+            sock.sendall(cmd)
+            sock.settimeout(5)
+            try:
+                data = sock.recv(1)
+            except ConnectionResetError:
+                data = b""
+        finally:
+            sock.close()
+
+        assert data == b""
+        assert mock_server.received_commands == []
+
+
+class TestChangeDeltaPerception:
+    """End-to-end: with perception enabled the server forwards include_delta and
+    mutating commands come back with a _delta block reporting created/deleted
+    ids and counts; with it disabled nothing changes. Runs against the mock,
+    whose dispatch mirrors the plugin's delta attachment."""
+
+    def _enable(self):
+        import rhino_mcp.server as srv
+
+        srv.RHINO_PERCEPTION = True
+
+    def _restore(self, value):
+        import rhino_mcp.server as srv
+
+        srv.RHINO_PERCEPTION = value
+
+    def test_create_carries_delta_when_enabled(self, mock_server):
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "DeltaBox",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert "_delta" in result
+        d = result["_delta"]
+        assert d["created_count"] == 1
+        assert d["deleted_count"] == 0
+        assert d["truncated"] is False
+        # The id list is included because the count is within the cap.
+        assert result["id"] in d["created_ids"]
+        assert d["deleted_ids"] == []
+        assert d["count_after"] == d["count_before"] + 1
+
+    def test_delete_carries_delta_when_enabled(self, mock_server):
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            created = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "ToDelete",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+            deleted = conn.send_command("delete_object", {"id": created["id"]})
+        finally:
+            self._restore(original)
+
+        dd = deleted["_delta"]
+        assert dd["deleted_count"] == 1
+        assert dd["created_count"] == 0
+        assert dd["truncated"] is False
+        assert created["id"] in dd["deleted_ids"]
+        assert dd["created_ids"] == []
+        assert dd["count_after"] == dd["count_before"] - 1
+
+    def test_no_delta_when_disabled(self, mock_server):
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        import rhino_mcp.server as _srv
+
+        _srv.RHINO_PERCEPTION = False
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "NoDeltaBox",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert "_delta" not in result
+
+    def test_dry_run_carries_no_delta_or_health(self, mock_server):
+        """A dry_run mutates nothing, so with perception on it still comes back
+        with no _delta or _health block."""
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            obj1 = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "DryDeltaA",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+            obj2 = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "DryDeltaB",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+            prediction = conn.send_command(
+                "boolean_union",
+                {
+                    "object_ids": [obj1["id"], obj2["id"]],
+                    "dry_run": True,
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert prediction["dry_run"] is True
+        assert "_delta" not in prediction
+        assert "_health" not in prediction
+
+    def test_large_op_truncates_id_lists(self, mock_server):
+        """A single operation that creates more than the cap reports exact
+        counts but omits the id arrays and sets truncated=true, so a
+        thousand-object operation can't flood the client's context."""
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            specs = {
+                f"B{i}": {
+                    "type": "BOX",
+                    "name": f"BulkBox{i}",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                }
+                for i in range(60)
+            }
+            result = conn.send_command("create_objects", specs)
+        finally:
+            self._restore(original)
+
+        d = result["_delta"]
+        assert d["created_count"] == 60  # exact count is always there
+        assert d["truncated"] is True
+        assert "created_ids" not in d  # omitted because over the cap
+        assert d["deleted_count"] == 0
+        assert d["deleted_ids"] == []  # under the cap, so present
+
+
+class TestChangeHealthPerception:
+    """End-to-end: with perception enabled the server forwards include_health and
+    mutating commands come back with a _health block reporting how many created
+    objects were checked and which were invalid. The mock holds no real geometry,
+    so it reports the all-clear shape; the invalid path is covered by the C# unit
+    test, the live test, and the schema test."""
+
+    def _enable(self):
+        import rhino_mcp.server as srv
+
+        srv.RHINO_PERCEPTION = True
+
+    def _restore(self, value):
+        import rhino_mcp.server as srv
+
+        srv.RHINO_PERCEPTION = value
+
+    def test_create_carries_health_when_enabled(self, mock_server):
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "HealthBox",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert "_health" in result
+        h = result["_health"]
+        assert h["checked_count"] == 1
+        assert h["invalid_count"] == 0
+        assert h["issues"] == []
+        assert h["truncated"] is False
+
+    def test_perception_carries_both_delta_and_health(self, mock_server):
+        """RHINO_PERCEPTION is one master switch, so a mutating command comes
+        back with both perception blocks."""
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "BothBox",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert "_delta" in result and "_health" in result
+        assert result["_delta"]["created_count"] == 1
+        assert result["_health"]["checked_count"] == 1
+
+    def test_no_health_when_disabled(self, mock_server):
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        srv.RHINO_PERCEPTION = False
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command(
+                "create_object",
+                {
+                    "type": "BOX",
+                    "name": "NoHealthBox",
+                    "params": {"width": 1, "length": 1, "height": 1},
+                },
+            )
+        finally:
+            self._restore(original)
+
+        assert "_health" not in result
+
+    def test_readonly_has_no_health(self, mock_server):
+        """Read-only commands never carry a _health, even with perception on."""
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        self._enable()
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command("get_document_summary", {})
+        finally:
+            self._restore(original)
+
+        assert "_health" not in result
+
+
+class TestMeasureObjects:
+    """End-to-end measure_objects through the mock: verifies the command wiring
+    and the result shape. The exact spatial values come from real RhinoCommon
+    geometry, which the mock can't model, so those are covered by the live test;
+    here we pin that the contract shape arrives intact."""
+
+    def test_measure_two_objects(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        a = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "MeasA",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+        b = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "MeasB",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        result = conn.send_command(
+            "measure_objects", {"object_ids": [a["id"], b["id"]]}
+        )
+
+        assert result["object_a"] == a["id"]
+        assert result["object_b"] == b["id"]
+        assert isinstance(result["clash"], bool)
+        assert result["bbox_gap"] >= 0
+        assert result["method"] in ("brep", "curve", "bbox")
+        assert result["intersection_count"] >= 0
+
+
+class TestDescribeCapabilities:
+    """End-to-end describe_capabilities through the mock: the server's
+    self-description arrives with the command surface, read-only flags, and
+    perception envelope flags intact."""
+
+    def test_describe_capabilities_shape(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        result = conn.send_command("describe_capabilities", {})
+
+        assert isinstance(result["version"], str)
+        assert result["command_count"] == len(result["commands"])
+        for c in result["commands"]:
+            assert isinstance(c["name"], str)
+            assert isinstance(c["read_only"], bool)
+        flags = [f["flag"] for f in result["perception"]["envelope_flags"]]
+        assert "include_delta" in flags
+        assert "include_health" in flags
+
+    def test_describe_capabilities_is_readonly_no_delta(self, mock_server):
+        """A read-only command carries no _delta even with perception on."""
+        import rhino_mcp.server as srv
+        from rhino_mcp.server import get_rhino_connection
+
+        original = srv.RHINO_PERCEPTION
+        srv.RHINO_PERCEPTION = True
+        try:
+            conn = get_rhino_connection()
+            result = conn.send_command("describe_capabilities", {})
+        finally:
+            srv.RHINO_PERCEPTION = original
+        assert "_delta" not in result
+
+
+class TestSectionProfile:
+    """End-to-end section_profile through the mock: verifies command wiring and
+    the result shape. The mock has no real geometry to slice, so exact areas come
+    from the live Rhino test; here we pin that the contract shape arrives intact
+    for both the single-plane and profile modes."""
+
+    def test_section_plane_shape(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        box = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "SecBox",
+                "params": {"width": 2, "length": 2, "height": 2},
+            },
+        )
+
+        result = conn.send_command(
+            "section_profile",
+            {"object_ids": [box["id"]], "plane": {"axis": "Z", "value": 0}},
+        )
+
+        assert result["mode"] == "plane"
+        assert result["object_count"] == 1
+        assert "origin" in result["plane"] and "normal" in result["plane"]
+        assert isinstance(result["total_section_area"], (int, float))
+        assert len(result["profiles"]) == 1
+        prof = result["profiles"][0]
+        assert prof["id"] == box["id"]
+        assert "loops" in prof and "section_area" in prof and "loop_count" in prof
+
+    def test_section_profile_mode_shape(self, mock_server):
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        box = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "SecProfBox",
+                "params": {"width": 2, "length": 2, "height": 4},
+            },
+        )
+
+        result = conn.send_command(
+            "section_profile", {"id": box["id"], "profile": {"axis": "Z", "count": 5}}
+        )
+
+        assert result["mode"] == "profile"
+        assert result["axis"] == "Z"
+        assert result["count"] == 5
+        assert len(result["sections"]) == 5
+        for s in result["sections"]:
+            assert "position" in s and "total_section_area" in s and "loop_count" in s
+
+    def test_section_requires_one_cut(self, mock_server):
+        from rhino_mcp.bridge import BridgeContractViolation
+        from rhino_mcp.server import get_rhino_connection
+
+        conn = get_rhino_connection()
+        box = conn.send_command(
+            "create_object",
+            {
+                "type": "BOX",
+                "name": "SecBadBox",
+                "params": {"width": 1, "length": 1, "height": 1},
+            },
+        )
+
+        sent_before = mock_server.received_commands.count("section_profile")
+        with pytest.raises(BridgeContractViolation, match="section_profile"):
+            conn.send_command("section_profile", {"id": box["id"]})
+        assert mock_server.received_commands.count("section_profile") == sent_before

@@ -101,6 +101,17 @@ jobs:
         with:
           version: '0.9.21'
           enable-cache: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        if: steps.project.outputs.present == 'true' && matrix.plugin == 'rhino'
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build and test the owned native Bridge before process interoperability
+        if: steps.project.outputs.present == 'true' && matrix.plugin == 'rhino'
+        working-directory: plugins/${{ matrix.plugin }}
+        shell: pwsh
+        run: |
+          dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test the selected Provider's own lock and environment
         if: steps.project.outputs.present == 'true'
         working-directory: plugins/${{ matrix.plugin }}/provider

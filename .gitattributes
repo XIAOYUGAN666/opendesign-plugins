@@ -8,3 +8,12 @@
 /published/** -text
 /.agents/plugins/marketplace.json -text
 /.agents/plugins/marketplace.snapshot.json -text
+# Frozen Rhino build inputs retain their verified source bytes across checkouts.
+/plugins/rhino/provider/** -text whitespace=cr-at-eol
+/plugins/rhino/native/** -text whitespace=cr-at-eol
+/plugins/rhino/contracts/** -text whitespace=cr-at-eol
+/plugins/rhino/global.json -text whitespace=cr-at-eol
+# Preserve migrated reference text and tool docstrings, including schema descriptions.
+/plugins/rhino/provider/rhino_mcp/static/source/** whitespace=cr-at-eol,-blank-at-eol
+/plugins/rhino/provider/rhino_mcp/tools/** whitespace=cr-at-eol,-blank-at-eol
+/plugins/rhino/provider/rhino_mcp/static/source/group.py whitespace=cr-at-eol,-blank-at-eol,-blank-at-eof

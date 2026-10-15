@@ -13,6 +13,8 @@ cache/
 .cache/
 dist/
 build/
+**/bin/
+**/obj/
 models/
 model-data/
 *.rf6
@@ -23,7 +25,9 @@ model-data/
 *.log
 *.exe
 *.dll
+*.rhp
 *.zip
 *.yak
 *.whl
 *.pdb
+*.egg-info/
