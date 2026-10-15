@@ -47,7 +47,7 @@ class ContractImportTests(unittest.TestCase):
             out = base / "schemas"
             hashes = import_contracts(*sources[:2], out, host_contract_schema=sources[2], configuration_schema=sources[3], official_schema=sources[4])
             self.assertEqual(set(hashes), {case[0] for case in cases})
-            inventory = json.loads((out / "owner-contracts.json").read_text())
+            inventory = json.loads((out / "owner-contracts.json").read_text(encoding="utf-8"))
             for source, (name, title, owner, version) in zip(sources, cases):
                 self.assertEqual((out / name).read_bytes(), source.read_bytes())
                 digest = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -56,7 +56,7 @@ class ContractImportTests(unittest.TestCase):
                 self.assertEqual(inventory["contracts"][name]["owner"], owner)
                 self.assertEqual(inventory["contracts"][name]["version"], version)
             self.assertNotIn("plugins", inventory)
-            checked_inventory = json.loads((ROOT / "schemas/owner-contracts.json").read_text())
+            checked_inventory = json.loads((ROOT / "schemas/owner-contracts.json").read_text(encoding="utf-8"))
             attributes = text(ROOT / ".gitattributes").splitlines()
             for name, record in checked_inventory["contracts"].items():
                 self.assertEqual(hashlib.sha256((ROOT / "schemas" / name).read_bytes()).hexdigest(), record["sha256"])
@@ -78,11 +78,11 @@ class ContractImportTests(unittest.TestCase):
         roots = list((ROOT / "plugins").glob("*/plugin.json"))
         self.assertEqual(len(roots), 2, "Development identities are missing")
         for path in roots:
-            root_identity = json.loads(path.read_text())
+            root_identity = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(path.parent.name, root_identity["name"])
             self.assertTrue(root_identity["version"])
             self.assertTrue(root_identity["author"]["name"])
-        contract_inventory = json.loads((ROOT / "schemas/owner-contracts.json").read_text())
+        contract_inventory = json.loads((ROOT / "schemas/owner-contracts.json").read_text(encoding="utf-8"))
         self.assertEqual(set(contract_inventory), {"schemaVersion", "contracts"})
         for record in contract_inventory["contracts"].values():
             self.assertEqual(set(record), {"owner", "source", "version", "sha256"})
@@ -91,13 +91,28 @@ class ContractImportTests(unittest.TestCase):
                 continue
             if path.name == "plugin.json" or path.parent.name == "schemas":
                 continue
-            value = json.loads(path.read_text())
+            value = json.loads(path.read_text(encoding="utf-8"))
             if path == ROOT / ".agents/plugins/marketplace.json":
                 from scripts.generate_marketplace import marketplace_document
                 # The one generated official discovery array is not a manual identity catalog.
                 self.assertEqual(value, marketplace_document([]))
                 continue
             self.assertFalse(isinstance(value, dict) and ("plugins" in value or "catalog" in value), str(path))
+
+    def test_plugin_identity_reads_utf8_json_under_windows_ansi_defaults(self):
+        # Exercise the real public JSON scan with the default encoding used by Windows CI.
+        from unittest.mock import patch
+
+        original_read_text = Path.read_text
+
+        def read_with_ansi_default(path, encoding=None, errors=None):
+            return original_read_text(path, encoding=encoding or "cp1252", errors=errors)
+
+        with patch.object(Path, "read_text", read_with_ansi_default):
+            try:
+                self.test_plugin_identity_has_one_human_source()
+            except UnicodeError as error:
+                self.fail(f"Public JSON must be read as UTF-8 under Windows ANSI defaults: {error}")
 
     def test_public_tree_excludes_credentials_runtime_data_and_models(self):
         # Catches accidental public material and missing ignore protection before stage.
