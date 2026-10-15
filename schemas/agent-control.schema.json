@@ -415,6 +415,43 @@
       "title": "EndTaskResultV1",
       "type": "object"
     },
+    "EndTaskStateV1": {
+      "additionalProperties": false,
+      "description": "Safe read of the existing coordinator intent, never permission to replay.",
+      "properties": {
+        "continuation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndTaskRequestV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EndTaskResultV1"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threadId": {
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "result",
+        "continuation"
+      ],
+      "title": "EndTaskStateV1",
+      "type": "object"
+    },
     "ExpectedConnectorV1": {
       "additionalProperties": false,
       "properties": {
@@ -1958,6 +1995,9 @@
     },
     "EndTaskResultV1": {
       "$ref": "#/$defs/EndTaskResultV1"
+    },
+    "EndTaskStateV1": {
+      "$ref": "#/$defs/EndTaskStateV1"
     },
     "ExpectedConnectorV1": {
       "$ref": "#/$defs/ExpectedConnectorV1"
