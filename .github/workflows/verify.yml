@@ -110,6 +110,8 @@ jobs:
         working-directory: plugins/${{ matrix.plugin }}
         shell: pwsh
         run: |
+          dotnet build native/RhinoMcpBridge.csproj -c Release -p:RestoreLockedMode=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test the selected Provider's own lock and environment

@@ -14,6 +14,9 @@ class CiContractTests(unittest.TestCase):
         provider_job = workflow.split("\n  provider:\n", 1)[1]
         build = "dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true"
         self.assertIn(build, provider_job, "Real process interoperability requires the native host to be built, not skipped")
+        both_targets = "dotnet build native/RhinoMcpBridge.csproj -c Release -p:RestoreLockedMode=true"
+        self.assertIn(both_targets, provider_job, "A fresh runner must build both Bridge TFMs before identity tests")
+        self.assertLess(provider_job.index(both_targets), provider_job.index(build))
         self.assertLess(provider_job.index(build), provider_job.index("uv run --frozen --extra test python -B -m pytest -q"))
         self.assertIn("working-directory: plugins/${{ matrix.plugin }}\n", provider_job)
         self.assertRegex(provider_job, r"actions/setup-dotnet@[a-f0-9]{40}")
