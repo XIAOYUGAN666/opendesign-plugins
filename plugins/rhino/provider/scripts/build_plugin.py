@@ -298,6 +298,33 @@ def stage(
     return staging
 
 
+def failure_code(error: Exception) -> str:
+    """Identify a build-owned phase, never exception values or subprocess output."""
+    if isinstance(error, release.ReleaseBuildError) and str(error) == (
+        "The built native package differs from the root binding."
+    ):
+        return "nativeBindingMismatch"
+    phases = {
+        "_download_runtime_archive": "runtimeDownloadFailed",
+        "_verify_runtime_archive": "runtimeIntegrityFailed",
+        "_install_runtime_dependencies": "runtimeDependenciesFailed",
+        "_build_identity": "buildIdentityFailed",
+        "_build_native_outputs": "nativeBuildFailed",
+        "_build_native_capability_probe": "nativeProbeBuildFailed",
+        "_native_capability_digest": "nativeProbeFailed",
+        "convert_stage": "stageConversionFailed",
+    }
+    owners = {Path(__file__).resolve(), Path(release.__file__).resolve()}
+    result = "providerStageFailed"
+    frame = error.__traceback__
+    while frame is not None:
+        code = frame.tb_frame.f_code
+        if Path(code.co_filename).resolve() in owners and code.co_name in phases:
+            result = phases[code.co_name]
+        frame = frame.tb_next
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plugin-root", type=Path, required=True)
@@ -334,5 +361,5 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        raise SystemExit("artifactBuildFailed") from None
+    except Exception as error:
+        raise SystemExit("artifactBuildFailed:" + failure_code(error)) from None

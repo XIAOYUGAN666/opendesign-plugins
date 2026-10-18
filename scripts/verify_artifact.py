@@ -21,6 +21,12 @@ MAX_FILE = 256 * 1024 * 1024
 
 PROBE_PHASES = frozenset({"startup", "ready", "connect", "initialize", "listTools", "metadataCall", "runtime"})
 SAFE_ERRORS = frozenset({"outputMustBeFreshAndOutsideRepository", "missingSource", "reparseSource", "unsafeProviderModule", "rootChangedDuringBuild", "typedStagedCatalogMismatch", "invalidArtifact", "archiveReceiptMismatch", "releaseReceiptMismatch", "rootReleaseMismatch", "providerRootVersionMismatch", "providerRootInputsMismatch", "filesDigestMismatch", "invalidFileInventory", "fileDigestMismatch", "undeclaredFile", "toolCatalogDigestMismatch", "unsupportedPreviewNormalization", "startupDeclarationVersionMismatch", "sbomDigestMismatch", "riskEvidenceMismatch", "unknownBuildIdentityProfile", "buildIdentityMismatch", "sbomRuntimeMismatch", "stagedToolCatalogMismatch", "runtimeIsolationMismatch", "stagedProviderProbeFailed", "stagedProviderProbeTimeout", "providerReadyTimeout"}) | frozenset("stagedProviderProbeFailed_" + phase for phase in PROBE_PHASES)
+BUILD_PHASE_ERRORS = frozenset({
+    "nativeBindingMismatch", "runtimeDownloadFailed", "runtimeIntegrityFailed",
+    "runtimeDependenciesFailed", "buildIdentityFailed", "nativeBuildFailed",
+    "nativeProbeBuildFailed", "nativeProbeFailed", "stageConversionFailed",
+    "providerStageFailed",
+})
 
 
 def safe_error_category(error):
@@ -29,6 +35,13 @@ def safe_error_category(error):
     if isinstance(error, subprocess.TimeoutExpired):
         return "buildStepTimeout"
     if isinstance(error, subprocess.CalledProcessError):
+        diagnostic = error.stderr
+        if isinstance(diagnostic, bytes):
+            diagnostic = diagnostic.decode("utf-8", errors="replace")
+        if isinstance(diagnostic, str) and len(diagnostic) <= 256:
+            for category in BUILD_PHASE_ERRORS:
+                if diagnostic.strip() == "artifactBuildFailed:" + category:
+                    return category
         return "buildStepFailed"
     return "verificationFailed"
 

@@ -18,6 +18,18 @@ PYTHON = PLUGIN / "provider/.venv/Scripts/python.exe"
 
 
 class ReleaseInputTests(unittest.TestCase):
+    def test_child_build_diagnostic_accepts_only_a_fixed_category(self):
+        error = subprocess.CalledProcessError(
+            1, ["private-command"], stderr=b"artifactBuildFailed:nativeBuildFailed\n"
+        )
+        self.assertEqual(verifier.safe_error_category(error), "nativeBuildFailed")
+
+    def test_child_build_diagnostic_never_echoes_unknown_output(self):
+        for message in (b"private-data", b"artifactBuildFailed:private-data", b"nativeBuildFailed\nprivate-data"):
+            with self.subTest(message=message):
+                error = subprocess.CalledProcessError(1, ["private-command"], stderr=message)
+                self.assertEqual(verifier.safe_error_category(error), "buildStepFailed")
+
     def test_windows_build_environment_preserves_nuget_path_without_business_credentials(self):
         from unittest.mock import patch
         from scripts.build_artifact import build_artifact
