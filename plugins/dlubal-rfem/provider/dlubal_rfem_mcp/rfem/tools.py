@@ -10,9 +10,12 @@ from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
 from fastmcp.tools import ToolResult
-from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 
+from dlubal_rfem_mcp.core.product_execution import (
+    execution_response,
+    execution_status_response,
+)
 from dlubal_rfem_mcp.core.sandbox import (
     execute_script,
     script_builtins,
@@ -23,7 +26,6 @@ from dlubal_rfem_mcp.rfem.execution import (
     ExecutionUncertain,
     default_state_path,
     fingerprint,
-    result_text,
 )
 from dlubal_rfem_mcp.rfem.model_binding import BoundApplication, canonical_guid
 from dlubal_rfem_mcp.rfem.results import RFEMResultResponse, read_results
@@ -75,28 +77,12 @@ def register_tools(
         else None
     )
 
-    class ExecutionResult(ToolResult):
-        def to_mcp_result(self):
-            if self.structured_content is None:
-                raise ValueError("executionResultMissing")
-            return CallToolResult(
-                content=self.content,
-                structured_content=self.structured_content,
-                is_error=self.structured_content["state"] != "succeeded",
-            )
-
-    def response(result):
-        return ExecutionResult(
-            content=[TextContent(type="text", text=result_text(result))],
-            structured_content=result,
-        )
-
     @mcp.tool(
         annotations={"readOnlyHint": True, "destructiveHint": False},
         description="Read the durable status and bounded output of an RFEM execution by execution_id. Does not connect to RFEM, wait for the session lock, or repeat a script. running is not a completed calculation; unknown requires operator inspection before further scripts.",
     )
     def get_rfem_execution(execution_id: str) -> ToolResult:
-        return response(executions.status(execution_id))
+        return execution_status_response(executions.status(execution_id))
 
     @mcp.tool(
         description="""Executes Python code against RFEM 6. Use this as the FIRST tool for any RFEM interaction — it connects internally and returns a clear error if RFEM is unreachable.
@@ -146,7 +132,7 @@ Example — populate a model you are authorized to modify. Inspect existing obje
                     error = "Access to private attributes is not allowed."
                     break
         if error:
-            return response({"state": "rejected", "error": error})
+            return execution_response({"state": "rejected", "error": error})
 
         def work(capture, record):
             assert session is not None
@@ -197,7 +183,7 @@ Example — populate a model you are authorized to modify. Inspect existing obje
             (time.monotonic() - start) * 1000,
             result["state"] == "succeeded",
         )
-        return response(result)
+        return execution_response(result)
 
     @mcp.tool(
         description="""Look up the EXACT RFEM API field names, types, enum values, AND app method signatures from the INSTALLED RFEM build — copy them verbatim into run_rfem_script. Deterministic and version-exact; works even when RFEM is NOT running (no connection needed).

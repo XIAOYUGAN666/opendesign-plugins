@@ -74,9 +74,17 @@ class Capture:
 
 class ExecutionManager:
     def __init__(
-        self, path: Path, endpoint: str = "127.0.0.1:9000", control=None, product="rfem"
+        self,
+        path: Path,
+        endpoint: str = "127.0.0.1:9000",
+        control=None,
+        product="rfem",
+        *,
+        readonly_existing: bool = False,
     ):
-        path.parent.mkdir(parents=True, exist_ok=True)
+        self.readonly_existing = readonly_existing
+        if not readonly_existing:
+            path.parent.mkdir(parents=True, exist_ok=True)
         self.endpoint = endpoint
         self.path = path
         self.control = control
@@ -84,6 +92,10 @@ class ExecutionManager:
         self.owner = str(uuid.uuid4())
         self._lock = threading.Lock()
         self._workers: dict[str, tuple[threading.Event, Capture]] = {}
+        if readonly_existing:
+            if control is not None:
+                control.register(self)
+            return
         with self._db() as db:
             db.execute("""CREATE TABLE IF NOT EXISTS executions (
                 id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, owner TEXT NOT NULL,
@@ -131,9 +143,36 @@ class ExecutionManager:
 
         @contextmanager
         def connection():
-            db = sqlite3.connect(self.path, timeout=5)
+            db = sqlite3.connect(
+                self.path.resolve().as_uri() + "?mode=ro"
+                if self.readonly_existing
+                else self.path,
+                timeout=5,
+                uri=self.readonly_existing,
+            )
             db.row_factory = sqlite3.Row
             try:
+                if self.readonly_existing:
+                    db.execute("PRAGMA query_only=ON")
+                    # Validate the existing journal; never repair/migrate it or
+                    # infer idle from a partial table or unsupported state.
+                    for table, columns in (
+                        (
+                            "executions",
+                            "id,fingerprint,owner,context,state,output,error,model_guid,endpoint,output_available,started,finished",
+                        ),
+                        ("bindings", "context,guid,endpoint"),
+                    ):
+                        row = db.execute(
+                            "SELECT type FROM sqlite_master WHERE name=?", (table,)
+                        ).fetchone()
+                        if row is None or row[0] != "table":
+                            raise RuntimeError("journalSchemaUnavailable")
+                        db.execute(f"SELECT {columns} FROM {table} LIMIT 0")
+                    if db.execute(
+                        "SELECT 1 FROM executions WHERE state IS NULL OR state NOT IN ('running','unknown','succeeded','failed') LIMIT 1"
+                    ).fetchone():
+                        raise RuntimeError("journalStateUnavailable")
                 with db:
                     yield db
             finally:
@@ -155,6 +194,8 @@ class ExecutionManager:
             return row[0] if row else None
 
     def bind(self, context, guid):
+        if self.readonly_existing:
+            raise PermissionError("observationIsReadonly")
         if context:
             with self._db() as db:
                 db.execute(
@@ -163,6 +204,8 @@ class ExecutionManager:
                 )
 
     def record_model(self, execution_id, context, guid):
+        if self.readonly_existing:
+            raise PermissionError("observationIsReadonly")
         with self._db() as db:
             db.execute(
                 "UPDATE executions SET model_guid=? WHERE id=?", (guid, execution_id)
@@ -211,6 +254,8 @@ class ExecutionManager:
         return result
 
     def submit(self, execution_id, context, fingerprint, work, wait_seconds=120):
+        if self.readonly_existing:
+            raise PermissionError("observationIsReadonly")
         execution_id = (
             str(uuid.UUID(execution_id)) if execution_id else str(uuid.uuid4())
         )

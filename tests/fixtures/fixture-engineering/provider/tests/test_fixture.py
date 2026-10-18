@@ -112,3 +112,42 @@ def test_startup_contract_rejects_unsafe_inputs_without_values_in_error():
         assert "unsafe-mode-canary" not in str(error.value)
     with pytest.raises(ValueError):
         StartupEnvelopeV2.model_validate({**wire, "mode": "execution"})
+
+@pytest.mark.parametrize("marker,expected", [(None, "unknown"), ("unknown", "unknown"), ("idle", "idle")])
+@pytest.mark.asyncio
+async def test_observation_is_data_only_and_requires_explicit_marker(tmp_path, marker, expected):
+    import asyncio
+    import json
+    import socket
+    import sys
+    from fixture_engineering.managed_bootstrap import StartupEnvelopeV2, provider_build_id
+
+    if marker is not None:
+        (tmp_path / "observation-state.json").write_text(json.dumps({"state": marker}), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    wire = {"schemaVersion": 2, "mode": "observation", "connectorInstanceId": "ci_" + "1" * 32, "generation": 7, "bind": {"host": "127.0.0.1", "port": port, "path": "/mcp"}, "bearerToken": "b" * 64, "providerBuildId": provider_build_id(Path(__file__).resolve().parents[1] / "fixture_engineering"), "data": {"stateDirectory": str(tmp_path)}}
+    envelope = StartupEnvelopeV2.model_validate(wire)
+    assert envelope.mode == "observation"
+    for extra in ({"configuration": {"lifecycleTestState": "idle"}}, {"software": {"safeIdentity": "si_fixture", "build": "synthetic-1"}}):
+        with pytest.raises(ValueError):
+            StartupEnvelopeV2.model_validate({**wire, **extra})
+    with pytest.raises(ValueError):
+        StartupEnvelopeV2.model_validate({k: v for k, v in wire.items() if k != "data"})
+    process = await asyncio.create_subprocess_exec(sys.executable, "-I", "-s", "-B", "-m", "fixture_engineering.managed_bootstrap", stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    try:
+        process.stdin.write(json.dumps(wire).encode()); await process.stdin.drain(); process.stdin.close()
+        ready = json.loads(await asyncio.wait_for(process.stdout.readline(), 20))
+        assert ready["mode"] == "observation"
+        frame = json.loads(await asyncio.wait_for(process.stdout.readline(), 2))
+        assert frame == {"schemaVersion": 1, "kind": "status", "connectorInstanceId": wire["connectorInstanceId"], "generation": 7, "sequence": 1, "state": expected, "inFlight": 0}
+        async with Client(build_mcp(wire["connectorInstanceId"], tmp_path, mode="observation")) as client:
+            for name in ("echo", "synthetic_write"):
+                with pytest.raises(Exception):
+                    await client.call_tool(name, {"value": "forbidden"})
+    finally:
+        if process.returncode is None: process.terminate()
+        await asyncio.wait_for(process.wait(), 10)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before

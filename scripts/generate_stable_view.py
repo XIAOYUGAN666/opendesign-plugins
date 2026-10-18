@@ -169,7 +169,7 @@ def approved_portable_files(artifact_root, receipt, trust_policy, verified_conte
     identity = read_json(files["plugin.json"])
     validate(identity, read_json((SCHEMAS / "agent-plugins-1.0.0.schema.json").read_bytes()))
     validate(identity["extensions"][NAMESPACE], read_json((SCHEMAS / "host-native.schema.json").read_bytes()))
-    if any(release.get(key) != value for key, value in release_identity(identity).items()) or digest(files["tool-preview.json"]) != release["toolCatalogDigest"] or digest(files["sbom.spdx.json"]) != release["sbomDigest"]:
+    if any(release.get(key) != value for key, value in release_identity(identity, release_sequence=release["releaseSequence"]).items()) or digest(files["tool-preview.json"]) != release["toolCatalogDigest"] or digest(files["sbom.spdx.json"]) != release["sbomDigest"]:
         raise ValueError("rootReleaseMismatch")
     return portable_files(files, identity)
 

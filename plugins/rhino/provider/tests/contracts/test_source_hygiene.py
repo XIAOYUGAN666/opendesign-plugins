@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import tomllib
 from pathlib import Path
 from xml.etree import ElementTree
@@ -115,7 +116,7 @@ def test_distribution_declares_no_public_console_script_or_source_metadata() -> 
     assert project_file.is_file()
     metadata = tomllib.loads(project_file.read_text(encoding="utf-8"))["project"]
     assert metadata["name"] == "rhino-mcp-provider"
-    assert metadata["version"] == "0.1.2"
+    assert metadata["version"] == json.loads((PROJECT_ROOT.parent / "plugin.json").read_text(encoding="utf-8"))["version"]
     assert "scripts" not in metadata
     assert "readme" not in metadata
     assert "license" not in metadata

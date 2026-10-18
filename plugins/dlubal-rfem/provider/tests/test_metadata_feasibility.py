@@ -315,6 +315,32 @@ def test_vendor_access_restriction_is_not_invalid_key(sdk_rpc):
     assert [call[0] for call in calls] == ["appInfo"]
 
 
+@pytest.mark.parametrize(
+    "code", [grpc.StatusCode.UNAUTHENTICATED, grpc.StatusCode.UNKNOWN]
+)
+def test_vendor_license_server_network_refusal_is_availability_not_key_or_quota(
+    sdk_rpc, code
+):
+    from dlubal_rfem_mcp.rfem.session import RFEMSession
+
+    _, calls, _, _, failure = sdk_rpc
+
+    class LicenseNetworkFailure(grpc.RpcError):
+        def code(self):
+            return code
+
+        def details(self):
+            return "The Dlubal license server closed the connection unexpectedly. Network error: Connection closed (Error code 2)"
+
+    failure.append(LicenseNetworkFailure())
+    session = RFEMSession("synthetic-business-key", "127.0.0.1", 9000)
+    with pytest.raises(RuntimeError, match="softwareUnavailable"), session.connection():
+        pytest.fail("no engineering dispatch after a license network failure")
+    assert not session.verified
+    assert session.restriction == "softwareUnavailable"
+    assert [call[0] for call in calls] == ["appInfo"]
+
+
 class StatusFrame(BaseModel):
     """Test-only future stdout projection from OperationControl, not a wire API."""
 

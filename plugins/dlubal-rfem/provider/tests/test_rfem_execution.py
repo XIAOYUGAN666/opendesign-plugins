@@ -326,8 +326,44 @@ async def test_mcp_wire_flags_validation_failure_and_exposes_lifecycle_schema(tm
         unknown = await client.call_tool(
             "get_rfem_execution", {"execution_id": str(uuid4())}, raise_on_error=False
         )
-        assert unknown.is_error
+        # The status lookup succeeded; it does not claim the operation succeeded.
+        assert not unknown.is_error
         assert unknown.structured_content["state"] == "not_found"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "state", ["not_found", "running", "unknown", "failed", "succeeded"]
+)
+async def test_status_lookup_reports_observed_state_without_mcp_tool_failure(
+    tmp_path, monkeypatch, state
+):
+    from fastmcp import Client, FastMCP
+
+    from dlubal_rfem_mcp.core.product_execution import execution_response
+    from dlubal_rfem_mcp.rfem.tools import register_tools
+
+    execution_id = str(uuid4())
+    observed = {"execution_id": execution_id, "state": state}
+    monkeypatch.setattr(
+        ExecutionManager,
+        "status",
+        lambda self, identity: {**observed, "execution_id": identity},
+    )
+    mcp = FastMCP("status-only")
+    register_tools(
+        mcp, None, SimpleNamespace(execution_state_file=str(tmp_path / "state.db"))
+    )
+    async with Client(mcp) as client:
+        status = await client.call_tool(
+            "get_rfem_execution", {"execution_id": execution_id}, raise_on_error=False
+        )
+        assert not status.is_error
+        assert status.structured_content == observed
+    # Mutation responses must still fail closed unless the engineering work succeeded.
+    assert execution_response(observed).to_mcp_result().is_error is (
+        state != "succeeded"
+    )
 
 
 @pytest.mark.asyncio

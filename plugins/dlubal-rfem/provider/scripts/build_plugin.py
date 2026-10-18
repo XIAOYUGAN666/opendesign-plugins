@@ -416,6 +416,7 @@ def main():
     parser.add_argument("--stage-only", action="store_true")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--cache", type=Path)
+    parser.add_argument("--release-sequence", type=int)
     args = parser.parse_args()
     if args.lock:
         (ROOT / "packaging/runtime-lock.json").write_bytes(
@@ -427,6 +428,8 @@ def main():
     if args.stage_only:
         print(stage(args.plugin_root, args.output.resolve(), args.cache.resolve()))
     else:
+        if args.release_sequence is None:
+            parser.error("--release-sequence required for artifact build")
         public_builder = (
             args.plugin_root.resolve().parents[1] / "scripts/build_artifact.py"
         )
@@ -436,6 +439,8 @@ def main():
                 "-B",
                 str(public_builder),
                 str(args.plugin_root.resolve()),
+                "--release-sequence",
+                str(args.release_sequence),
                 "--output",
                 str(args.output.resolve()),
                 "--cache",

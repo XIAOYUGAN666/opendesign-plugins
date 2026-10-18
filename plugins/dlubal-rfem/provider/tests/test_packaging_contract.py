@@ -22,6 +22,7 @@ def test_public_builder_accepts_explicit_plugin_root():
         check=True,
     )
     assert "--plugin-root" in result.stdout
+    assert "--release-sequence" in result.stdout
 
 
 def test_public_provider_builder_preserves_safe_parent_error_without_traceback():
@@ -34,6 +35,8 @@ def test_public_provider_builder_preserves_safe_parent_error_without_traceback()
             "scripts.build_plugin",
             "--plugin-root",
             str(root.parent),
+            "--release-sequence",
+            "2",
             "--output",
             str(root),
             "--cache",

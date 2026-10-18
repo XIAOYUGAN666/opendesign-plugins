@@ -2,7 +2,7 @@
 
 The official repository is `XIAOYUGAN666/opendesign-plugins`, with one development branch `main`. The runtime source identity remains `github:XIAOYUGAN666/opendesign-plugins`. Development inputs live under `plugins/<id>/`; each Provider owns its project, frozen lock, virtual environment and tests. The root tooling has no Python environment or shared dependency project.
 
-The generated `.agents/plugins/marketplace.json` currently contains an empty discovery array. No approved Stable release, `published/` view or signed marketplace snapshot exists. Empty discovery does not establish a signed empty snapshot or Codex client UI acceptance. RFEM and Rhino Providers have not migrated; their CI jobs explicitly report `notPresent`. Synthetic fixture tests do not prove either engineering integration.
+The generated `.agents/plugins/marketplace.json` currently contains an empty discovery array. No approved Stable release, `published/` view or signed marketplace snapshot exists. Empty discovery does not establish a signed empty snapshot or Codex client UI acceptance. RFEM and Rhino now have independent source projects; their native engineering acceptance remains separately tracked in T32/T33. Synthetic fixture tests do not prove either engineering integration.
 
 ## Verification and candidate workflows
 
@@ -10,11 +10,15 @@ Run root checks with `python -B -m unittest discover -s tests -v`. Cryptographic
 
 Both workflows pin official action commits, Windows 2025, Python 3.12.10 and uv 0.9.21; projects consume their own frozen locks. `verify.yml` has root binding checks, independent fixture checks and two independently resolved Provider projects. An absent project is `notPresent`, not a Provider test/build pass. Once a real Provider migrates, its own checks run in its own job/environment.
 
-The manual `release-plugin.yml` defaults to validation/build of the synthetic fixture. It derives the version from the selected root and checks the project version. It does not create a tag, GitHub Release, draft Release, Stable view, marketplace or signature. There is no signing job, secret or protected environment configured by this workflow. Real Provider release build integration remains unavailable until its migration; a present but unsupported real release builder fails closed.
+The manual `release-plugin.yml` defaults to validation/build of the synthetic fixture. It derives the version from the selected root and checks the project version. It does not create a tag, GitHub Release, draft Release, Stable view, marketplace or signature. There is no signing job, secret or protected environment configured by this workflow. Local common tooling accepts the migrated Provider builders; this public workflow still deliberately rejects real Provider artifact uploads and builds only the synthetic fixture. Source migration does not enable publication.
 
 Actions artifacts in this public repository are public evidence, not private channels. Uploads are limited to safe synthetic fixture candidates, with no engineering software, keys, business models or production authorization. Real Provider prerelease candidates are never automatically uploaded. A future controlled signing job requires independently confirmed environment protection/reviewers and signer scope; an environment name alone is not approval protection.
 
 ## Generate from immutable verified inputs
+
+Every artifact build requires an explicit publisher `--release-sequence`; there is no default counter. It is independent of the marketplace snapshot sequence. Advance the package/variant counter and root version for changed assets; never reuse a published version, reset Host trust history or rebind an old counter to new ZIP bytes. Root Manifest remains the sole human-maintained plugin identity.
+
+Generate inputs with `python -B scripts/build_artifact.py plugins/<id> --generate-release-input --release-sequence <counter>`. One invocation derives the root `packaging/release-input.json` from root bytes and publisher counter, and synchronizes an existing Provider copy used by its build. It does not create unused Provider input files. Build with the same explicit counter and a fresh external output directory; drift is rejected before Provider staging. RFEM embeds and hashes its generated Provider input. Archive verification checks that embedded input against root bytes, release identity and the receipt-bound counter. The synthetic CI fixture explicitly uses counter 1; this grants no signing or Stable approval.
 
 The three Python interfaces are:
 

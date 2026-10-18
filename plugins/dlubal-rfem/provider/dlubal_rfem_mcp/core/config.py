@@ -95,7 +95,7 @@ class ConfigurationV1(ExactModel):
 
 class StartupEnvelopeV2(ExactModel):
     schemaVersion: Literal[2]
-    mode: Literal["metadata", "execution"]
+    mode: Literal["metadata", "observation", "execution"]
     connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
     generation: PositiveRevision
     bind: BindSettings
@@ -126,6 +126,12 @@ class StartupEnvelopeV2(ExactModel):
 
     @model_validator(mode="after")
     def separate_credentials(self) -> Self:
+        if self.mode == "observation" and (
+            self.data is None
+            or self.configuration is not None
+            or self.software is not None
+        ):
+            raise ValueError("observationRequiresOnlyData")
         if self.mode == "execution" and any(
             value is None for value in (self.configuration, self.data, self.software)
         ):
@@ -150,7 +156,7 @@ StartupEnvelope = StartupEnvelopeV2
 class ProviderReadyV2(ExactModel):
     schemaVersion: Literal[2] = 2
     kind: Literal["ready"] = "ready"
-    mode: Literal["metadata", "execution"]
+    mode: Literal["metadata", "observation", "execution"]
     connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
     generation: PositiveRevision
     providerBuildId: Digest

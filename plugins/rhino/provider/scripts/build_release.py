@@ -33,8 +33,14 @@ NATIVE_ROOT = PLUGIN_ROOT / "native"
 RUNTIME_LOCK_PATH = PROJECT_ROOT / "packaging" / "runtime-lock.json"
 RELEASE_TEMPLATE_PATH = PROJECT_ROOT / "packaging" / "release-template.json"
 PLUGIN_GUID = "74a1e8f4-1134-4686-a3e5-ee8bf393dec9"
-YAK_NAME = "rhino-mcp-bridge-0.1.2-rh8-win.yak"
-ARCHIVE_NAME = "rhino-0.1.2-windows-x86_64.zip"
+
+
+def _release_names(root: Path) -> tuple[str, str]:
+    version = json.loads((root / "plugin.json").read_text(encoding="utf-8"))["version"]
+    return f"rhino-mcp-bridge-{version}-rh8-win.yak", f"rhino-{version}-windows-x86_64.zip"
+
+
+YAK_NAME, ARCHIVE_NAME = _release_names(PLUGIN_ROOT)
 BUILD_ID_SENTINEL = 'PROVIDER_BUILD_ID = "sha256:" + "0" * 64'
 BUILD_ID_PATTERN = re.compile(r"^PROVIDER_BUILD_ID\s*=.*$", re.MULTILINE)
 SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -314,7 +320,7 @@ def configure_plugin_root(root: Path) -> None:
         PROJECT_ROOT, \
         NATIVE_ROOT, \
         RUNTIME_LOCK_PATH, \
-        RELEASE_TEMPLATE_PATH
+        RELEASE_TEMPLATE_PATH, YAK_NAME, ARCHIVE_NAME
     root = root.resolve()
     if (
         not (root / "provider" / "pyproject.toml").is_file()
@@ -326,6 +332,7 @@ def configure_plugin_root(root: Path) -> None:
     NATIVE_ROOT = root / "native"
     RUNTIME_LOCK_PATH = PROJECT_ROOT / "packaging" / "runtime-lock.json"
     RELEASE_TEMPLATE_PATH = PROJECT_ROOT / "packaging" / "release-template.json"
+    YAK_NAME, ARCHIVE_NAME = _release_names(root)
 
 
 def _runtime_lock() -> dict[str, Any]:
@@ -862,11 +869,11 @@ def validate_root_identity() -> dict[str, Any]:
 def _build_identity(
     lock: dict[str, Any],
 ) -> tuple[dict[str, Any], str]:
-    validate_root_identity()
+    root_identity = validate_root_identity()
     description = {
         "schemaVersion": 1,
         "packageId": "rhino",
-        "releaseVersion": "0.1.2",
+        "releaseVersion": root_identity["version"],
         "providerSource": _source_records(),
         "contractSource": _contract_records(),
         "buildInputs": _build_inputs(),
@@ -934,9 +941,10 @@ def _sbom_package(
 def _sbom(
     stage_root: Path, lock: dict[str, Any], native_yak: bytes, source_date_epoch: int
 ) -> bytes:
+    release_version = validate_root_identity()["version"]
     site_packages = stage_root / "runtime" / "python" / "Lib" / "site-packages"
     packages = [
-        _sbom_package("rhino-mcp-provider", "0.1.2"),
+        _sbom_package("rhino-mcp-provider", release_version),
         _sbom_package(
             "CPython",
             lock["python"]["version"],
@@ -945,7 +953,7 @@ def _sbom(
         ),
         _sbom_package(
             "rhino-mcp-bridge",
-            "0.1.2",
+            release_version,
             checksum=hashlib.sha256(native_yak).hexdigest(),
         ),
     ]
@@ -977,8 +985,8 @@ def _sbom(
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "rhino-provider-release-0.1.2",
-        "documentNamespace": "https://spdx.org/spdxdocs/rhino-provider-release-0.1.2-"
+        "name": f"rhino-provider-release-{release_version}",
+        "documentNamespace": f"https://spdx.org/spdxdocs/rhino-provider-release-{release_version}-"
         + hashlib.sha256(canonical_json_bytes(packages)).hexdigest(),
         "creationInfo": {
             "created": created.replace(microsecond=0)

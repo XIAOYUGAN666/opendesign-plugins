@@ -97,7 +97,16 @@ async def test_live_harness_drains_strict_status_without_software(envelope):
         ).encode()
     )
     reader.feed_eof()
-    assert await harness["_drain_lifecycle"](reader, envelope, schema, closing) == 2
+    observation = harness["LifecycleObservation"]()
+    assert (
+        await harness["_drain_lifecycle"](
+            reader, envelope, schema, closing, observation
+        )
+        == 2
+    )
+    assert observation.sequence == 2 and observation.state == "unknown"
+    assert observation.in_flight == 0 and not observation.idle()
+    assert observation.changed.is_set()
     for invalid in (
         {**frame, "generation": 2},
         {**frame, "sequence": 3},
@@ -108,7 +117,11 @@ async def test_live_harness_drains_strict_status_without_software(envelope):
         reader.feed_data((json.dumps(invalid) + "\n").encode())
         reader.feed_eof()
         with pytest.raises((ValueError, ValidationError)):
-            await harness["_drain_lifecycle"](reader, envelope, schema, closing)
+            observation = harness["LifecycleObservation"]()
+            await harness["_drain_lifecycle"](
+                reader, envelope, schema, closing, observation
+            )
+        assert observation.sequence == 0 and not observation.idle()
 
 
 def metadata(envelope):

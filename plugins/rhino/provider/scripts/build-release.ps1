@@ -1,4 +1,5 @@
 param(
+    [Parameter(Mandatory = $true)][ulong]$ReleaseSequence,
     [string]$PluginRoot,
     [string]$OutputPath,
     [string]$PythonRuntimeArchive,
@@ -42,7 +43,7 @@ Push-Location $projectRoot
 try {
     $env:RHINO_UV_EXE = $selectedUv
     $env:RHINO_DOTNET_EXE = $selectedDotnet
-    $arguments = @("run", "--frozen", "--extra", "test", "python", "-B", "-m", "scripts.release_cli", "build", "--plugin-root", $PluginRoot)
+    $arguments = @("run", "--frozen", "--extra", "test", "python", "-B", "-m", "scripts.release_cli", "build", "--plugin-root", $PluginRoot, "--release-sequence", $ReleaseSequence)
     if ($OutputPath) { $arguments += @("--output", $OutputPath) }
     if ($PythonRuntimeArchive) { $arguments += @("--python-runtime-archive", $PythonRuntimeArchive) }
     $arguments += @("--dotnet-exe", $selectedDotnet, "--uv-exe", $selectedUv)

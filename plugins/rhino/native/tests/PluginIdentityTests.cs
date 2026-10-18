@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Xunit;
 
 namespace RhinoMcpBridge.Tests;
@@ -9,7 +10,6 @@ namespace RhinoMcpBridge.Tests;
 public sealed class PluginIdentityTests
 {
     private const string ExpectedAssemblyName = "RhinoMcpBridge";
-    private const string ExpectedVersion = "0.1.2.0";
     private const string ExpectedGuid = "74a1e8f4-1134-4686-a3e5-ee8bf393dec9";
     private const string ExpectedLoadTime = "AtStartup";
     private const string ExpectedCapabilityDigestEnvironmentVariable =
@@ -25,10 +25,13 @@ public sealed class PluginIdentityTests
             .ToArray();
 
         Assert.Equal(2, identities.Length);
+        using var root = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            NativeTestAssembly.FindNativeRoot().Parent!.FullName, "plugin.json")));
+        var expectedVersion = root.RootElement.GetProperty("version").GetString() + ".0";
         foreach (var identity in identities)
         {
             Assert.Equal(ExpectedAssemblyName, identity.Name);
-            Assert.Equal(ExpectedVersion, identity.Version);
+            Assert.Equal(expectedVersion, identity.Version);
             Assert.Equal(ExpectedGuid, identity.Guid);
             Assert.Equal(ExpectedLoadTime, identity.LoadTime);
             Assert.Matches("^sha256:[0-9a-f]{64}$", identity.CapabilityDigest);
@@ -75,7 +78,7 @@ public sealed class PluginIdentityTests
         {
             return new[] { "net48", "net8.0" }
                 .Select(target => Path.Combine(
-                    FindNativeRoot().FullName,
+                    NativeTestAssembly.FindNativeRoot().FullName,
                     "bin",
                     "Release",
                     target,
@@ -99,25 +102,6 @@ public sealed class PluginIdentityTests
         return new[] { "net48", "net8.0" }
             .Select(target => Path.Combine(resolvedRoot, target, $"{ExpectedAssemblyName}.rhp"))
             .ToArray();
-    }
-
-    private static DirectoryInfo FindNativeRoot()
-    {
-        for (
-            DirectoryInfo? directory = new(AppContext.BaseDirectory);
-            directory is not null;
-            directory = directory.Parent
-        )
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "RhinoMcpBridge.sln")))
-            {
-                return directory;
-            }
-        }
-
-        throw new DirectoryNotFoundException(
-            "Could not locate RhinoMcpBridge.sln above the test output directory."
-        );
     }
 
     private static PluginIdentity ReadIdentity(string assemblyPath)

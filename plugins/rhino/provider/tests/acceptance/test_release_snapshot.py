@@ -3,10 +3,46 @@
 import hashlib
 import os
 import shutil
+from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
 from scripts import release_cli, verify_release
+
+
+@pytest.mark.parametrize("return_code", [0, 1])
+def test_native_identity_probe_releases_only_its_owned_build_directory(
+    monkeypatch, tmp_path, return_code
+):
+    output = tmp_path / "identity-artifacts"
+
+    def allocate(*args, **kwargs):
+        output.mkdir()
+        return str(output)
+
+    def probe(command, **kwargs):
+        assert command[command.index("--artifacts-path") + 1] == str(output)
+        assert (
+            command[command.index("--filter") + 1]
+            == "FullyQualifiedName~BothRhino8TargetsHaveTheSamePermanentPluginIdentity"
+        )
+        (output / "regeneratable-build-output").write_bytes(b"test-output")
+        return SimpleNamespace(returncode=return_code)
+
+    monkeypatch.setattr(verify_release.tempfile, "mkdtemp", allocate)
+    monkeypatch.setattr(verify_release.subprocess, "run", probe)
+    if return_code:
+        with pytest.raises(
+            verify_release.ReleaseVerificationError, match="identity test failed"
+        ):
+            verify_release._run_native_identity_test(
+                tmp_path, "test-dotnet", "sha256:" + "a" * 64
+            )
+    else:
+        verify_release._run_native_identity_test(
+            tmp_path, "test-dotnet", "sha256:" + "a" * 64
+        )
+    assert not output.exists()
 
 
 @pytest.mark.skipif(

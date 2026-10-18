@@ -16,7 +16,7 @@ def test_release_hygiene_accepts_flat_package_and_native_targets() -> None:
             "runtime/python/python.exe",
             "runtime/python/Lib/site-packages/pywin32-312.dist-info/licenses/src/LICENSE",
             "rhino_mcp/managed_bootstrap.py",
-            "native/rhino-mcp-bridge-0.1.2-rh8-win.yak",
+            "native/rhino-mcp-bridge-0.1.3-rh8-win.yak",
             "contracts/protocol.json",
         }
     )

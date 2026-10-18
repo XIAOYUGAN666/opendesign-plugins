@@ -51,6 +51,14 @@ def restriction_category(error: Exception) -> str:
                     )
                 ):
                     return "authorizationRestricted"
+                if (
+                    "dlubal license server closed the connection unexpectedly"
+                    in details
+                    and "network error:" in details
+                ):
+                    # RFEM also uses UNAUTHENTICATED for upstream license-network
+                    # failures. Its actual detail is not an invalid Key or quota.
+                    return "softwareUnavailable"
                 return "apiAccessRestricted"
             return "softwareUnavailable"
         current = current.__cause__ or current.__context__

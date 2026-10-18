@@ -167,12 +167,21 @@ def test_release_verifier_checks_signed_capability_digest_against_both_targets(
     assert observed["env"]["RHINO_EXPECTED_CAPABILITY_DIGEST"] == expected
 
 
+@pytest.mark.parametrize("longer_source", ["checkout", "build"])
 def test_native_release_path_map_stabilizes_repository_and_ephemeral_build_paths(
-    tmp_path,
+    tmp_path, monkeypatch, longer_source,
 ) -> None:
-    assert native_path_map(tmp_path) == (
-        f"{tmp_path.resolve()}=/_/rhino-build%2C{PROJECT_ROOT.parent.resolve()}=/_/rhino"
-    )
+    checkout = tmp_path / ("long-checkout-source" if longer_source == "checkout" else "src")
+    workspace = tmp_path / ("long-temporary-build" if longer_source == "build" else "out")
+    checkout.mkdir()
+    workspace.mkdir()
+    monkeypatch.setattr(build_release, "PLUGIN_ROOT", checkout)
+    mappings = [entry.rsplit("=", 1) for entry in native_path_map(workspace).split("%2C")]
+    assert dict(mappings) == {
+        str(checkout.resolve()): "/_/rhino",
+        str(workspace.resolve()): "/_/rhino-build",
+    }
+    assert len(mappings[0][0]) >= len(mappings[1][0])
     assert native_artifact_path(tmp_path, "net8.0") == (
         tmp_path / "bin" / "RhinoMcpBridge" / "release_net8.0"
     )

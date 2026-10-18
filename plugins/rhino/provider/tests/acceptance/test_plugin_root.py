@@ -21,6 +21,33 @@ def test_support_is_limited_to_the_approved_rhino_build():
     assert template["software"]["supportedBuilds"] == ["8.26.25349.19001"]
 
 
+def test_build_record_uses_validated_root_version(monkeypatch):
+    identity = build_release.validate_root_identity()
+    monkeypatch.setattr(build_release, "validate_root_identity", lambda: {**identity, "version": "9.8.7"})
+    record, _ = build_release._build_identity(build_release._runtime_lock())
+    assert record["releaseVersion"] == "9.8.7"
+
+
+def test_candidate_filenames_follow_the_selected_root_version():
+    identity = build_release.validate_root_identity()
+    build_release.configure_plugin_root(build_release.PLUGIN_ROOT)
+    assert build_release.YAK_NAME == f"rhino-mcp-bridge-{identity['version']}-rh8-win.yak"
+    assert build_release.ARCHIVE_NAME == f"rhino-{identity['version']}-windows-x86_64.zip"
+
+
+def test_sbom_uses_the_validated_plugin_version(tmp_path, monkeypatch):
+    import json
+
+    identity = build_release.validate_root_identity()
+    monkeypatch.setattr(build_release, "validate_root_identity", lambda: {**identity, "version": "9.8.7"})
+    sbom = json.loads(build_release._sbom(tmp_path, build_release._runtime_lock(), b"synthetic-yak", 0))
+    owned = [p for p in sbom["packages"] if p["name"] in {"rhino-mcp-provider", "rhino-mcp-bridge"}]
+    assert len(owned) == 2
+    assert {p["versionInfo"] for p in owned} == {"9.8.7"}
+    assert sbom["name"] == "rhino-provider-release-9.8.7"
+    assert sbom["documentNamespace"].startswith("https://spdx.org/spdxdocs/rhino-provider-release-9.8.7-")
+
+
 def test_release_identity_rejects_derived_version_drift(tmp_path):
     import json
     import shutil
@@ -34,7 +61,7 @@ def test_release_identity_rejects_derived_version_drift(tmp_path):
         ignore=shutil.ignore_patterns(".venv", "bin", "obj", "__pycache__"),
     )
     identity = json.loads((copied / "plugin.json").read_text())
-    identity["version"] = "0.1.3"
+    identity["version"] += "-drift"
     (copied / "plugin.json").write_text(json.dumps(identity))
     original = build_release.PLUGIN_ROOT
     try:

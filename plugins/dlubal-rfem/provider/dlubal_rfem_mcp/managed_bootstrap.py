@@ -115,7 +115,8 @@ async def serve(envelope: StartupEnvelope, ready_stream) -> None:
         return
     assert envelope.data is not None
     database = Path(envelope.data.stateDirectory) / "executions.sqlite3"
-    database.parent.mkdir(parents=True, exist_ok=True)
+    if envelope.mode == "execution":
+        database.parent.mkdir(parents=True, exist_ok=True)
     # A distinct lifetime lock protects startup ownership; operation workers
     # retain their original per-operation lock and journal semantics.
     with worker_lock(Path(str(database) + ".provider")):

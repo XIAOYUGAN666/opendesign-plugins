@@ -1,4 +1,4 @@
-"""Compatibility CLI adapters for the single common artifact finalizer/verifier."""
+"""CLI adapters for the single common artifact finalizer/verifier."""
 
 from __future__ import annotations
 
@@ -78,6 +78,7 @@ def build(
     plugin_root: Path,
     output: Path,
     *,
+    release_sequence: int,
     runtime_archive: Path | None,
     dotnet_exe: str | None,
     uv_exe: str | None,
@@ -86,6 +87,7 @@ def build(
         raise ValueError("outputMustBeFresh")
     common = _common_builder(plugin_root)
     common.check_source_closure(plugin_root)
+    common.check_release_inputs(plugin_root, release_sequence=release_sequence)
     environment = {
         key: os.environ[key]
         for key in (
@@ -114,7 +116,12 @@ def build(
             uv_exe=uv_exe,
         )
         archive = common._finish_staged_artifact(
-            plugin_root, staging_output, Path(sys.executable), environment, False
+            plugin_root,
+            staging_output,
+            Path(sys.executable),
+            environment,
+            False,
+            release_sequence=release_sequence,
         )
         verify(
             plugin_root,
@@ -234,6 +241,7 @@ def main() -> None:
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--python-runtime-archive", type=Path)
+    parser.add_argument("--release-sequence", type=int)
     parser.add_argument("--dotnet-exe")
     parser.add_argument("--uv-exe")
     parser.add_argument("--unsigned", action="store_true")
@@ -243,12 +251,15 @@ def main() -> None:
     build_release.configure_plugin_root(root)
     verify_release.PLUGIN_ROOT = root
     if args.action == "build":
+        if args.release_sequence is None:
+            parser.error("--release-sequence is required for build")
         output = (
             args.output or root / "provider/dist" / build_release.ARCHIVE_NAME
         ).resolve()
         build(
             root,
             output,
+            release_sequence=args.release_sequence,
             runtime_archive=args.python_runtime_archive,
             dotnet_exe=args.dotnet_exe,
             uv_exe=args.uv_exe,

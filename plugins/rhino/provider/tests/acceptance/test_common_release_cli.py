@@ -7,6 +7,39 @@ import pytest
 from scripts import build_plugin, build_release, release_cli
 
 
+def test_release_adapter_carries_publisher_sequence_to_common_validation_and_finalizer(
+    monkeypatch, tmp_path
+):
+    from types import SimpleNamespace
+
+    observed = {}
+
+    def check_inputs(root, *, release_sequence):
+        observed["checked"] = release_sequence
+
+    def finish(*args, release_sequence):
+        observed["finalized"] = release_sequence
+        return tmp_path / "candidate.zip"
+
+    common = SimpleNamespace(
+        check_source_closure=lambda root: None,
+        check_release_inputs=check_inputs,
+        _finish_staged_artifact=finish,
+    )
+    monkeypatch.setattr(release_cli, "_common_builder", lambda root: common)
+    monkeypatch.setattr(build_plugin, "stage", lambda *args, **kwargs: None)
+    monkeypatch.setattr(release_cli, "verify", lambda *args, **kwargs: None)
+    release_cli.build(
+        tmp_path,
+        tmp_path / "output.zip",
+        release_sequence=2,
+        runtime_archive=None,
+        dotnet_exe=None,
+        uv_exe=None,
+    )
+    assert observed == {"checked": 2, "finalized": 2}
+
+
 def test_pair_mapping_keeps_verified_bytes_and_refuses_existing_receipt(tmp_path):
     archive = tmp_path / "candidate.zip"
     archive.write_bytes(b"reviewed archive")

@@ -294,8 +294,8 @@ def _run_native_identity_test(
     expected_capability_digest: str,
     expected_provider_build_id: str | None = None,
 ) -> None:
-    artifact_root = Path(tempfile.mkdtemp(prefix="rhino-identity-artifacts-"))
     environment = os.environ.copy()
+    environment["RHINO_NATIVE_SOURCE_ROOT"] = str((PLUGIN_ROOT / "native").resolve())
     environment["RHINO_NATIVE_OUTPUT_ROOT"] = str(yak_root.resolve())
     environment["RHINO_EXPECTED_CAPABILITY_DIGEST"] = _require_digest(
         expected_capability_digest,
@@ -305,30 +305,35 @@ def _run_native_identity_test(
         environment["RHINO_EXPECTED_PROVIDER_BUILD_ID"] = _require_digest(
             expected_provider_build_id, "Provider build"
         )
-    result = subprocess.run(
-        [
-            dotnet_exe,
-            "test",
-            str(PLUGIN_ROOT / "native" / "tests" / "RhinoMcpBridge.Tests.csproj"),
-            "--configuration",
-            "Release",
-            "--filter",
-            "FullyQualifiedName~BothRhino8TargetsHaveTheSamePermanentPluginIdentity",
-            "--artifacts-path",
-            str(artifact_root),
-            "-p:RestoreLockedMode=true",
-            "-p:ContinuousIntegrationBuild=true",
-        ],
-        cwd=PLUGIN_ROOT,
-        env=environment,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
-    if result.returncode != 0:
-        raise ReleaseVerificationError("Packaged native assembly identity test failed.")
+    with tempfile.TemporaryDirectory(
+        prefix="rhino-identity-artifacts-"
+    ) as artifact_root:
+        result = subprocess.run(
+            [
+                dotnet_exe,
+                "test",
+                str(PLUGIN_ROOT / "native" / "tests" / "RhinoMcpBridge.Tests.csproj"),
+                "--configuration",
+                "Release",
+                "--filter",
+                "FullyQualifiedName~BothRhino8TargetsHaveTheSamePermanentPluginIdentity",
+                "--artifacts-path",
+                artifact_root,
+                "-p:RestoreLockedMode=true",
+                "-p:ContinuousIntegrationBuild=true",
+            ],
+            cwd=PLUGIN_ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            raise ReleaseVerificationError(
+                "Packaged native assembly identity test failed."
+            )
 
 
 def verify_release_archive(
@@ -426,7 +431,7 @@ def verify_release_archive(
             native = manifest.get("native")
             if not isinstance(native, dict) or native != {
                 "packageId": "rhino-mcp-bridge",
-                "version": "0.1.2",
+                "version": "0.1.3",
                 "relativePath": YAK_MEMBER,
                 "sha256": native.get("sha256"),
                 "contractVersion": 1,
@@ -545,7 +550,7 @@ def verify_release_archive(
             _check_digest(native.get("sha256"), _digest(yak_bytes), "Yak package")
             yak_members = verify_yak_archive(
                 yak_bytes,
-                expected_plugin_version="0.1.2",
+                expected_plugin_version="0.1.3",
                 expected_plugin_guid=PLUGIN_GUID,
             )
             if (
@@ -644,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
             payload = arguments.yak_path.read_bytes()
             verify_yak_archive(
                 payload,
-                expected_plugin_version="0.1.2",
+                expected_plugin_version="0.1.3",
                 expected_plugin_guid=PLUGIN_GUID,
             )
             with tempfile.TemporaryDirectory(prefix="rhino-yak-verify-") as folder:

@@ -79,7 +79,7 @@ internal sealed class NativeTestAssembly : IDisposable
 
     public void Dispose() => _loadContext.Unload();
 
-    private static DirectoryInfo FindNativeRoot()
+    internal static DirectoryInfo FindNativeRoot()
     {
         var configuredRoot = Environment.GetEnvironmentVariable(SourceRootEnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(configuredRoot))

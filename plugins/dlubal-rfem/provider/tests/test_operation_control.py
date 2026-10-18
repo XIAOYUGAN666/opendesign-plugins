@@ -4,14 +4,15 @@ import threading
 import time
 from contextlib import contextmanager
 from types import ModuleType, SimpleNamespace
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
 from fastmcp import Client, FastMCP
 
 from dlubal_rfem_mcp.core.operation_control import OperationControl
-from dlubal_rfem_mcp.core.product_execution import register_script_tools
 from dlubal_rfem_mcp.rfem.execution import ExecutionManager, ExecutionUncertain
+from dlubal_rfem_mcp.rfem.tools import register_tools
 
 
 def terminal(manager, operation):
@@ -135,7 +136,7 @@ async def test_product_tools_persist_results_without_global_stdout(
     original_stdout = sys.stdout
     mcp = FastMCP("product-lifecycle")
     control = OperationControl()
-    names = register_script_tools(mcp, Session(), config, product, control)
+    names = register_tools(mcp, cast(Any, Session()), config, control)
     assert f"get_{product}_execution" in names
     operation = str(uuid4())
     async with Client(mcp) as client:
@@ -144,7 +145,10 @@ async def test_product_tools_persist_results_without_global_stdout(
             {"code": "print('bounded output')", "execution_id": operation},
         )
         assert first.structured_content["state"] == "succeeded"
-        assert first.structured_content["output"] == "bounded output\n"
+        # The real RFEM registration includes its existing orientation diagnostic.
+        assert first.structured_content["output"] == (
+            "[Z-axis: DOWN, gravity_sign=1]\nbounded output\n"
+        )
         status = await client.call_tool(
             f"get_{product}_execution", {"execution_id": operation}
         )

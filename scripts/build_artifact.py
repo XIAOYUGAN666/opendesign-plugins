@@ -16,9 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / "tests/fixtures/fixture-engineering"
 
 
-def generated_input(plugin_root):
+def generated_input(plugin_root, *, release_sequence):
     data = (plugin_root / "plugin.json").read_bytes()
-    return {"generatedFrom": "../plugin.json", "rootSha256": digest(data), "releaseIdentity": release_identity(read_json(data))}
+    return {"generatedFrom": "../plugin.json", "rootSha256": digest(data), "releaseIdentity": release_identity(read_json(data), release_sequence=release_sequence)}
 
 
 def check_source_closure(plugin_root):
@@ -41,27 +41,40 @@ def check_source_closure(plugin_root):
                 check(path)
 
 
-def build_artifact(plugin_root: Path, output_dir: Path, *, cache_dir: Path | None = None) -> Path:
+def check_release_inputs(plugin_root: Path, *, release_sequence: int):
+    expected_input = canonical(generated_input(plugin_root, release_sequence=release_sequence))
+    if plugin_root != FIXTURE.resolve():
+        targets = [plugin_root / "packaging/release-input.json"]
+        provider_input = plugin_root / "provider/packaging/release-input.json"
+        if provider_input.exists():
+            targets.append(provider_input)
+        for target in targets:
+            if target.read_bytes() != expected_input:
+                raise ValueError("providerRootInputsMismatch")
+
+
+def build_artifact(plugin_root: Path, output_dir: Path, *, release_sequence: int, cache_dir: Path | None = None) -> Path:
     plugin_root = plugin_root.resolve(strict=True)
     output_dir = output_dir.resolve()
     if output_dir.is_relative_to(ROOT) or output_dir.exists():
         raise ValueError("outputMustBeFreshAndOutsideRepository")
     check_source_closure(plugin_root)
+    check_release_inputs(plugin_root, release_sequence=release_sequence)
     tool_python = plugin_root / "provider/.venv/Scripts/python.exe"
-    environment = {k: os.environ[k] for k in ("SystemRoot", "WINDIR", "TEMP", "TMP", "PATH", "USERPROFILE", "LOCALAPPDATA", "APPDATA") if k in os.environ}
+    environment = {k: os.environ[k] for k in ("SystemRoot", "WINDIR", "TEMP", "TMP", "PATH", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "ProgramFiles(x86)") if k in os.environ}
     fixture = plugin_root == FIXTURE.resolve()
     command = [str(tool_python), "-B", "-m", "scripts.build_fixture", "--output", str(output_dir)] if fixture else [str(tool_python), "-B", "-m", "scripts.build_plugin", "--plugin-root", str(plugin_root), "--stage-only", "--output", str(output_dir), "--cache", str(cache_dir or plugin_root / "provider/cache/downloads")]
     subprocess.run(command, cwd=plugin_root / "provider", env=environment, check=True, capture_output=True, timeout=600)
-    return _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture)
+    return _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture, release_sequence=release_sequence)
 
 
-def _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture):
+def _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture, *, release_sequence):
     """One mandatory finalization path; existing stages are reused only by tests."""
     staged = output_dir / "artifact"
     identity = read_json((staged / "plugin.json").read_bytes())
     if (staged / "plugin.json").read_bytes() != (plugin_root / "plugin.json").read_bytes():
         raise ValueError("rootChangedDuringBuild")
-    release = release_identity(identity)
+    release = release_identity(identity, release_sequence=release_sequence)
     release["providerBuildId"] = read_json((staged / ("fixture-build.json" if fixture else "provider-build.json")).read_bytes())["providerBuildId"]
     # The public startup/MCP probe needs only this provisional release identity.
     (staged / "release.json").write_bytes(canonical(release))
@@ -104,17 +117,22 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--cache", type=Path)
     parser.add_argument("--generate-release-input", action="store_true")
+    parser.add_argument("--release-sequence", type=int, required=True)
     args = parser.parse_args()
     try:
         if args.generate_release_input:
-            target = args.plugin_root / "packaging/release-input.json"
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(canonical(generated_input(args.plugin_root)))
-            print(target)
+            data = canonical(generated_input(args.plugin_root, release_sequence=args.release_sequence))
+            targets = [args.plugin_root / "packaging/release-input.json"]
+            if (args.plugin_root / "provider/packaging/release-input.json").exists():
+                targets.append(args.plugin_root / "provider/packaging/release-input.json")
+            for target in targets:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+                print(target)
         else:
             if not args.output:
                 parser.error("--output required")
-            print(build_artifact(args.plugin_root, args.output, cache_dir=args.cache))
+            print(build_artifact(args.plugin_root, args.output, release_sequence=args.release_sequence, cache_dir=args.cache))
     except Exception as error:
         parser.exit(1, "artifactBuildFailed:" + safe_error_category(error) + "\n")
 

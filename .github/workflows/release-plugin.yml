@@ -77,7 +77,7 @@ jobs:
           if ($env:PLUGIN_ID -ne 'fixture-engineering') {
             throw 'Real Provider release builder has not migrated; no public prerelease artifact is permitted'
           }
-          & "$env:PLUGIN_ROOT/provider/.venv/Scripts/python.exe" -B scripts/build_artifact.py $env:PLUGIN_ROOT --output "$env:RUNNER_TEMP/synthetic-fixture-candidate"
+          & "$env:PLUGIN_ROOT/provider/.venv/Scripts/python.exe" -B scripts/build_artifact.py $env:PLUGIN_ROOT --release-sequence 1 --output "$env:RUNNER_TEMP/synthetic-fixture-candidate"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           'Synthetic fixture only; unsigned candidate, no Stable approval, no real software acceptance.' >> $env:GITHUB_STEP_SUMMARY
       - name: Upload safe synthetic fixture evidence

@@ -68,7 +68,7 @@ class Software(ExactModel):
 
 class StartupEnvelopeV2(ExactModel):
     schemaVersion: Literal[2]
-    mode: Literal["metadata", "execution"]
+    mode: Literal["metadata", "execution", "observation"]
     connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
     generation: int = Field(ge=1, le=2**53 - 1)
     bind: Bind
@@ -86,6 +86,10 @@ class StartupEnvelopeV2(ExactModel):
             self.data is not None or self.software is not None
         ):
             raise ValueError("metadataBindingForbidden")
+        if self.mode == "observation" and (
+            self.data is None or self.software is not None or self.configuration is not None
+        ):
+            raise ValueError("observationDataOnlyRequired")
         return self
 
     @field_validator("schemaVersion", mode="before")
@@ -119,7 +123,7 @@ class ReadyV2(ExactModel):
 
     schemaVersion: Literal[2]
     kind: Literal["ready"]
-    mode: Literal["metadata", "execution"]
+    mode: Literal["metadata", "execution", "observation"]
     connectorInstanceId: str = Field(pattern=r"^ci_[a-f0-9]{32}$")
     generation: int = Field(ge=1, le=2**53 - 1)
     providerBuildId: str = Field(pattern=r"^sha256:[a-f0-9]{64}$")
@@ -192,7 +196,7 @@ def build_mcp(
     state_root: Path | None,
     bearer_token: str | None = None,
     *,
-    mode: Literal["metadata", "execution"] = "execution",
+    mode: Literal["metadata", "execution", "observation"] = "execution",
 ) -> FastMCP:
     server = FastMCP(
         "fixture-engineering",
@@ -325,6 +329,13 @@ async def serve(envelope: StartupEnvelopeV2, ready_stream):
             while not server.should_exit:
                 sequence += 1
                 state = envelope.configuration.lifecycleTestState if envelope.configuration else "unknown"
+                if envelope.mode == "observation":
+                    try:
+                        marker = Path(envelope.data.stateDirectory) / "observation-state.json"
+                        value = json.loads(marker.read_text(encoding="utf-8"))
+                        state = "idle" if value == {"state": "idle"} else "unknown"
+                    except (OSError, ValueError):
+                        state = "unknown"
                 ready_stream.write(ProviderLifecycleStatusV1(
                     connectorInstanceId=envelope.connectorInstanceId,
                     generation=envelope.generation, sequence=sequence,

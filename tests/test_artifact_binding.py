@@ -8,13 +8,79 @@ import sys
 import tempfile
 import unittest
 import zipfile
-from scripts.build_artifact import check_source_closure
+from scripts.build_artifact import check_source_closure, generated_input
 from scripts.verify_artifact import safe_path, SAFE_ERRORS
 from scripts import verify_artifact as verifier
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "tests/fixtures/fixture-engineering"
 PYTHON = PLUGIN / "provider/.venv/Scripts/python.exe"
+
+
+class ReleaseInputTests(unittest.TestCase):
+    def test_windows_build_environment_preserves_nuget_path_without_business_credentials(self):
+        from unittest.mock import patch
+        from scripts.build_artifact import build_artifact
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "plugin"
+            root.mkdir()
+            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+            (root / "packaging").mkdir()
+            (root / "packaging/release-input.json").write_bytes(verifier.canonical(generated_input(root, release_sequence=1)))
+            output = Path(directory) / "output"
+            with patch.dict(os.environ, {"ProgramFiles(x86)": "C:/fixture-program-files", "BUSINESS_API_KEY": "must-not-forward"}, clear=True), patch("scripts.build_artifact.check_source_closure"), patch("scripts.build_artifact.subprocess.run") as stage, patch("scripts.build_artifact._finish_staged_artifact", return_value=output):
+                build_artifact(root, output, release_sequence=1)
+            environment = stage.call_args.kwargs["env"]
+            self.assertEqual(environment.get("ProgramFiles(x86)"), "C:/fixture-program-files")
+            self.assertNotIn("BUSINESS_API_KEY", environment)
+
+    def test_build_refuses_drift_before_provider_stage(self):
+        from unittest.mock import patch
+        from scripts.build_artifact import build_artifact
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "plugin"
+            root.mkdir()
+            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+            (root / "packaging").mkdir()
+            (root / "packaging/release-input.json").write_bytes(verifier.canonical(generated_input(root, release_sequence=1)))
+            with patch("scripts.build_artifact.check_source_closure"), patch("scripts.build_artifact.subprocess.run") as stage:
+                with self.assertRaisesRegex(ValueError, "providerRootInputsMismatch"):
+                    build_artifact(root, Path(directory) / "output", release_sequence=2)
+                stage.assert_not_called()
+
+    def test_publisher_sequence_is_explicit_bounded_and_not_plugin_identity(self):
+        identity = json.loads((PLUGIN / "plugin.json").read_text())
+        release = verifier.release_identity(identity, release_sequence=2)
+        self.assertEqual(release["releaseSequence"], 2)
+        self.assertEqual(release["pluginVersion"], identity["version"])
+        for value in (2**53, 2**64 - 1):
+            self.assertEqual(verifier.release_identity(identity, release_sequence=value)["releaseSequence"], value)
+        for value in (0, -1, True, 1.5, 2**64):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                verifier.release_identity(identity, release_sequence=value)
+
+    def test_generator_updates_both_derived_inputs_from_one_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "provider").mkdir()
+            (root / "provider/packaging").mkdir()
+            (root / "provider/packaging/release-input.json").write_bytes(b"stale generated input")
+            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+            result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(root), "--generate-release-input", "--release-sequence", "2"], capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            expected = verifier.canonical(generated_input(root, release_sequence=2))
+            for target in (root / "packaging/release-input.json", root / "provider/packaging/release-input.json"):
+                self.assertEqual(target.read_bytes(), expected)
+
+    def test_generator_does_not_create_an_unused_provider_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "provider").mkdir()
+            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+            result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(root), "--generate-release-input", "--release-sequence", "2"], capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            self.assertFalse((root / "provider/packaging/release-input.json").exists())
 
 
 class ArtifactBindingTests(unittest.TestCase):
@@ -24,7 +90,7 @@ class ArtifactBindingTests(unittest.TestCase):
         cls.folder = Path(cls.temporary.name)
         builder = ROOT / "scripts/build_artifact.py"
         if builder.exists():
-            command = [str(PYTHON), "-B", str(builder), str(PLUGIN), "--output", str(cls.folder / "first")]
+            command = [str(PYTHON), "-B", str(builder), str(PLUGIN), "--release-sequence", "2", "--output", str(cls.folder / "first")]
         else:
             # RED baseline is the real T09 builder, not an import/path failure.
             command = [str(PYTHON), "-B", "-m", "scripts.build_fixture", "--output", str(cls.folder / "first")]
@@ -82,6 +148,7 @@ class ArtifactBindingTests(unittest.TestCase):
 
     def test_root_identity_drives_release(self):
         root = json.loads((self.staged / "plugin.json").read_text())
+        self.assertEqual(self.release.get("releaseSequence"), 2)
         self.assertEqual(self.release.get("packageId"), root["name"])
         self.assertEqual(self.release.get("pluginVersion"), root["version"])
         self.assertEqual(self.release.get("startupEnvelopeVersion"), 2)
@@ -185,21 +252,23 @@ print('signed round trip and six zero-runtime trust negatives passed')
         identity = json.loads((PLUGIN / "plugin.json").read_text())
         identity["version"] = "0.1.42"
         (plugin / "plugin.json").write_text(json.dumps(identity), encoding="utf-8")
-        result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(plugin), "--generate-release-input"], cwd=ROOT, capture_output=True)
+        result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(plugin), "--generate-release-input", "--release-sequence", "1"], cwd=ROOT, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
         generated = json.loads((plugin / "packaging/release-input.json").read_text())
         self.assertEqual(generated["releaseIdentity"]["pluginVersion"], "0.1.42")
         self.assertEqual(generated["rootSha256"], "sha256:" + hashlib.sha256((plugin / "plugin.json").read_bytes()).hexdigest())
         self.assertTrue({"archive", "providerBuildId", "filesDigest", "sbomDigest", "toolCatalogDigest"}.isdisjoint(generated["releaseIdentity"]))
-        for name, version in (("dlubal-rfem", "0.1.0"), ("rhino", "0.1.2")):
-            copied = json.loads((ROOT / "plugins" / name / "packaging/release-input.json").read_text())
+        for name in ("dlubal-rfem", "rhino"):
+            root = ROOT / "plugins" / name
+            identity = json.loads((root / "plugin.json").read_text())
+            copied = json.loads((root / "packaging/release-input.json").read_text())
             self.assertEqual(copied["releaseIdentity"]["packageId"], name)
-            self.assertEqual(copied["releaseIdentity"]["pluginVersion"], version)
-            self.assertEqual(copied["rootSha256"], "sha256:" + hashlib.sha256((ROOT / "plugins" / name / "plugin.json").read_bytes()).hexdigest())
+            self.assertEqual(copied["releaseIdentity"]["pluginVersion"], identity["version"])
+            self.assertEqual(copied["rootSha256"], "sha256:" + hashlib.sha256((root / "plugin.json").read_bytes()).hexdigest())
 
     def test_two_independent_builds_have_identical_archive_bytes(self):
         second = self.folder / "second"
-        result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(PLUGIN), "--output", str(second)], cwd=ROOT, capture_output=True, timeout=240)
+        result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(PLUGIN), "--release-sequence", "2", "--output", str(second)], cwd=ROOT, capture_output=True, timeout=240)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
         first_archive = next((self.folder / "first").glob("*.zip"))
         second_archive = next(second.glob("*.zip"))
@@ -222,7 +291,7 @@ def stage_resources(command,**kwargs):
  return result
 failure=None
 with patch('scripts.build_artifact.subprocess.run',side_effect=stage_resources):
- try: builder.build_artifact(plugin,output)
+ try: builder.build_artifact(plugin,output,release_sequence=2)
  except subprocess.CalledProcessError as error: failure=error
 inventory=json.loads((output/'artifact/files.json').read_text())
 paths={item['path'] for item in inventory['files']}
@@ -388,7 +457,7 @@ class InputManifestIdentityTests(unittest.TestCase):
                 (base / name).write_bytes(original)
 
     def test_build_cli_keeps_safe_stage_category_without_private_inputs(self):
-        result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/build_artifact.py"), str(PLUGIN), "--output", str(PLUGIN)], capture_output=True, text=True)
+        result = subprocess.run([sys.executable, "-B", str(ROOT / "scripts/build_artifact.py"), str(PLUGIN), "--release-sequence", "2", "--output", str(PLUGIN)], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stderr.strip(), "artifactBuildFailed:outputMustBeFreshAndOutsideRepository")
         self.assertNotIn(str(PLUGIN), result.stderr)

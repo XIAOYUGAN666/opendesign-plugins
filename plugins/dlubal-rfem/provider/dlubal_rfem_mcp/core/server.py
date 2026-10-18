@@ -36,8 +36,6 @@ class EngineeringGate(MCPMiddleware):
 
 
 def build_mcp(envelope: StartupEnvelope, *, control=None) -> FastMCP:
-    from dlubal_rfem_mcp.rfem.tools import register_tools
-
     mcp = FastMCP(
         "dlubal-rfem-mcp",
         mask_error_details=True,
@@ -47,6 +45,22 @@ def build_mcp(envelope: StartupEnvelope, *, control=None) -> FastMCP:
             envelope.generation,
         ),
     )
+    control = control or OperationControl()
+    if envelope.mode == "observation":
+        from pathlib import Path
+
+        from dlubal_rfem_mcp.rfem.execution import ExecutionManager
+
+        assert envelope.data is not None
+        ExecutionManager(
+            Path(envelope.data.stateDirectory) / "executions.sqlite3",
+            control=control,
+            readonly_existing=True,
+        )
+        mcp.add_middleware(EngineeringGate(envelope, None))
+        return mcp
+    from dlubal_rfem_mcp.rfem.tools import register_tools
+
     config = RFEMConfig.from_envelope(envelope)
     session = (
         RFEMSession(
@@ -59,7 +73,6 @@ def build_mcp(envelope: StartupEnvelope, *, control=None) -> FastMCP:
         else None
     )
     mcp.add_middleware(EngineeringGate(envelope, session))
-    control = control or OperationControl()
     names = register_tools(mcp, session, config, control=control)
 
     @mcp.tool(

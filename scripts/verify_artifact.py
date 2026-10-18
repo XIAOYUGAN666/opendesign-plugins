@@ -113,13 +113,16 @@ def validate(value, schema, definition=None):
     validator(schema, registry=Registry(retrieve=deny), format_checker=checker).validate(value)
 
 
-def release_identity(identity):
+def release_identity(identity, *, release_sequence):
+    # Publisher counter follows the exported ReleaseManifestV1 uint64 field.
+    if type(release_sequence) is not int or not 1 <= release_sequence <= 2**64 - 1:
+        raise ValueError("invalidReleaseSequence")
     native = identity["extensions"][NAMESPACE]
     keys = ("platform", "hostContract", "agentContract", "startupEnvelopeVersion", "entrypoint", "module", "components", "mcp", "software", "adapter", "configurationSchemaVersion")
     result = {k: native[k] for k in keys}
     if "native" in native:
         result["native"] = native["native"]
-    result.update(manifestSchemaVersion=1, packageId=identity["name"], pluginVersion=identity["version"], releaseSequence=1, artifactVariantId=f"{native['platform']['os']}-{native['platform']['architecture']}-{native['software']['product']}-{native['software']['major']}")
+    result.update(manifestSchemaVersion=1, packageId=identity["name"], pluginVersion=identity["version"], releaseSequence=release_sequence, artifactVariantId=f"{native['platform']['os']}-{native['platform']['architecture']}-{native['software']['product']}-{native['software']['major']}")
     return result
 
 
@@ -474,7 +477,7 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         identity = read_json((root / "plugin.json").read_bytes())
         validate(identity, read_json((schema_bundle / "agent-plugins-1.0.0.schema.json").read_bytes()))
         validate(identity["extensions"][NAMESPACE], read_json((schema_bundle / "host-native.schema.json").read_bytes()))
-        for key, value in release_identity(identity).items():
+        for key, value in release_identity(identity, release_sequence=release["releaseSequence"]).items():
             if release.get(key) != value:
                 raise ValueError("rootReleaseMismatch")
         project = tomllib.loads((root / "pyproject.toml").read_text("utf-8"))["project"]
@@ -518,6 +521,11 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in module):
             raise ValueError("unsafeProviderModule")
         source_root = root / "runtime/python/Lib/site-packages" / module[0]
+        embedded_input = source_root.parent / "packaging/release-input.json"
+        if embedded_input.exists():
+            expected_input = {"generatedFrom": "../plugin.json", "rootSha256": digest((root / "plugin.json").read_bytes()), "releaseIdentity": release_identity(identity, release_sequence=release["releaseSequence"])}
+            if embedded_input.read_bytes() != canonical(expected_input):
+                raise ValueError("providerRootInputsMismatch")
         sources = [{"path": p.relative_to(source_root).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(source_root.rglob("*.py"))]
         if not sources or risk["sourceFiles"] != sources or risk["sourceDigest"] != digest(canonical(sources)) or risk["providerBuildId"] != release["providerBuildId"] or risk["previewDigest"] != release["toolCatalogDigest"] or risk["status"] not in {"pending-review/internal-fixture-only", "pending-review/provider-candidate"} or risk["engineeringAcceptance"] != "not-performed":
             raise ValueError("riskEvidenceMismatch")

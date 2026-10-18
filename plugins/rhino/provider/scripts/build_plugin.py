@@ -304,10 +304,13 @@ def main() -> None:
     parser.add_argument("--stage-only", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--cache", type=Path, required=True)
+    parser.add_argument("--release-sequence", type=int)
     args = parser.parse_args()
     if args.stage_only:
         stage(args.plugin_root.resolve(), args.output.resolve(), args.cache.resolve())
     else:
+        if args.release_sequence is None:
+            parser.error("--release-sequence required for artifact build")
         subprocess.run(
             [
                 sys.executable,
@@ -316,6 +319,8 @@ def main() -> None:
                     args.plugin_root.resolve().parents[1] / "scripts/build_artifact.py"
                 ),
                 str(args.plugin_root.resolve()),
+                "--release-sequence",
+                str(args.release_sequence),
                 "--output",
                 str(args.output.resolve()),
                 "--cache",

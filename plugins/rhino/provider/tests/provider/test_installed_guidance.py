@@ -1,4 +1,5 @@
 from rhino_mcp.guidance import TOPICS, modeling_guidance
+from rhino_mcp.build_identity import RELEASE_VERSION
 
 
 def test_packaged_guidance_topics_are_readable() -> None:
@@ -9,6 +10,6 @@ def test_packaged_guidance_topics_are_readable() -> None:
         assert result["available_topics"] == list(TOPICS)
         assert (
             result["package_version"] == "0+unknown"
-            or result["package_version"] == "0.1.2"
+            or result["package_version"] == RELEASE_VERSION
         )
         assert result["content"].strip()
