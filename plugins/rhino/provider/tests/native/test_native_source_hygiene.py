@@ -77,7 +77,9 @@ def test_yak_manifest_has_required_identity_without_license_or_public_urls() -> 
     manifest = manifest_path.read_text(encoding="utf-8")
 
     assert re.search(r"(?m)^name:\s*rhino-mcp-bridge\s*$", manifest)
-    version = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))["version"]
+    version = json.loads((PLUGIN_ROOT / "plugin.json").read_text(encoding="utf-8"))[
+        "version"
+    ]
     assert re.search(r"(?m)^version:\s*" + re.escape(version) + r"\s*$", manifest)
     assert re.search(r"(?m)^authors:\s*$", manifest)
     assert re.search(r"(?m)^\s+-\s+Rhino MCP Developer\s*$", manifest)

@@ -27,6 +27,24 @@ def test_release_resolves_the_recorded_sdk():
     assert actual.strip() == expected
 
 
+def test_release_is_independent_of_caller_ui_language(tmp_path, monkeypatch):
+    dotnet = shutil.which("dotnet")
+    assert dotnet
+
+    def build(language, directory):
+        monkeypatch.setenv("DOTNET_CLI_UI_LANGUAGE", language)
+        workspace = tmp_path / directory
+        workspace.mkdir()
+        outputs = release._build_native_outputs(workspace, dotnet, "sha256:" + "a" * 64)
+        return {
+            f"{target}/{file}": hashlib.sha256(data).hexdigest()
+            for target, path in outputs.items()
+            for file, data in release.native_package_files(path, target).items()
+        }
+
+    assert build("zh-CN", "zh") == build("en-US", "en")
+
+
 def test_release_uses_recorded_inputs(tmp_path, monkeypatch):
     repository = tmp_path / "src"
     native = repository / "native"

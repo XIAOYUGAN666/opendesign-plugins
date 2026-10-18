@@ -37,7 +37,10 @@ PLUGIN_GUID = "74a1e8f4-1134-4686-a3e5-ee8bf393dec9"
 
 def _release_names(root: Path) -> tuple[str, str]:
     version = json.loads((root / "plugin.json").read_text(encoding="utf-8"))["version"]
-    return f"rhino-mcp-bridge-{version}-rh8-win.yak", f"rhino-{version}-windows-x86_64.zip"
+    return (
+        f"rhino-mcp-bridge-{version}-rh8-win.yak",
+        f"rhino-{version}-windows-x86_64.zip",
+    )
 
 
 YAK_NAME, ARCHIVE_NAME = _release_names(PLUGIN_ROOT)
@@ -320,7 +323,9 @@ def configure_plugin_root(root: Path) -> None:
         PROJECT_ROOT, \
         NATIVE_ROOT, \
         RUNTIME_LOCK_PATH, \
-        RELEASE_TEMPLATE_PATH, YAK_NAME, ARCHIVE_NAME
+        RELEASE_TEMPLATE_PATH, \
+        YAK_NAME, \
+        ARCHIVE_NAME
     root = root.resolve()
     if (
         not (root / "provider" / "pyproject.toml").is_file()
@@ -440,10 +445,14 @@ def _resolve_tool(environment_key: str, executable: str, label: str) -> str:
 
 
 def _run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> str:
+    # MSBuild-generated source includes localized text. Keep release bytes independent
+    # of the caller's OS/UI culture without changing any machine-wide setting.
+    environment = dict(os.environ if env is None else env)
+    environment["DOTNET_CLI_UI_LANGUAGE"] = "en-US"
     result = subprocess.run(
         command,
         cwd=cwd,
-        env=env,
+        env=environment,
         capture_output=True,
         text=True,
         encoding="utf-8",

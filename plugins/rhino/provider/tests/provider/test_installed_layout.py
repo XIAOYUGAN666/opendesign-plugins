@@ -47,8 +47,12 @@ def test_built_wheel_contains_only_flat_python_package_and_distribution_metadata
         members = {name for name in wheel.namelist() if not name.endswith("/")}
 
     assert any(name.startswith("rhino_mcp/") for name in members)
-    version = json.loads((PROJECT_ROOT.parent / "plugin.json").read_text(encoding="utf-8"))["version"]
-    assert any(name.startswith(f"rhino_mcp_provider-{version}.dist-info/") for name in members)
+    version = json.loads(
+        (PROJECT_ROOT.parent / "plugin.json").read_text(encoding="utf-8")
+    )["version"]
+    assert any(
+        name.startswith(f"rhino_mcp_provider-{version}.dist-info/") for name in members
+    )
     assert all(
         not name.startswith(("native/", "contracts/", "scripts/", "tests/"))
         for name in members

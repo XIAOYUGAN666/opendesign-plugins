@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rhino",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Rhino 8 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
@@ -62,9 +62,9 @@
         "contractVersion": 1,
         "packageId": "rhino-mcp-bridge",
         "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
-        "relativePath": "native/rhino-mcp-bridge-0.1.5-rh8-win.yak",
-        "sha256": "sha256:ed827bb401a5b9b2cc524e63e502e53a9f6b088df19ed6c356edfd46d9df09b2",
-        "version": "0.1.5"
+        "relativePath": "native/rhino-mcp-bridge-0.1.6-rh8-win.yak",
+        "sha256": "sha256:b9a601f445f06a5f1dce0a26eafc1b24af2116bcfa4f9de2c9f8694227f86716",
+        "version": "0.1.6"
       }
     }
   }

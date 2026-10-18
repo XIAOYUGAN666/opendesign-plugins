@@ -53,7 +53,9 @@ def test_yak_uses_root_manifest_and_both_official_framework_directories() -> Non
 def test_release_template_freezes_private_runtime_and_composite_files() -> None:
     from build_release import expected_release_members
 
-    native = build_release.validate_root_identity()["extensions"]["io.github.xiaoyugan666.native"]["native"]
+    native = build_release.validate_root_identity()["extensions"][
+        "io.github.xiaoyugan666.native"
+    ]["native"]
 
     members = expected_release_members(
         provider_files={"rhino_mcp/__init__.py"},
@@ -82,7 +84,9 @@ def test_native_outputs_follow_the_official_dotnet_artifacts_pivot_layout(
 
 def test_release_manifest_freezes_the_signed_native_capability_digest() -> None:
     template = build_release._read_json(build_release.RELEASE_TEMPLATE_PATH)
-    native = build_release.validate_root_identity()["extensions"]["io.github.xiaoyugan666.native"]["native"]
+    native = build_release.validate_root_identity()["extensions"][
+        "io.github.xiaoyugan666.native"
+    ]["native"]
     assert template["native"]["capabilityDigest"] == native["capabilityDigest"]
     expected = "sha256:" + "a" * 64
     template["native"]["capabilityDigest"] = expected
@@ -174,14 +178,22 @@ def test_release_verifier_checks_signed_capability_digest_against_both_targets(
 
 @pytest.mark.parametrize("longer_source", ["checkout", "build"])
 def test_native_release_path_map_stabilizes_repository_and_ephemeral_build_paths(
-    tmp_path, monkeypatch, longer_source,
+    tmp_path,
+    monkeypatch,
+    longer_source,
 ) -> None:
-    checkout = tmp_path / ("long-checkout-source" if longer_source == "checkout" else "src")
-    workspace = tmp_path / ("long-temporary-build" if longer_source == "build" else "out")
+    checkout = tmp_path / (
+        "long-checkout-source" if longer_source == "checkout" else "src"
+    )
+    workspace = tmp_path / (
+        "long-temporary-build" if longer_source == "build" else "out"
+    )
     checkout.mkdir()
     workspace.mkdir()
     monkeypatch.setattr(build_release, "PLUGIN_ROOT", checkout)
-    mappings = [entry.rsplit("=", 1) for entry in native_path_map(workspace).split("%2C")]
+    mappings = [
+        entry.rsplit("=", 1) for entry in native_path_map(workspace).split("%2C")
+    ]
     assert dict(mappings) == {
         str(checkout.resolve()): "/_/rhino",
         str(workspace.resolve()): "/_/rhino-build",
