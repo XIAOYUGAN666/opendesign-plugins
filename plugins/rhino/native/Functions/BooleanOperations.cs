@@ -6,13 +6,13 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class BooleanOperations
 {
-    [McpCommand("boolean_union", ReadOnly = false, SupportsDryRun = true)]
+    [McpCommand("boolean_union", ReadOnly = false, SupportsDryRun = true, CompletesWithinCallback = true)]
     internal static object Union(RequestContext context, JsonElement parameters) => Execute(context, parameters, "boolean_union");
 
-    [McpCommand("boolean_difference", ReadOnly = false, SupportsDryRun = true)]
+    [McpCommand("boolean_difference", ReadOnly = false, SupportsDryRun = true, CompletesWithinCallback = true)]
     internal static object Difference(RequestContext context, JsonElement parameters) => Execute(context, parameters, "boolean_difference");
 
-    [McpCommand("boolean_intersection", ReadOnly = false, SupportsDryRun = true)]
+    [McpCommand("boolean_intersection", ReadOnly = false, SupportsDryRun = true, CompletesWithinCallback = true)]
     internal static object Intersection(RequestContext context, JsonElement parameters) => Execute(context, parameters, "boolean_intersection");
 
     private static object Execute(RequestContext context, JsonElement parameters, string operation)

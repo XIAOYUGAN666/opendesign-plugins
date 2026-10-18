@@ -11,4 +11,8 @@ internal sealed class McpCommandAttribute(string commandName) : Attribute
     public bool ReadOnly { get; set; }
 
     public bool SupportsDryRun { get; set; }
+
+    // No further plug-in-owned execution from this handler after its callback returns.
+    // This does not guarantee third-party effects have settled or that the command succeeded.
+    public bool CompletesWithinCallback { get; set; }
 }

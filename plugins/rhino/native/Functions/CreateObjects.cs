@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class CreateObjects
 {
-    [McpCommand("create_objects", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("create_objects", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object CreateMany(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Create MCP geometry batch", () =>
         {

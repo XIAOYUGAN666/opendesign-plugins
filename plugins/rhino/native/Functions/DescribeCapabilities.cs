@@ -4,7 +4,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class DescribeCapabilities
 {
-    [McpCommand("describe_capabilities", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("describe_capabilities", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Describe(RequestContext context, JsonElement parameters)
     {
         var commands = new CommandRegistry().Commands

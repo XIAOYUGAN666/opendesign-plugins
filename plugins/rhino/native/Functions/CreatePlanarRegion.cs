@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class CreatePlanarRegion
 {
-    [McpCommand("create_planar_region", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("create_planar_region", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Create(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Create MCP planar region", () =>
         {

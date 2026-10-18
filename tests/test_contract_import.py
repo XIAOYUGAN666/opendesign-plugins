@@ -3,6 +3,7 @@ import fnmatch
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -63,6 +64,57 @@ class ContractImportTests(unittest.TestCase):
                 self.assertIn(f"/schemas/{name} -text", attributes)
             legacy = base / "legacy"
             self.assertEqual(set(import_contracts(*sources[:2], legacy)), {case[0] for case in cases[:2]})
+
+    def test_cli_option_imports_bridge_control_export_as_exact_owner_bytes(self):
+        # Catches an ignored/absent optional import path, byte rewriting or missing inventory.
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            host = base / "host.json"
+            agent = base / "agent.json"
+            bridge = base / "bridge.json"
+            host.write_bytes(b'{"title":"NativeExtensionV1"}\n')
+            agent.write_bytes(b'{"title":"PluginRuntimeContractV2"}\n')
+            bridge_bytes = b'{  "title": "BridgeReadyV2", "type": "object" }\r\n'
+            bridge.write_bytes(bridge_bytes)
+            destination = base / "imported"
+            result = subprocess.run([
+                sys.executable, "-B", str(ROOT / "scripts/import_contracts.py"),
+                str(host), str(agent), str(destination), "--bridge-control-schema", str(bridge),
+            ], capture_output=True, text=True, check=False)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            name = "bridge-control-v2.schema.json"
+            self.assertEqual((destination / name).read_bytes(), bridge_bytes)
+            digest = hashlib.sha256(bridge_bytes).hexdigest()
+            self.assertEqual(json.loads(result.stdout)[name], digest)
+            inventory = json.loads((destination / "owner-contracts.json").read_text(encoding="utf-8"))
+            self.assertEqual(set(inventory["contracts"]), {
+                "host-native.schema.json", "agent-control.schema.json", name,
+            })
+            self.assertEqual(inventory["contracts"][name], {
+                "owner": "host", "version": "2", "sha256": digest,
+                "source": "apps/desktop/src-tauri/resources/plugins/schemas/bridge-control-v2.schema.json",
+            })
+
+    def test_optional_bridge_control_export_is_validated_before_any_copy(self):
+        # An invalid optional export must not leave a partially updated schema bundle.
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            host = base / "host.json"
+            agent = base / "agent.json"
+            bridge = base / "bridge.json"
+            host.write_bytes(b'{"title":"NativeExtensionV1"}\n')
+            agent.write_bytes(b'{"title":"PluginRuntimeContractV2"}\n')
+            bridge.write_bytes(b'{"title":"MissingVersion"}\n')
+            destination = base / "imported"
+            result = subprocess.run([
+                sys.executable, "-B", str(ROOT / "scripts/import_contracts.py"),
+                str(host), str(agent), str(destination), "--bridge-control-schema", str(bridge),
+            ], capture_output=True, text=True, check=False)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Exported schema version missing: bridge-control-v2.schema.json", result.stderr)
+            self.assertFalse(destination.exists())
 
     def test_no_root_python_environment(self):
         # Catches introducing shared Python dependency/runtime ownership.

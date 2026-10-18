@@ -12,6 +12,12 @@
       "source": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
       "version": "1.0.0"
     },
+    "bridge-control-v2.schema.json": {
+      "owner": "host",
+      "sha256": "23de4c7aa03ee92bce571a8938ae6d90afb93828905823a83ed8aca57536be8d",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/bridge-control-v2.schema.json",
+      "version": "2"
+    },
     "host-contract.v3.schema.json": {
       "owner": "host",
       "sha256": "f899319d8701ed896dc9e14eee42b0bebf6dd4cd301552ebf9ed3308ac1aca75",

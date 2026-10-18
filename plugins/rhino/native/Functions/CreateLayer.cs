@@ -6,7 +6,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class CreateLayer
 {
-    [McpCommand("create_layer", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("create_layer", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Create(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Create MCP layer", () =>
         {

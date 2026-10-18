@@ -24,7 +24,7 @@ from scripts.release_probe import ReleaseProbeError, probe_managed_runtime
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_ROOT = PROJECT_ROOT.parent
 PLUGIN_GUID = "74a1e8f4-1134-4686-a3e5-ee8bf393dec9"
-YAK_MEMBER = "native/rhino-mcp-bridge-0.1.2-rh8-win.yak"
+YAK_MEMBER = "native/rhino-mcp-bridge-0.1.3-rh8-win.yak"
 RUNTIME_ROOT_FILES = frozenset(
     {
         "python.exe",
@@ -411,7 +411,7 @@ def verify_release_archive(
             if (
                 manifest.get("manifestSchemaVersion") != 1
                 or manifest.get("packageId") != "rhino"
-                or manifest.get("pluginVersion") != "0.1.2"
+                or manifest.get("pluginVersion") != "0.1.3"
                 or manifest.get("entrypoint") != "runtime/python/python.exe"
                 or manifest.get("module") != "rhino_mcp.managed_bootstrap"
                 or manifest.get("mcp")

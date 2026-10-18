@@ -4,7 +4,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GetSelectedObjectsInfo
 {
-    [McpCommand("get_selected_objects_info", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("get_selected_objects_info", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Get(RequestContext context, JsonElement parameters)
     {
         var includeAttributes = NativeFunctions.Boolean(parameters, "include_attributes", true);

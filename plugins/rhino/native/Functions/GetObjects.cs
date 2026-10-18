@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GetObjects
 {
-    [McpCommand("get_objects", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("get_objects", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Get(RequestContext context, JsonElement parameters)
     {
         var offset = Math.Max(0, NativeFunctions.Integer(parameters, "offset"));

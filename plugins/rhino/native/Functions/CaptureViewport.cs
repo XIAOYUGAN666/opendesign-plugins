@@ -14,7 +14,7 @@ internal static class CaptureViewport
 #if NET8_0_OR_GREATER
     [SupportedOSPlatform("windows6.1")]
 #endif
-    [McpCommand("capture_viewport", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("capture_viewport", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Capture(RequestContext context, JsonElement parameters)
     {
         var width = NativeFunctions.Integer(parameters, "width", 800);

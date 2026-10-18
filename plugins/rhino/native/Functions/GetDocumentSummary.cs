@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GetDocumentSummary
 {
-    [McpCommand("get_document_summary", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("get_document_summary", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Get(RequestContext context, JsonElement parameters)
     {
         var objects = NativeFunctions.Objects(context).ToArray();

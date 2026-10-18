@@ -116,6 +116,7 @@ internal sealed class BridgeController : IDisposable
     private readonly CancellationTokenSource _shutdown = new();
     private ControlPipeSession? _activeControl;
     private BridgeServer? _activeBridge;
+    private NativeBridgeCommandExecutor.Session? _activeSession;
     private Task? _runTask;
     private BridgeControllerState _state = BridgeControllerState.WaitingForHost;
     private int _stopped;
@@ -176,6 +177,7 @@ internal sealed class BridgeController : IDisposable
             _state = BridgeControllerState.Stopping;
             control = _activeControl;
             bridge = _activeBridge;
+            _activeSession?.CloseAsync();
             _activeControl = null;
             _activeBridge = null;
         }
@@ -201,6 +203,7 @@ internal sealed class BridgeController : IDisposable
             {
                 ControlPipeSession? control = null;
                 BridgeServer? bridge = null;
+                NativeBridgeCommandExecutor.Session? session = null;
                 try
                 {
                     SetState(BridgeControllerState.WaitingForHost);
@@ -211,11 +214,23 @@ internal sealed class BridgeController : IDisposable
                     ).ConfigureAwait(false);
                     SetActiveControl(control);
 
-                    bridge = new BridgeServer(control.Lease, _executor.ExecuteAsync);
+                    lock (_gate)
+                    {
+                        if (_stopped != 0)
+                        {
+                            throw new OperationCanceledException(cancellationToken);
+                        }
+
+                        session = _executor.OpenSession();
+                        _activeSession = session;
+                    }
+
+                    bridge = new BridgeServer(control.Lease, session.ExecuteAsync);
                     bridge.Start();
                     await control.ReportReadyAsync(
                         bridge.Port,
                         _registration.CapabilityDigest,
+                        session.PreviousSessionState,
                         cancellationToken
                     ).ConfigureAwait(false);
                     SetActiveBridge(bridge);
@@ -233,9 +248,16 @@ internal sealed class BridgeController : IDisposable
                 }
                 finally
                 {
+                    // Revoke old handlers before transport disposal can cancel their responses.
+                    var drain = session?.CloseAsync();
                     ClearActive(control, bridge);
                     bridge?.Dispose();
                     control?.Dispose();
+                    if (drain is not null)
+                    {
+                        // Callback return is not proof that command side effects have settled.
+                        await drain.ConfigureAwait(false);
+                    }
                 }
 
                 if (cancellationToken.IsCancellationRequested)
@@ -318,6 +340,7 @@ internal sealed class BridgeController : IDisposable
             if (bridge is not null && ReferenceEquals(_activeBridge, bridge))
             {
                 _activeBridge = null;
+                _activeSession = null;
             }
 
             if (_stopped == 0)
@@ -330,51 +353,203 @@ internal sealed class BridgeController : IDisposable
 
 internal sealed class NativeBridgeCommandExecutor
 {
+    private readonly Action<Action> _schedule;
+    private readonly Func<string, string, bool, bool, byte[]>? _executeBody;
     private readonly CommandRegistry _registry = new();
     private readonly CommandExecutionPipeline _pipeline;
     private readonly IActiveDocumentSource _documentSource = new RhinoActiveDocumentSource();
 
-    internal NativeBridgeCommandExecutor()
+    internal NativeBridgeCommandExecutor() : this(callback => RhinoApp.InvokeOnUiThread(callback), null) { }
+
+    internal NativeBridgeCommandExecutor(
+        Action<Action> schedule,
+        Func<string, string, bool, bool, byte[]>? executeBody
+    )
     {
+        _schedule = schedule;
+        _executeBody = executeBody;
         _pipeline = new CommandExecutionPipeline(_registry);
     }
 
-    internal Task<byte[]> ExecuteAsync(
-        string commandType,
-        string parametersJson,
-        bool includeDelta,
-        bool includeHealth,
+    private readonly object _dispatchGate = new();
+    private Session? _session;
+    private bool _hasUnboundedCallbacks;
+
+    internal Session OpenSession()
+    {
+        lock (_dispatchGate)
+        {
+            if (_session is not null && !_session.Drain.Task.IsCompleted)
+            {
+                throw new InvalidOperationException("The previous native session has not drained.");
+            }
+
+            return _session = new Session(this);
+        }
+    }
+
+    internal sealed class Session
+    {
+        internal readonly NativeBridgeCommandExecutor Owner;
+        internal readonly HashSet<Dispatch> Pending = new();
+        internal bool HadEnteredCallbacks;
+        internal readonly TaskCompletionSource<NativeDispatchDrain> Drain =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Closed;
+
+        internal Session(NativeBridgeCommandExecutor owner)
+        {
+            Owner = owner;
+            PreviousSessionState = owner._hasUnboundedCallbacks ? "unknown" : "quiescent";
+        }
+
+        // Captured only when the preceding session has drained. This is prior-session
+        // execution evidence, not the current session's outcome or resource readiness.
+        internal string PreviousSessionState { get; }
+
+        internal Task<byte[]> ExecuteAsync(
+            string commandType, string parametersJson, bool includeDelta, bool includeHealth,
+            CancellationToken cancellationToken
+        ) => Owner.ExecuteAsync(this, commandType, parametersJson, includeDelta, includeHealth, cancellationToken);
+
+        internal Task<NativeDispatchDrain> CloseAsync()
+        {
+            lock (Owner._dispatchGate)
+            {
+                Closed = true;
+                foreach (var dispatch in Pending.ToArray())
+                {
+                    Owner.CancelLocked(this, dispatch, CancellationToken.None);
+                }
+
+                CompleteDrainLocked();
+                return Drain.Task;
+            }
+        }
+
+        internal void CompleteDrainLocked()
+        {
+            if (Closed && Pending.Count == 0 && !Drain.Task.IsCompleted)
+            {
+                Drain.TrySetResult(new NativeDispatchDrain(HadEnteredCallbacks, Owner._hasUnboundedCallbacks));
+            }
+        }
+    }
+
+    internal enum DispatchState { Queued, Started, Revoked, Returned }
+
+    internal sealed class Dispatch
+    {
+        internal DispatchState State;
+        internal readonly TaskCompletionSource<byte[]> Completion =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    private void CancelLocked(Session session, Dispatch dispatch, CancellationToken token)
+    {
+        if (dispatch.State == DispatchState.Queued)
+        {
+            dispatch.State = DispatchState.Revoked;
+            session.Pending.Remove(dispatch);
+        }
+
+        dispatch.Completion.TrySetCanceled(token);
+        session.CompleteDrainLocked();
+    }
+
+    private Task<byte[]> ExecuteAsync(
+        Session session, string commandType, string parametersJson, bool includeDelta, bool includeHealth,
         CancellationToken cancellationToken
     )
     {
-        if (cancellationToken.IsCancellationRequested)
+        var dispatch = new Dispatch();
+        lock (_dispatchGate)
         {
-            return Task.FromCanceled<byte[]>(cancellationToken);
+            if (!ReferenceEquals(_session, session) || session.Closed || cancellationToken.IsCancellationRequested)
+            {
+                return Task.FromCanceled<byte[]>(new CancellationToken(true));
+            }
+
+            session.Pending.Add(dispatch);
         }
 
-        var completion = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var registration = cancellationToken.Register(() => completion.TrySetCanceled(cancellationToken));
+        var registration = cancellationToken.Register(() =>
+        {
+            lock (_dispatchGate)
+            {
+                CancelLocked(session, dispatch, cancellationToken);
+            }
+        });
         try
         {
-            RhinoApp.InvokeOnUiThread(
-                new Action(() => ExecuteOnRhinoUiThread(
-                    commandType,
-                    parametersJson,
-                    includeDelta,
-                    includeHealth,
-                    cancellationToken,
-                    completion
-                ))
-            );
+            _schedule(() =>
+            {
+                lock (_dispatchGate)
+                {
+                    if (dispatch.State != DispatchState.Queued)
+                    {
+                        return;
+                    }
+
+                    if (session.Closed || cancellationToken.IsCancellationRequested)
+                    {
+                        CancelLocked(session, dispatch, cancellationToken);
+                        return;
+                    }
+
+                    dispatch.State = DispatchState.Started;
+                    session.HadEnteredCallbacks = true;
+                    _hasUnboundedCallbacks |= !CompletesWithinCallback(commandType);
+                }
+
+                try
+                {
+                    ExecuteOnRhinoUiThread(commandType, parametersJson, includeDelta, includeHealth,
+                        cancellationToken, dispatch.Completion);
+                }
+                finally
+                {
+                    lock (_dispatchGate)
+                    {
+                        dispatch.State = DispatchState.Returned;
+                        session.Pending.Remove(dispatch);
+                        session.CompleteDrainLocked();
+                    }
+                }
+            });
         }
         catch (Exception)
         {
-            completion.TrySetException(
-                new NativeCommandException("nativeCommandFailed", "Rhino could not complete the command.")
-            );
+            lock (_dispatchGate)
+            {
+                // A scheduler may have entered the callback before throwing. Only a queued
+                // callback can be revoked here; an entered callback owns its finally release.
+                if (dispatch.State == DispatchState.Queued)
+                {
+                    dispatch.State = DispatchState.Revoked;
+                    session.Pending.Remove(dispatch);
+                }
+
+                dispatch.Completion.TrySetException(
+                    new NativeCommandException("nativeCommandFailed", "Rhino could not complete the command."));
+                session.CompleteDrainLocked();
+            }
         }
 
-        return AwaitAndDisposeAsync(completion.Task, registration);
+        return AwaitAndDisposeAsync(dispatch.Completion.Task, registration);
+    }
+
+    private bool CompletesWithinCallback(string commandType)
+    {
+        try
+        {
+            return _registry.Get(commandType).CompletesWithinCallback;
+        }
+        catch (NativeCommandException)
+        {
+            // Unrecognized handlers never gain a closed-execution guarantee.
+            return false;
+        }
     }
 
     private void ExecuteOnRhinoUiThread(
@@ -386,14 +561,14 @@ internal sealed class NativeBridgeCommandExecutor
         TaskCompletionSource<byte[]> completion
     )
     {
-        if (completion.Task.IsCompleted || cancellationToken.IsCancellationRequested)
-        {
-            completion.TrySetCanceled(cancellationToken);
-            return;
-        }
-
         try
         {
+            if (_executeBody is not null)
+            {
+                completion.TrySetResult(_executeBody(commandType, parametersJson, includeDelta, includeHealth));
+                return;
+            }
+
             var parameterBytes = System.Text.Encoding.UTF8.GetBytes(parametersJson);
             using var parameterDocument = BridgeWire.ParseStrictJson(parameterBytes);
             var context = RequestContextFactory.Capture(
@@ -476,6 +651,9 @@ internal sealed class NativeBridgeCommandExecutor
         }
     }
 }
+
+// Records only UI callback entry, never external/deferred engineering side-effect completion.
+internal sealed record NativeDispatchDrain(bool HadEnteredCallbacks, bool HasUnboundedCallbacks);
 
 internal sealed record GeometryHealthSnapshot(Guid Id, bool IsValid, string ValidityLog);
 

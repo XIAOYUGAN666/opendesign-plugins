@@ -46,6 +46,7 @@ internal sealed class ControlPipeSession : IDisposable
     public async Task ReportReadyAsync(
         int port,
         string capabilityDigest,
+        string previousSessionState,
         CancellationToken cancellationToken
     )
     {
@@ -59,16 +60,22 @@ internal sealed class ControlPipeSession : IDisposable
             throw new InvalidDataException("Bridge capability identity is invalid.");
         }
 
+        if (previousSessionState is not ("quiescent" or "unknown"))
+        {
+            throw new InvalidDataException("Bridge prior-session state is invalid.");
+        }
+
         var pipe = GetPipe();
         await BridgeWire.WriteJsonFrameAsync(
             pipe,
             new
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
                 kind = "bridgeReady",
                 generation = Lease.Generation,
                 port,
                 capabilityDigest,
+                previousSessionState,
             },
             BridgeWire.MaxControlFrameSize,
             cancellationToken

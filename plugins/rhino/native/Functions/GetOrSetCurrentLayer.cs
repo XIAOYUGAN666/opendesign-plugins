@@ -4,7 +4,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GetOrSetCurrentLayer
 {
-    [McpCommand("get_or_set_current_layer", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("get_or_set_current_layer", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object GetOrSet(RequestContext context, JsonElement parameters)
     {
         var layers = context.RhinoDocument.Layers;

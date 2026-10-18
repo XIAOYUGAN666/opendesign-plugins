@@ -105,6 +105,55 @@ public sealed class ControlPipeClientTests
         ((IDisposable)session).Dispose();
     }
 
+    [Theory]
+    [InlineData("quiescent")]
+    [InlineData("unknown")]
+    public async Task Ready_frame_v2_contains_exact_prior_session_state(string previousState)
+    {
+        using var native = NativeTestAssembly.Load();
+        using var stream = new MemoryStream();
+        using var session = CreateControlSession(native, stream);
+        await ReportReady(session, previousState);
+        stream.Position = 0;
+        using var frame = await BridgeTestSupport.ReadFrameAsync(stream);
+        Assert.NotNull(frame);
+        var root = frame!.RootElement;
+        Assert.Equal(2, root.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal("bridgeReady", root.GetProperty("kind").GetString());
+        Assert.Equal(1UL, root.GetProperty("generation").GetUInt64());
+        Assert.Equal(1234, root.GetProperty("port").GetInt32());
+        Assert.Equal(BridgeTestSupport.ContractDigest, root.GetProperty("capabilityDigest").GetString());
+        Assert.Equal(previousState, root.GetProperty("previousSessionState").GetString());
+        Assert.Equal(new[] { "capabilityDigest", "generation", "kind", "port", "previousSessionState", "schemaVersion" },
+            root.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("idle")]
+    [InlineData("quiescent ")]
+    [InlineData("Unknown")]
+    public async Task Ready_frame_rejects_invalid_prior_session_state_before_writing(string previousState)
+    {
+        using var native = NativeTestAssembly.Load();
+        using var stream = new MemoryStream();
+        using var session = CreateControlSession(native, stream);
+        await Assert.ThrowsAsync<InvalidDataException>(() => ReportReady(session, previousState));
+        Assert.Equal(0, stream.Length);
+    }
+
+    private static IDisposable CreateControlSession(NativeTestAssembly native, Stream stream) =>
+        (IDisposable)Activator.CreateInstance(BridgeTestSupport.RequireType(native, "RhinoMcpBridge.ControlPipeSession"),
+            BindingFlags.Instance | BindingFlags.NonPublic, null,
+            [stream, BridgeTestSupport.CreateLease(native)], null)!;
+
+    private static Task ReportReady(object session, string previousState)
+    {
+        var method = session.GetType().GetMethod("ReportReadyAsync")!;
+        object[] arguments = [1234, BridgeTestSupport.ContractDigest, previousState, TestContext.Current.CancellationToken];
+        return (Task)method.Invoke(session, arguments)!;
+    }
+
     [Fact]
     public void Registration_must_match_the_signed_protocol_contract_digest()
     {

@@ -9,6 +9,7 @@ internal sealed record RegisteredCommand(
     string Name,
     bool ReadOnly,
     bool SupportsDryRun,
+    bool CompletesWithinCallback,
     NativeCommandHandler Handler
 );
 
@@ -73,6 +74,7 @@ internal sealed class CommandRegistry
                         metadata.CommandName,
                         metadata.ReadOnly,
                         metadata.SupportsDryRun,
+                        metadata.CompletesWithinCallback,
                         handler
                     )
                 );

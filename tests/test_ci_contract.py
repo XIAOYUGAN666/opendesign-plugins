@@ -29,7 +29,9 @@ class CiContractTests(unittest.TestCase):
         plugin_ids = [value.strip() for value in plugins.group(1).split(",")]
         steps = re.findall(
             r"^        working-directory: (.+)\n"
-            r"        shell: pwsh\n        run: \|\n((?:          .*\n)+)",
+            r"        shell: pwsh\n"
+            r"(?:        env:\n(?:          .*\n)+)?"
+            r"        run: \|\n((?:          .*\n)+)",
             workflow,
             re.MULTILINE,
         )

@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GetCommands
 {
-    [McpCommand("get_commands", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("get_commands", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Get(RequestContext context, JsonElement parameters)
     {
         var loadedOnly = NativeFunctions.Boolean(parameters, "loaded_only", true);

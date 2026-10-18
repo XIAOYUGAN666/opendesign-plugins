@@ -7,7 +7,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class Perception
 {
-    [McpCommand("analyze_objects", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("analyze_objects", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Analyze(RequestContext context, JsonElement parameters)
     {
         var objects = ResolveObjects(context, parameters);
@@ -15,19 +15,17 @@ internal static class Perception
         {
             var geometry = obj.Geometry;
             var bounds = geometry.GetBoundingBox(accurate: true);
-            var metrics = new Dictionary<string, object?>
-            {
-                ["is_closed"] = geometry is Curve curve && curve.IsClosed,
-                ["is_solid"] = geometry is Brep brep && brep.IsSolid,
-            };
+            var metrics = new Dictionary<string, object?>();
             if (geometry is Curve measuredCurve)
             {
+                metrics["is_closed"] = measuredCurve.IsClosed;
                 metrics["length"] = measuredCurve.GetLength();
                 metrics["degree"] = measuredCurve.Degree;
             }
 
             if (geometry is Brep measuredBrep)
             {
+                metrics["is_solid"] = measuredBrep.IsSolid;
                 using (var area = AreaMassProperties.Compute(measuredBrep))
                 {
                     metrics["area"] = area?.Area;
@@ -81,7 +79,7 @@ internal static class Perception
         return new Dictionary<string, object?> { ["object_count"] = analyses.Length, ["analyses"] = analyses };
     }
 
-    [McpCommand("measure_objects", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("measure_objects", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Measure(RequestContext context, JsonElement parameters)
     {
         var ids = NativeFunctions.Ids(parameters, "object_ids");
@@ -126,7 +124,7 @@ internal static class Perception
         };
     }
 
-    [McpCommand("section_profile", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("section_profile", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Section(RequestContext context, JsonElement parameters)
     {
         var objects = ResolveObjects(context, parameters);

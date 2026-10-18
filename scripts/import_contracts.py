@@ -16,6 +16,7 @@ def import_contracts(
     host_contract_schema: Path | None = None,
     configuration_schema: Path | None = None,
     official_schema: Path | None = None,
+    bridge_control_schema: Path | None = None,
 ) -> dict[str, str]:
     """Copy schema bytes and generate an owner/version/hash-only inventory.
 
@@ -25,6 +26,7 @@ def import_contracts(
     host_root = "apps/desktop/src-tauri/resources/plugins/schemas/"
     inputs = [
         ("host-native.schema.json", host_schema, "host", host_root + "native-extension-v1.schema.json"),
+        ("bridge-control-v2.schema.json", bridge_control_schema, "host", host_root + "bridge-control-v2.schema.json"),
         ("agent-control.schema.json", agent_schema, "agent", "apps/backend/agent-server/schema/plugin-runtime.schema.json"),
         ("host-contract.v3.schema.json", host_contract_schema, "host", host_root + "host-contract.v3.schema.json"),
         ("plugin-configuration.schema.json", configuration_schema, "host", host_root + "plugin-configuration.schema.json"),
@@ -68,12 +70,14 @@ def main() -> None:
     parser.add_argument("--host-contract-schema", type=Path)
     parser.add_argument("--configuration-schema", type=Path)
     parser.add_argument("--official-schema", type=Path)
+    parser.add_argument("--bridge-control-schema", type=Path)
     args = parser.parse_args()
     hashes = import_contracts(
         args.host_schema, args.agent_schema, args.destination,
         host_contract_schema=args.host_contract_schema,
         configuration_schema=args.configuration_schema,
         official_schema=args.official_schema,
+        bridge_control_schema=args.bridge_control_schema,
     )
     print(json.dumps(hashes, sort_keys=True))
 

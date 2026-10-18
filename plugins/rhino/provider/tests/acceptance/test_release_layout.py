@@ -25,7 +25,7 @@ def test_yak_uses_root_manifest_and_both_official_framework_directories() -> Non
     entries = {
         "manifest.yml": (
             b"name: rhino-mcp-bridge\n"
-            b"version: 0.1.2\n"
+            b"version: 0.1.3\n"
             b"authors:\n  - Rhino MCP Developer\n"
             b"keywords:\n  - guid:74a1e8f4-1134-4686-a3e5-ee8bf393dec9\n"
             b"description: Managed Rhino Bridge.\n"
@@ -45,13 +45,15 @@ def test_yak_uses_root_manifest_and_both_official_framework_directories() -> Non
     assert "net8.0/RhinoMcpBridge.rhp" in members
     verify_yak_archive(
         payload,
-        expected_plugin_version="0.1.2",
+        expected_plugin_version="0.1.3",
         expected_plugin_guid="74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
     )
 
 
 def test_release_template_freezes_private_runtime_and_composite_files() -> None:
     from build_release import expected_release_members
+
+    native = build_release.validate_root_identity()["extensions"]["io.github.xiaoyugan666.native"]["native"]
 
     members = expected_release_members(
         provider_files={"rhino_mcp/__init__.py"},
@@ -63,7 +65,7 @@ def test_release_template_freezes_private_runtime_and_composite_files() -> None:
         "file-manifest.json",
         "SBOM.spdx.json",
         "runtime/python/python.exe",
-        "native/rhino-mcp-bridge-0.1.2-rh8-win.yak",
+        native["relativePath"],
         "rhino_mcp/__init__.py",
         "contracts/protocol.json",
         "contracts/tool-catalog.json",
@@ -79,11 +81,14 @@ def test_native_outputs_follow_the_official_dotnet_artifacts_pivot_layout(
 
 
 def test_release_manifest_freezes_the_signed_native_capability_digest() -> None:
-    manifest = build_release._safe_manifest(
-        build_release._read_json(build_release.RELEASE_TEMPLATE_PATH)
-    )
+    template = build_release._read_json(build_release.RELEASE_TEMPLATE_PATH)
+    native = build_release.validate_root_identity()["extensions"]["io.github.xiaoyugan666.native"]["native"]
+    assert template["native"]["capabilityDigest"] == native["capabilityDigest"]
+    expected = "sha256:" + "a" * 64
+    template["native"]["capabilityDigest"] = expected
+    manifest = build_release._safe_manifest(template)
 
-    assert manifest["native"]["capabilityDigest"] == "sha256:" + "0" * 64
+    assert manifest["native"]["capabilityDigest"] == expected
 
 
 def test_release_template_includes_the_inventoried_rhino_8_build() -> None:

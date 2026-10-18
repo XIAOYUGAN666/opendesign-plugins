@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class AdvancedGeometry
 {
-    [McpCommand("loft", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("loft", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Loft(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Loft MCP curves", () =>
         {
@@ -26,7 +26,7 @@ internal static class AdvancedGeometry
             return new Dictionary<string, object?> { ["result_ids"] = ids, ["count"] = ids.Length, ["message"] = "Loft created." };
         });
 
-    [McpCommand("extrude_curve", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("extrude_curve", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Extrude(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Extrude MCP curve", () =>
         {
@@ -56,7 +56,7 @@ internal static class AdvancedGeometry
             return new Dictionary<string, object?> { ["result_id"] = id.ToString("D"), ["message"] = "Extrusion created." };
         });
 
-    [McpCommand("sweep1", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("sweep1", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Sweep(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Sweep MCP curves", () =>
         {
@@ -92,7 +92,7 @@ internal static class AdvancedGeometry
             return new Dictionary<string, object?> { ["result_ids"] = ids, ["count"] = ids.Length, ["message"] = "Sweep created." };
         });
 
-    [McpCommand("offset_curve", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("offset_curve", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Offset(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Offset MCP curve", () =>
         {
@@ -117,7 +117,7 @@ internal static class AdvancedGeometry
             return CurveResult(ids, "Offset created.");
         });
 
-    [McpCommand("pipe", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("pipe", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Pipe(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Pipe MCP curve", () =>
         {

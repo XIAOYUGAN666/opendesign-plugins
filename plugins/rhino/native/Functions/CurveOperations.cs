@@ -6,7 +6,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class CurveOperations
 {
-    [McpCommand("project_curve", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("project_curve", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Project(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Project MCP curve", () =>
         {
@@ -44,7 +44,7 @@ internal static class CurveOperations
             return new Dictionary<string, object?> { ["result_ids"] = ids, ["count"] = ids.Length, ["message"] = "Curve projected." };
         });
 
-    [McpCommand("intersect_curves", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("intersect_curves", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Intersect(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Intersect MCP curves", () =>
         {
@@ -95,7 +95,7 @@ internal static class CurveOperations
             };
         });
 
-    [McpCommand("split_curve", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("split_curve", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Split(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Split MCP curve", () =>
         {

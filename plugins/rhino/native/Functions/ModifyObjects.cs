@@ -6,7 +6,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class ModifyObjects
 {
-    [McpCommand("modify_objects", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("modify_objects", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object ModifyMany(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Modify MCP object batch", () =>
         {

@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class SelectObjects
 {
-    [McpCommand("select_objects", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("select_objects", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Select(RequestContext context, JsonElement parameters)
     {
         var filters = NativeFunctions.Property(parameters, "filters");

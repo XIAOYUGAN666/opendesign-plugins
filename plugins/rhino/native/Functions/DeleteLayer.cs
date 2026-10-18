@@ -4,7 +4,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class DeleteLayer
 {
-    [McpCommand("delete_layer", ReadOnly = false, SupportsDryRun = false)]
+    [McpCommand("delete_layer", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Delete(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Delete MCP layer", () =>
         {

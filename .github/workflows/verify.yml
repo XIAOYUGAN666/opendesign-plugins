@@ -104,7 +104,7 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         if: steps.project.outputs.present == 'true' && matrix.plugin == 'rhino'
         with:
-          dotnet-version: '8.0.x'
+          global-json-file: plugins/${{ matrix.plugin }}/global.json
       - name: Build and test the owned native Bridge before process interoperability
         if: steps.project.outputs.present == 'true' && matrix.plugin == 'rhino'
         working-directory: plugins/${{ matrix.plugin }}
@@ -118,6 +118,8 @@ jobs:
         if: steps.project.outputs.present == 'true'
         working-directory: plugins/${{ matrix.plugin }}/provider
         shell: pwsh
+        env:
+          NATIVE_REPRODUCIBILITY_CHECK: ${{ matrix.plugin == 'rhino' && '1' || '0' }}
         run: |
           uv sync --frozen --extra test --python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

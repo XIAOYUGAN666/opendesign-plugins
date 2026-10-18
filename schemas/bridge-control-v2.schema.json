@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BridgeReadyV2",
+  "description": "Host-owned private control schema, exported for native producer validation.",
+  "type": "object",
+  "properties": {
+    "capabilityDigest": {
+      "type": "string",
+      "maxLength": 71,
+      "minLength": 71,
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "generation": {
+      "type": "integer",
+      "format": "uint64",
+      "maximum": 9007199254740991,
+      "minimum": 1
+    },
+    "kind": {
+      "$ref": "#/$defs/BridgeReadyKindV2"
+    },
+    "port": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 1
+    },
+    "previousSessionState": {
+      "$ref": "#/$defs/PreviousSessionStateV2"
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 2,
+      "minimum": 2
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "generation",
+    "port",
+    "capabilityDigest",
+    "previousSessionState"
+  ],
+  "$defs": {
+    "BridgeReadyKindV2": {
+      "type": "string",
+      "enum": [
+        "bridgeReady"
+      ]
+    },
+    "PreviousSessionStateV2": {
+      "description": "Native executor evidence, never an engineering result or replay permission.",
+      "type": "string",
+      "enum": [
+        "quiescent",
+        "unknown"
+      ]
+    }
+  }
+}
