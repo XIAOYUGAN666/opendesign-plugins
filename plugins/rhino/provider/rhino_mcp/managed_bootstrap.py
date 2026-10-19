@@ -83,7 +83,9 @@ class NativeContext(ExactModel):
 
 
 class ConfigurationV1(ExactModel):
-    """Rhino has no ordinary configuration or business secret slot."""
+    """Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。"""
+
+    model_config = ConfigDict(title="Rhino")
 
 
 class DataSettings(ExactModel):

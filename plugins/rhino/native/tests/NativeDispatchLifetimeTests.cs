@@ -196,16 +196,21 @@ public sealed class NativeDispatchLifetimeTests
             await Execute(session, TestContext.Current.CancellationToken);
         }
 
-        if (repeatedClose) await Close(session);
+        // Bind before sampling: the reflection invoker can allocate its lazy
+        // dispatch stub independently of the production drain's storage.
+        var close = session.GetType()
+            .GetMethod("CloseAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .CreateDelegate<Func<Task>>(session);
+        if (repeatedClose) await close();
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var drain = Close(session);
+        var drain = close();
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.True(allocated < 8192,
             $"Closing must use bounded summary storage; allocated {allocated} bytes (repeated={repeatedClose}).");
         Assert.True(drain.IsCompletedSuccessfully);
         var summary = drain.GetType().GetProperty("Result")!.GetValue(drain);
-        var repeated = Close(session);
+        var repeated = close();
         Assert.Same(drain, repeated);
         Assert.Same(summary, repeated.GetType().GetProperty("Result")!.GetValue(repeated));
     }
