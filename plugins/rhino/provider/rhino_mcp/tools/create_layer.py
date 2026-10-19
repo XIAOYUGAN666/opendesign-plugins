@@ -1,4 +1,5 @@
 from mcp.server.mcpserver import Context
+from rhino_mcp.bridge import BridgeError
 from rhino_mcp.server import get_rhino_connection, logger
 from typing import Any, List
 
@@ -45,6 +46,8 @@ def create_layer(
         result = rhino.send_command("create_layer", command_params)
 
         return f"Created layer: {result['name']}"
+    except BridgeError:
+        raise
     except Exception as e:
         logger.error(f"Error creating layer: {str(e)}")
         return f"Error creating layer: {str(e)}"

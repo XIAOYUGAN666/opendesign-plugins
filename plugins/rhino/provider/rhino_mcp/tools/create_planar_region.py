@@ -17,8 +17,9 @@ def create_planar_region(
     hole. Inner loops must be strictly inside the outer loop and mutually
     disjoint and nonnested. Input curves are preserved.
 
-    Returns the created object id and face/loop counts. Exceptions propagate as
-    MCP tool errors.
+    Returns the native result_ids, count and message for the created geometry.
+    Inspect the created objects independently for topology and measurements.
+    Exceptions propagate as MCP tool errors.
     """
     params: Dict[str, Any] = {
         "outer_curve_id": outer_curve_id,
@@ -30,10 +31,7 @@ def create_planar_region(
     result = get_rhino_connection(ctx).send_command("create_planar_region", params)
     return {
         "success": True,
-        "id": result.get("id"),
-        "face_count": result.get("face_count"),
-        "loop_count": result.get("loop_count"),
-        "outer_loop_count": result.get("outer_loop_count"),
-        "inner_loop_count": result.get("inner_loop_count"),
-        "message": result.get("message", "Created planar region"),
+        "result_ids": result["result_ids"],
+        "count": result["count"],
+        "message": result["message"],
     }

@@ -548,6 +548,93 @@ def _install_runtime_dependencies(stage_root: Path, uv_exe: str) -> None:
     _run(install_command, cwd=PROJECT_ROOT)
 
 
+def _install_provider_distribution(stage_root: Path, uv: str) -> None:
+    """Install a standard wheel of the final staged source, never editable metadata."""
+    from build.env import DefaultIsolatedEnv
+
+    site_packages = stage_root / "runtime/python/Lib/site-packages"
+    project = stage_root.parent / "provider-wheel-project"
+    project.mkdir()
+    shutil.copyfile(PROJECT_ROOT / "pyproject.toml", project / "pyproject.toml")
+    shutil.copytree(site_packages / "rhino_mcp", project / "rhino_mcp")
+    output = stage_root.parent / "provider-wheelhouse"
+    requirements = stage_root.parent / "build-requirements.txt"
+    _run(
+        [
+            uv,
+            "export",
+            "--locked",
+            "--only-group",
+            "build",
+            "--no-emit-project",
+            "--format",
+            "requirements.txt",
+            "--output-file",
+            str(requirements),
+        ],
+        cwd=PROJECT_ROOT,
+    )
+    with DefaultIsolatedEnv(path=str(stage_root.parent / "provider-build-env")) as env:
+        _run(
+            [
+                uv,
+                "pip",
+                "install",
+                "--python",
+                env.python_executable,
+                "--only-binary",
+                ":all:",
+                "--no-deps",
+                "--require-hashes",
+                "--no-compile-bytecode",
+                "-r",
+                str(requirements),
+            ],
+            cwd=PROJECT_ROOT,
+        )
+        # Run PyPA's dependency checks inside that same frozen build environment.
+        _run(
+            [
+                env.python_executable,
+                "-B",
+                "-m",
+                "build",
+                "--no-isolation",
+                "--wheel",
+                "--outdir",
+                str(output),
+                str(project),
+            ],
+            cwd=project,
+        )
+    wheels = list(output.glob("*.whl"))
+    if len(wheels) != 1:
+        raise ReleaseBuildError("Provider build did not produce one wheel.")
+    wheel = wheels[0]
+    project_identity = tomllib.loads((project / "pyproject.toml").read_text("utf-8"))[
+        "project"
+    ]
+    distribution = re.sub(r"[-_.]+", "_", project_identity["name"])
+    metadata_root = f"{distribution}-{project_identity['version']}.dist-info/"
+    # Only copy standard wheel metadata. The package is already staged and
+    # patched; a normal local-wheel install would add a private direct_url.json.
+    with zipfile.ZipFile(wheel) as archive:
+        for member in archive.infolist():
+            name = _safe_member_name(member.filename)
+            data = archive.read(member)
+            if name.startswith("rhino_mcp/"):
+                if (site_packages / name).read_bytes() != data:
+                    raise ReleaseBuildError(
+                        "Provider wheel differs from staged source."
+                    )
+            elif name.startswith(metadata_root):
+                target = site_packages / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+            else:
+                raise ReleaseBuildError("Provider wheel contains an unexpected member.")
+
+
 def _build_native_outputs(
     workspace: Path,
     dotnet_exe: str,
@@ -978,6 +1065,10 @@ def _sbom(
             )
         license_expression = metadata.get("License-Expression") or "NOASSERTION"
         normalized = re.sub(r"[-_.]+", "-", name).lower()
+        if normalized == "rhino-mcp-provider":
+            if version != release_version:
+                raise ReleaseBuildError("Provider distribution identity mismatch.")
+            continue  # Already represented by the release identity above.
         packages.append(
             _sbom_package(
                 name,
@@ -1227,6 +1318,7 @@ def build_release(
             provider_build_bytes
         )
         _patch_build_identity(stage_root, provider_build_id)
+        _install_provider_distribution(stage_root, uv)
 
         native_outputs = _build_native_outputs(workspace, dotnet, provider_build_id)
         native_records, yak_entries = _native_output_records(native_outputs)

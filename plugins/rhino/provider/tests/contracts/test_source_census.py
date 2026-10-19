@@ -52,7 +52,7 @@ def test_fourteen_first_conversion_test_identities_are_present() -> None:
     assert len(expected["baselineTests"]) == 14
 
 
-def test_census_records_the_approved_first_conversion_floor() -> None:
+def test_census_records_supported_inventory_and_conversion_floor() -> None:
     expected = json.loads(EXPECTED_CENSUS.read_text(encoding="utf-8"))
     assert expected["mcpTools"] == 70
     assert expected["mcpResources"] == 4
@@ -61,5 +61,5 @@ def test_census_records_the_approved_first_conversion_floor() -> None:
     assert expected["nativeRoutineCount"] == 69
     assert expected["nativeCommandHandlerCount"] == 65
     assert expected["commandSchemaCount"] == 65
-    assert expected["responseSchemaCount"] == 17
+    assert expected["responseSchemaCount"] == len(expected["responseSchemas"]) == 18
     assert expected["baselineTestCount"] == 14

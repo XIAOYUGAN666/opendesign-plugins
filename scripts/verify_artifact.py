@@ -388,6 +388,11 @@ def _verify_native_build_identity(root, module, expected):
         raise ValueError("effectiveRuntimeMismatch")
     frozen = tomllib.loads((base / "uv.lock").read_text("utf-8"))
     normalize = lambda name: re.sub(r"[-_.]+", "-", name).lower()
+    project = tomllib.loads((base / "pyproject.toml").read_text("utf-8"))["project"]
+    own_name, own_version = normalize(project["name"]), project["version"]
+    own_lock = [p for p in frozen["package"] if normalize(p["name"]) == own_name]
+    if own_version != record["releaseVersion"] or len(own_lock) != 1 or own_lock[0]["version"] != own_version or own_lock[0].get("source") != {"editable": "."}:
+        raise ValueError("providerDistributionIdentityMismatch")
     installed = {}
     installed_tags = {}
     for path in base.glob("*.dist-info/METADATA"):
@@ -398,6 +403,10 @@ def _verify_native_build_identity(root, module, expected):
         installed[name] = version
         wheel_metadata = email.parser.BytesParser().parsebytes((path.parent / "WHEEL").read_bytes())
         installed_tags[name] = set(wheel_metadata.get_all("Tag", []))
+        if name == own_name and (path.parent / "direct_url.json").exists():
+            raise ValueError("privateProviderDistribution")
+    if installed.pop(own_name, None) != own_version or installed_tags.pop(own_name, None) != {"py3-none-any"}:
+        raise ValueError("providerDistributionMetadataMismatch")
     # The verifier runs in the locked Windows CP312 tool environment, not the
     # extracted Provider. Reuse public wheel rules rather than copy tag logic.
     from packaging.tags import sys_tags

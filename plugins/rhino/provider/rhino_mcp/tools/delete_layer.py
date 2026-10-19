@@ -40,7 +40,7 @@ def delete_layer(
         # Create the layer
         result = rhino.send_command("delete_layer", command_params)
 
-        return result["message"]
+        return f"Deleted layer: {result['name']}"
     except BridgeError:
         raise
     except Exception as e:

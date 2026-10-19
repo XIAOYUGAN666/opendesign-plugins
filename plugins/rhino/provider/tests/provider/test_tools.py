@@ -814,7 +814,8 @@ class TestDeleteLayerTool:
         mock_conn.send_command.return_value = {"name": "DeletedLayer", "deleted": True}
         mock_get_conn.return_value = mock_conn
 
-        delete_layer(ctx=None, name="DeletedLayer")
+        result = delete_layer(ctx=None, name="DeletedLayer")
+        assert result == "Deleted layer: DeletedLayer"
 
         call_args = mock_conn.send_command.call_args
         assert call_args[0][0] == "delete_layer"
@@ -2315,7 +2316,6 @@ class TestGrasshopperTools:
             "gh_set_parameter_value",
             {
                 "value": 7.5,
-                "input_index": 0,
                 "nickname": "Radius",
                 "input_name": "R",
                 "min": 0,
@@ -2326,7 +2326,6 @@ class TestGrasshopperTools:
         assert calls[3][0] == (
             "gh_get_parameter_value",
             {
-                "output_index": 0,
                 "max_items": 12,
                 "instance_id": "circle-id",
                 "output_name": "C",

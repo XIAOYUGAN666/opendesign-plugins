@@ -4,6 +4,8 @@ Rhino 8 engineering tools and workflow skills for OpenDesign. The root `plugin.j
 
 The Provider uses the official MCP SDK and exposes 70 typed tools, four resources/templates and two prompts. Metadata mode lists declarations without connecting to Rhino or accepting engineering calls. Engineering execution requires the compatible Windows Host, the native Bridge and Rhino build `8.26.25349.19001`. Other plugin clients can read supported standard components and static workflow skills.
 
+Release staging builds a standard wheel from the final build-identity-patched Provider source and includes its distribution metadata. The isolated PyPA build consumes the Provider's locked `build` dependency group with archive hash verification; it does not resolve an unbounded backend at release time. Its version must match the root Manifest, Provider project and editable project entry in `uv.lock`; third-party runtime wheels retain their separate frozen URL/hash/tag checks. Editable install metadata and local wheel `direct_url.json` are not copied into artifacts.
+
 From this `provider` directory run `uv sync --frozen --extra test` and `uv run --frozen --extra test python -m pytest -q`. The native project and its pinned `global.json` live at the parent plugin root. Build both native targets there before the native test suite:
 
 ```powershell

@@ -12,17 +12,21 @@ internal static class DeleteObject
             var targets = all
                 ? NativeFunctions.Objects(context).ToArray()
                 : new[] { NativeFunctions.RequireObject(context, parameters) };
+            // Rhino invalidates object metadata after deletion. Capture the
+            // receipt identity before the first engineering mutation.
+            var targetIds = targets.Select(target => target.Id).ToArray();
+            var name = all ? null : targets[0].Attributes.Name ?? string.Empty;
             var deleted = 0;
             var errors = new List<string>();
-            foreach (var target in targets)
+            foreach (var targetId in targetIds)
             {
-                if (context.RhinoDocument.Objects.Delete(target.Id, quiet: true))
+                if (context.RhinoDocument.Objects.Delete(targetId, quiet: true))
                 {
                     deleted++;
                 }
                 else
                 {
-                    errors.Add(target.Id.ToString("D"));
+                    errors.Add(targetId.ToString("D"));
                 }
             }
 
@@ -31,14 +35,21 @@ internal static class DeleteObject
                 throw new NativeCommandException("objectDeleteFailed", "Rhino could not delete the requested object.");
             }
 
-            return new Dictionary<string, object?>
+            var result = new Dictionary<string, object?>
             {
-                ["id"] = all ? null : targets[0].Id.ToString("D"),
-                ["name"] = all ? null : targets[0].Attributes.Name,
                 ["deleted"] = deleted > 0,
                 ["count"] = deleted,
-                ["scope"] = all ? "document" : "object",
                 ["failed_ids"] = errors,
             };
+            if (all)
+            {
+                result["scope"] = "all";
+            }
+            else
+            {
+                result["id"] = targetIds[0].ToString("D");
+                result["name"] = name;
+            }
+            return result;
         });
 }

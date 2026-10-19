@@ -27,6 +27,7 @@ else:
 RESPONSE_SCHEMA_MAP: Mapping[str, str] = MappingProxyType(
     {
         "create_object": "object_info.json",
+        "create_planar_region": "create_planar_region_result.json",
         "modify_object": "object_info.json",
         "get_object_info": "object_info.json",
         "get_object_attributes": "object_attributes.json",
@@ -53,7 +54,6 @@ RESPONSE_SCHEMA_MAP: Mapping[str, str] = MappingProxyType(
 NO_RESULT_SCHEMA_COMMANDS = frozenset(
     {
         "create_objects",
-        "create_planar_region",
         "execute_rhinocommon_csharp_code",
         "extrude_curve",
         "get_commands",

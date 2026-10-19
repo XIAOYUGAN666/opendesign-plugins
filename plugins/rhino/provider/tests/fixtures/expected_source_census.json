@@ -6,7 +6,7 @@
   "nativeRoutineCount": 69,
   "nativeCommandHandlerCount": 65,
   "commandSchemaCount": 65,
-  "responseSchemaCount": 17,
+  "responseSchemaCount": 18,
   "baselineTestCount": 14,
   "pythonToolModules": [
     "_grasshopper_common.py",
@@ -162,6 +162,7 @@
     "capture_viewport_result.json",
     "change_delta.json",
     "change_health.json",
+    "create_planar_region_result.json",
     "curve_operation_result.json",
     "delete_result.json",
     "document_summary.json",

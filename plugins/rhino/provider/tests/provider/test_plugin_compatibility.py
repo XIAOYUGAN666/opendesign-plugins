@@ -177,7 +177,7 @@ class TestUnsupportedCommands:
         ]
 
 
-class TestParametersOlderPluginsWouldDrop:
+class TestManagedSweepParameters:
     SWEEP: ClassVar[dict[str, Any]] = {
         "rail_id": IDS[0],
         "profile_ids": [IDS[1]],
@@ -186,19 +186,16 @@ class TestParametersOlderPluginsWouldDrop:
     }
 
     @patch("socket.socket")
-    def test_refused_when_the_plugin_predates_the_parameter(self, mock_socket_class):
+    def test_managed_release_version_does_not_use_legacy_parameter_threshold(
+        self, mock_socket_class
+    ):
         conn, mock_sock = connected(
-            mock_socket_class, capabilities(ADVERTISED, "0.3.2")
+            mock_socket_class, capabilities(ADVERTISED, "0.1.6") + success(DONE)
         )
-
-        with pytest.raises(
-            Exception,
-            match=r"'cap_planar_ends' needs plugin 0\.4\.0; the connected rhino_mcp "
-            r"plugin \(0\.3\.2\) would silently ignore it.*Plugin Manager",
-        ):
-            conn.send_command("sweep1", self.SWEEP)
-
-        assert sent_types(mock_sock) == ["describe_capabilities"]
+        assert conn.send_command("sweep1", self.SWEEP) == DONE
+        assert sent_types(mock_sock) == ["describe_capabilities", "sweep1"]
+        sent = json.loads(mock_sock.sendall.call_args_list[-1].args[0][4:])
+        assert sent["params"]["cap_planar_ends"] is True
 
     @patch("socket.socket")
     def test_sent_when_the_plugin_is_new_enough(self, mock_socket_class):

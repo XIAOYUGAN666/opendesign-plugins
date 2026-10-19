@@ -14,6 +14,9 @@ internal static class DeleteLayer
                 throw new NativeCommandException("currentLayer", "The current Rhino layer cannot be deleted.");
             }
 
+            // Deleted layers no longer retain reliable display metadata.
+            var id = layer.Id;
+            var name = layer.FullPath ?? string.Empty;
             var deleted = context.RhinoDocument.Layers.Delete(layer.Index, quiet: true);
             if (!deleted)
             {
@@ -22,11 +25,10 @@ internal static class DeleteLayer
 
             return new Dictionary<string, object?>
             {
-                ["id"] = layer.Id.ToString("D"),
-                ["name"] = layer.FullPath,
+                ["id"] = id.ToString("D"),
+                ["name"] = name,
                 ["deleted"] = true,
                 ["count"] = 1,
-                ["scope"] = "layer",
             };
         });
 }

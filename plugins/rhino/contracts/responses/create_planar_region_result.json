@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "create_planar_region_result.json",
+  "title": "Created planar geometry receipt",
+  "type": "object",
+  "properties": {
+    "result_ids": {
+      "$ref": "../common/definitions.json#/$defs/guidArray",
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "count": { "type": "integer", "minimum": 1 },
+    "message": { "type": "string" }
+  },
+  "required": ["result_ids", "count", "message"],
+  "additionalProperties": false
+}

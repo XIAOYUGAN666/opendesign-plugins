@@ -69,12 +69,35 @@ def runtime_inventory(staging: Path, plugin_root: Path, native: dict) -> dict:
 
     tags = {tag: index for index, tag in enumerate(sys_tags())}
     locked = tomllib.loads((plugin_root / "provider/uv.lock").read_text("utf-8"))
+    project = tomllib.loads(
+        (plugin_root / "provider/pyproject.toml").read_text("utf-8")
+    )["project"]
+    own_name, own_version = canonicalize_name(project["name"]), project["version"]
+    if own_version != json.loads((plugin_root / "plugin.json").read_bytes())["version"]:
+        raise release.ReleaseBuildError("Provider distribution identity mismatch.")
+    own_seen = False
     wheels = []
     for metadata_path in sorted(
         (staging / "runtime/python/Lib/site-packages").glob("*.dist-info/METADATA")
     ):
         metadata = email.parser.Parser().parsestr(metadata_path.read_text("utf-8"))
         name, version = canonicalize_name(metadata["Name"]), metadata["Version"]
+        if name == own_name:
+            own_lock = [
+                p for p in locked["package"] if canonicalize_name(p["name"]) == own_name
+            ]
+            if (
+                own_seen
+                or version != own_version
+                or len(own_lock) != 1
+                or own_lock[0]["version"] != own_version
+                or own_lock[0].get("source") != {"editable": "."}
+            ):
+                raise release.ReleaseBuildError(
+                    "Provider distribution identity mismatch."
+                )
+            own_seen = True
+            continue
         package = next(
             p
             for p in locked["package"]
@@ -101,6 +124,8 @@ def runtime_inventory(staging: Path, plugin_root: Path, native: dict) -> dict:
                 "sha256": wheel["hash"],
             }
         )
+    if not own_seen:
+        raise release.ReleaseBuildError("Provider distribution metadata is missing.")
     return {
         "schemaVersion": 1,
         "python": release._runtime_lock()["python"],

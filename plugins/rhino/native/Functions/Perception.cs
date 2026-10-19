@@ -23,7 +23,10 @@ internal static class Perception
                 metrics["degree"] = measuredCurve.Degree;
             }
 
-            if (geometry is Brep measuredBrep)
+            // Measure lightweight extrusions without replacing their document geometry.
+            using var extrusionBrep = (geometry as Extrusion)?.ToBrep(splitKinkyFaces: false);
+            var measuredBrep = geometry as Brep ?? extrusionBrep;
+            if (measuredBrep is not null)
             {
                 metrics["is_solid"] = measuredBrep.IsSolid;
                 using (var area = AreaMassProperties.Compute(measuredBrep))

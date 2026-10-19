@@ -223,7 +223,6 @@ internal static class GrasshopperHelpers
     internal static object ComponentTypeInfo(IGH_ObjectProxy proxy, bool includeDescription = true)
     {
         var instance = CreateInstance(proxy);
-        var component = instance as GH_Component;
         return new Dictionary<string, object?>
         {
             ["guid"] = proxy.Guid.ToString("D"),
@@ -233,8 +232,8 @@ internal static class GrasshopperHelpers
             ["subcategory"] = proxy.Desc.SubCategory,
             ["description"] = includeDescription ? proxy.Desc.Description : null,
             ["obsolete"] = proxy.Obsolete,
-            ["inputs"] = component is null ? Array.Empty<object>() : component.Params.Input.Select(port => PortInfo(port)).ToArray(),
-            ["outputs"] = component is null ? Array.Empty<object>() : component.Params.Output.Select(port => PortInfo(port)).ToArray(),
+            ["inputs"] = Inputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
+            ["outputs"] = Outputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
         };
     }
 

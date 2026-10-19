@@ -71,15 +71,9 @@ if RHINO_DEBUG:
 
 CAPABILITIES_COMMAND = "describe_capabilities"
 
-# The managed host can update the Provider while Rhino still has the previous
-# Bridge loaded until the user restarts Rhino. Check the reported capabilities
-# and versions before sending newer parameters or commands.
-#
-# When you add a parameter to an existing command, register it here with the
-# plugin version that introduces it and the value that means "not used".
-PARAMS_SINCE: dict[str, dict[str, tuple]] = {
-    "sweep1": {"cap_planar_ends": ("0.4.0", False)},
-}
+# The Host binds Provider and Bridge to the signed build/contract identity.
+# Check actual command and dry-run capabilities here. Legacy version
+# thresholds do not describe this independently versioned managed package.
 # Commands added after describe_capabilities (0.3.2) existed, so a plugin too
 # old to report its command table is still refused with the right advice.
 COMMANDS_SINCE: dict[str, str] = {
@@ -334,25 +328,6 @@ class RhinoConnection:
             if advertised and command_type not in advertised:
                 raise UnsupportedCommandError(
                     unsupported_command_message(command_type, version_text, since)
-                )
-
-        for name, (introduced, unused) in PARAMS_SINCE.get(command_type, {}).items():
-            value = params.get(name)
-            if value is None or value == unused:
-                continue
-            plugin = (
-                parse_version(capabilities.get("version")) if capabilities else None
-            )
-            introduced_version = parse_version(introduced)
-            if (
-                plugin is None
-                or introduced_version is None
-                or plugin < introduced_version
-            ):
-                raise UnsupportedCommandError(
-                    f"'{name}' needs plugin {introduced}; the connected rhino_mcp "
-                    f"plugin ({version_text}) would silently "
-                    f"ignore it. {PLUGIN_UPDATE_ADVICE} Or call without {name}."
                 )
 
         if params.get("dry_run"):

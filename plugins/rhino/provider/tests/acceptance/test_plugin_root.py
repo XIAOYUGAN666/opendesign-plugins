@@ -134,6 +134,146 @@ def test_staged_build_identity_only_replaces_the_declared_identity(tmp_path):
     )
 
 
+@pytest.mark.parametrize("explicit_uv", [False, True])
+def test_release_installs_own_distribution_before_native_build(
+    tmp_path, monkeypatch, explicit_uv
+):
+    """Exercise real Python staging without downloading or building Rhino."""
+    from importlib.metadata import Distribution
+
+    monkeypatch.setattr(build_release, "_download_runtime_archive", lambda *a: tmp_path)
+    monkeypatch.setattr(build_release, "_extract_python_runtime", lambda *a: None)
+    monkeypatch.setattr(build_release, "_install_runtime_dependencies", lambda *a: None)
+    selected_uv = build_release._uv_executable()
+    if explicit_uv:
+        monkeypatch.setenv("PATH", "")
+    uv_lookups = []
+
+    def lookup_uv():
+        uv_lookups.append(True)
+        return selected_uv
+
+    monkeypatch.setattr(build_release, "_uv_executable", lookup_uv)
+
+    class CheckedStage(Exception):
+        pass
+
+    def check_stage(workspace, dotnet, identity):
+        if explicit_uv:
+            assert not uv_lookups, (
+                "release ignored its explicitly selected uv executable"
+            )
+        base = workspace / "release-root/runtime/python/Lib/site-packages"
+        matches = [
+            d
+            for d in Distribution.discover(path=[str(base)])
+            if d.metadata["Name"] == "rhino-mcp-provider"
+        ]
+        assert len(matches) == 1, "release omitted its own distribution metadata"
+        dist = matches[0]
+        assert dist.version == build_release.validate_root_identity()["version"]
+        assert dist.read_text("direct_url.json") is None
+        assert not list(base.glob("*.pth"))
+        # Wheel RECORD must describe the final patched source, not the checkout.
+        record = next(f for f in dist.files if str(f) == "rhino_mcp/build_identity.py")
+        import base64
+        import hashlib
+
+        actual = (
+            base64.urlsafe_b64encode(
+                hashlib.sha256(dist.locate_file(record).read_bytes()).digest()
+            )
+            .rstrip(b"=")
+            .decode()
+        )
+        assert record.hash.value == actual
+        assert identity in dist.locate_file(record).read_text("utf-8")
+        raise CheckedStage
+
+    monkeypatch.setattr(build_release, "_build_native_outputs", check_stage)
+    with pytest.raises(CheckedStage):
+        build_release.build_release(
+            tmp_path / "unused.zip",
+            dotnet_exe="unused",
+            uv_exe=selected_uv if explicit_uv else None,
+        )
+
+
+def test_runtime_inventory_separates_own_distribution_from_registry_wheels(tmp_path):
+    from scripts.build_plugin import release, runtime_inventory
+
+    version = build_release.validate_root_identity()["version"]
+    metadata = (
+        tmp_path
+        / f"runtime/python/Lib/site-packages/rhino_mcp_provider-{version}.dist-info/METADATA"
+    )
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text(f"Name: rhino-mcp-provider\nVersion: {version}\n")
+    inventory = runtime_inventory(tmp_path, build_release.PLUGIN_ROOT, {})
+    assert inventory["wheels"] == []
+    metadata.write_text("Name: rhino-mcp-provider\nVersion: 9.9\n")
+    with pytest.raises(release.ReleaseBuildError):
+        runtime_inventory(tmp_path, build_release.PLUGIN_ROOT, {})
+
+
+def test_sbom_lists_the_installed_provider_only_once(tmp_path):
+    import json
+
+    version = build_release.validate_root_identity()["version"]
+    path = (
+        tmp_path
+        / f"runtime/python/Lib/site-packages/rhino_mcp_provider-{version}.dist-info/METADATA"
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text(f"Name: rhino-mcp-provider\nVersion: {version}\n")
+    sbom = json.loads(
+        build_release._sbom(tmp_path, build_release._runtime_lock(), b"fixture", 0)
+    )
+    assert len([p for p in sbom["packages"] if p["name"] == "rhino-mcp-provider"]) == 1
+
+
+def test_release_refuses_unlocked_build_backend(tmp_path, monkeypatch):
+    import shutil
+    import re
+
+    stage = tmp_path / "stage"
+    build_release._copy_provider_source(stage)
+    copied = tmp_path / "unlocked-project"
+    copied.mkdir()
+    original = (build_release.PROJECT_ROOT / "pyproject.toml").read_text("utf-8")
+    (copied / "pyproject.toml").write_text(
+        re.sub(r"(?m)^build = \[.*\]$", 'build = ["setuptools==0.0.0"]', original),
+        encoding="utf-8",
+    )
+    shutil.copyfile(build_release.PROJECT_ROOT / "uv.lock", copied / "uv.lock")
+    monkeypatch.setattr(build_release, "PROJECT_ROOT", copied)
+    with pytest.raises(build_release.ReleaseBuildError):
+        build_release._install_provider_distribution(
+            stage, build_release._uv_executable()
+        )
+
+
+def test_provider_wheel_metadata_is_identical_across_build_directories(tmp_path):
+    snapshots = []
+    for directory in ("first", "second"):
+        stage = tmp_path / directory / "stage"
+        build_release._copy_provider_source(stage)
+        build_release._patch_build_identity(stage, "sha256:" + "b" * 64)
+        build_release._install_provider_distribution(
+            stage, build_release._uv_executable()
+        )
+        base = stage / "runtime/python/Lib/site-packages"
+        snapshots.append(
+            {
+                p.relative_to(base).as_posix(): p.read_bytes()
+                for p in base.glob("*.dist-info/*")
+                if p.is_file()
+            }
+        )
+    assert snapshots[0]
+    assert snapshots[0] == snapshots[1]
+
+
 def test_formal_powershell_entrypoints_use_the_common_artifact_chain():
     root = Path(__file__).resolve().parents[2]
     build = (root / "scripts/build-release.ps1").read_text(encoding="utf-8")

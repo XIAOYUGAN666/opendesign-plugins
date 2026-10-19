@@ -16,15 +16,34 @@ INNER_B = "00000000-0000-0000-0000-000000000003"
 
 
 @patch("rhino_mcp.tools.create_planar_region.get_rhino_connection")
-def test_forwards_typed_command_and_returns_topology(mock_get_connection):
+def test_preserves_actual_native_creation_receipt(mock_get_connection):
+    receipt = {"result_ids": [OUTER], "count": 1, "message": "Planar region created."}
+    mock_get_connection.return_value.send_command.return_value = receipt
+    result = create_planar_region(ctx=None, outer_curve_id=INNER_A)
+    assert result == {"success": True, **receipt}
+    assert "id" not in result and "face_count" not in result
+
+
+def test_native_receipt_has_a_response_contract():
+    from rhino_mcp.validation import validate_response
+
+    assert validate_response(
+        "create_planar_region",
+        {"result_ids": [OUTER], "count": 1, "message": "Planar region created."},
+    )
+    for invalid in ({}, {"id": OUTER}, {"result_ids": [], "count": 0, "message": ""}):
+        assert not validate_response(
+            "create_planar_region", invalid, raise_on_error=False
+        )
+
+
+@patch("rhino_mcp.tools.create_planar_region.get_rhino_connection")
+def test_forwards_typed_command_and_returns_native_ids(mock_get_connection):
     connection = MagicMock()
     connection.send_command.return_value = {
-        "id": "region-id",
-        "face_count": 1,
-        "loop_count": 3,
-        "outer_loop_count": 1,
-        "inner_loop_count": 2,
-        "message": "Created planar region with 2 inner loop(s)",
+        "result_ids": [OUTER],
+        "count": 1,
+        "message": "Planar region created.",
     }
     mock_get_connection.return_value = connection
 
@@ -45,12 +64,9 @@ def test_forwards_typed_command_and_returns_topology(mock_get_connection):
     )
     assert result == {
         "success": True,
-        "id": "region-id",
-        "face_count": 1,
-        "loop_count": 3,
-        "outer_loop_count": 1,
-        "inner_loop_count": 2,
-        "message": "Created planar region with 2 inner loop(s)",
+        "result_ids": [OUTER],
+        "count": 1,
+        "message": "Planar region created.",
     }
 
 
@@ -58,11 +74,9 @@ def test_forwards_typed_command_and_returns_topology(mock_get_connection):
 def test_defaults_inner_curves_to_empty_list_and_omits_name(mock_get_connection):
     connection = MagicMock()
     connection.send_command.return_value = {
-        "id": "region-id",
-        "face_count": 1,
-        "loop_count": 1,
-        "outer_loop_count": 1,
-        "inner_loop_count": 0,
+        "result_ids": [OUTER],
+        "count": 1,
+        "message": "Planar region created.",
     }
     mock_get_connection.return_value = connection
 

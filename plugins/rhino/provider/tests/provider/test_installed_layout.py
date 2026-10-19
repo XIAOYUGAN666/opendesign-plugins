@@ -89,10 +89,14 @@ def test_built_wheel_contains_only_flat_python_package_and_distribution_metadata
 import sys
 sys.path.insert(0, {str(install_target)!r})
 import asyncio
+from importlib.metadata import version
 from importlib.resources import files
 import rhino_mcp
 from rhino_mcp.guidance import TOPICS, modeling_guidance
 from rhino_mcp.static.rhinoscriptsyntax import rhinoscriptsyntax_json
+assert version("rhino-mcp-provider") == {version!r}
+assert rhino_mcp.__version__ == {version!r}
+assert modeling_guidance("verification")["package_version"] == {version!r}
 
 root = files("rhino_mcp")
 assert all(root.joinpath("guides", f"{{topic}}.md").is_file() for topic in TOPICS)

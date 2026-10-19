@@ -9,9 +9,11 @@ loop and be mutually disjoint and nonnested. Do not pass duplicate IDs, intersec
 or touching loops, open curves, or curves on offset planes. Use the document's
 appropriate tolerance; do not increase tolerance just to hide a geometry error.
 
-The command preserves its input curves. Keep their IDs, verify the returned face and
-loop counts, then delete only the construction curves belonging to this task if the
-requested deliverable excludes them. Creating a planar face does not make a solid.
+The command preserves its input curves and returns native `result_ids`, `count` and
+`message`. Keep the input and returned IDs. Independently inspect the created geometry
+for topology, dimensions and area; the receipt does not contain face or loop counts.
+Delete only construction curves belonging to this task if the requested deliverable
+excludes them. Creating a planar face does not make a solid.
 
 Check the outer boundary, hole locations and radii, trimmed area, and the final world
 pose. A correct area or loop count can coexist with a wrongly positioned patch.

@@ -437,7 +437,7 @@
     },
     {
       "name": "create_planar_region",
-      "description": "Create one planar Brep face from closed coplanar boundary curves.\n\n    The outer curve bounds the face and each distinct inner curve becomes one\n    hole. Inner loops must be strictly inside the outer loop and mutually\n    disjoint and nonnested. Input curves are preserved.\n\n    Returns the created object id and face/loop counts. Exceptions propagate as\n    MCP tool errors.\n    ",
+      "description": "Create one planar Brep face from closed coplanar boundary curves.\n\n    The outer curve bounds the face and each distinct inner curve becomes one\n    hole. Inner loops must be strictly inside the outer loop and mutually\n    disjoint and nonnested. Input curves are preserved.\n\n    Returns the native result_ids, count and message for the created geometry.\n    Inspect the created objects independently for topology and measurements.\n    Exceptions propagate as MCP tool errors.\n    ",
       "inputSchema": {
         "properties": {
           "outer_curve_id": {

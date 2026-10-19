@@ -213,13 +213,46 @@ internal static class NativeFunctions
     internal static T Mutate<T>(RequestContext context, string description, Func<T> action)
     {
         var doc = context.RhinoDocument;
+        uint ownedRecord = 0;
+        uint nextRecord = 0;
+        var ownedRecordUndone = false;
+        var undoMarker = new object();
         return UndoTransaction.Execute(
             context.CancellationToken,
             description,
             action,
-            doc.BeginUndoRecord,
-            serial => doc.EndUndoRecord(serial),
-            () => doc.Undo(),
+            label =>
+            {
+                ownedRecord = doc.BeginUndoRecord(label);
+                nextRecord = doc.NextUndoRecordSerialNumber;
+                return ownedRecord;
+            },
+            serial =>
+            {
+                if (doc.CurrentUndoRecordSerialNumber != serial
+                    || doc.NextUndoRecordSerialNumber != nextRecord)
+                {
+                    return false;
+                }
+                var closed = doc.EndUndoRecord(serial);
+                // EndRecording callbacks may synchronously create another record.
+                return closed && doc.CurrentUndoRecordSerialNumber == 0
+                    && doc.NextUndoRecordSerialNumber == nextRecord;
+            },
+            // Keep a private event even when validation makes no document changes.
+            // Its callback must confirm that rollback targeted this record.
+            () => doc.CurrentUndoRecordSerialNumber == ownedRecord
+                && doc.AddCustomUndoEvent(description, (_, e) =>
+                {
+                    if (e.Document.RuntimeSerialNumber == doc.RuntimeSerialNumber
+                        && ReferenceEquals(e.Tag, undoMarker))
+                    {
+                        ownedRecordUndone = true;
+                    }
+                }, undoMarker),
+            () => doc.CurrentUndoRecordSerialNumber == 0
+                && doc.NextUndoRecordSerialNumber == nextRecord
+                && UndoRedo.ApplyStep(doc, undo: true) && ownedRecordUndone,
             () => doc.Views.Redraw()
         );
     }
@@ -491,6 +524,7 @@ internal static class UndoTransaction
         Func<T> action,
         Func<string, uint> beginUndoRecord,
         Func<uint, bool> endUndoRecord,
+        Func<bool> recordOwnership,
         Func<bool> undo,
         Action redraw
     )
@@ -505,11 +539,57 @@ internal static class UndoTransaction
             );
         }
 
+        var closeAttempted = false;
         var undoRecordClosed = false;
+        bool CloseOwnedRecord()
+        {
+            if (!closeAttempted)
+            {
+                closeAttempted = true;
+                try
+                {
+                    undoRecordClosed = endUndoRecord(serial);
+                }
+                catch
+                {
+                    undoRecordClosed = false;
+                }
+            }
+            return undoRecordClosed;
+        }
+        void CloseBeforeAction()
+        {
+            if (!CloseOwnedRecord())
+            {
+                throw new NativeCommandException(
+                    "undoRecordFailed",
+                    "Rhino could not confirm closure of the undo record; no mutation was started."
+                );
+            }
+        }
+        bool owned;
+        try
+        {
+            owned = recordOwnership();
+        }
+        catch
+        {
+            // No action ran. Never roll back an empty or unowned record.
+            CloseBeforeAction();
+            throw;
+        }
+        if (!owned)
+        {
+            CloseBeforeAction();
+            throw new NativeCommandException(
+                "undoUnavailable",
+                "Rhino could not establish a dedicated undo event; the mutation was not applied."
+            );
+        }
         try
         {
             var result = action();
-            undoRecordClosed = endUndoRecord(serial);
+            undoRecordClosed = CloseOwnedRecord();
             if (!undoRecordClosed)
             {
                 throw new NativeCommandException(
@@ -524,7 +604,7 @@ internal static class UndoTransaction
         {
             try
             {
-                var rollbackReady = undoRecordClosed || endUndoRecord(serial);
+                var rollbackReady = CloseOwnedRecord();
                 if (!rollbackReady || !undo())
                 {
                     throw new InvalidOperationException();

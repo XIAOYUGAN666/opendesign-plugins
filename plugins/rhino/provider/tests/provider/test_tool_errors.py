@@ -13,6 +13,8 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 import rhino_mcp
 from rhino_mcp.tools.delete_object import delete_object
+from rhino_mcp.tools.create_layer import create_layer
+from rhino_mcp.bridge import BridgeResultUnknown, BridgeUnavailable, RhinoCommandError
 
 RHINO_DOWN = (
     "Rhino Bridge is not connected. Open Rhino, confirm the Rhino plug-in is "
@@ -44,3 +46,29 @@ async def test_parameter_errors_keep_their_text():
 def test_direct_calls_keep_the_tools_own_exception_types():
     with pytest.raises(ValueError, match="exactly one"):
         delete_object(None, id="a", name="b")
+
+
+@pytest.mark.parametrize(
+    "error_type", [RhinoCommandError, BridgeUnavailable, BridgeResultUnknown]
+)
+def test_create_layer_preserves_native_failure_without_success_text(error_type):
+    error = error_type("Observed native failure")
+    with patch("rhino_mcp.tools.create_layer.get_rhino_connection") as connection:
+        connection.return_value.send_command.side_effect = error
+        with pytest.raises(error_type) as result:
+            create_layer(None, name="existing")
+    assert result.value is error
+    connection.return_value.send_command.assert_called_once_with(
+        "create_layer", {"name": "existing"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_layer_native_failure_is_an_official_mcp_tool_error():
+    with patch("rhino_mcp.tools.create_layer.get_rhino_connection") as connection:
+        connection.return_value.send_command.side_effect = RhinoCommandError(
+            "Layer already exists"
+        )
+        with pytest.raises(ToolError, match="Layer already exists"):
+            await rhino_mcp.mcp.call_tool("create_layer", {"name": "existing"})
+    assert connection.return_value.send_command.call_count == 1

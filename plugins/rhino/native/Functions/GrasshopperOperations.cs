@@ -1,7 +1,9 @@
 using System.Drawing;
 using System.Reflection;
 using System.Text.Json;
+using Grasshopper;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Special;
 using Rhino.Geometry;
 
@@ -65,6 +67,11 @@ internal static class GrasshopperOperations
         if (createdRecords > 1)
         {
             document.UndoUtil.MergeRecords(createdRecords);
+        }
+
+        if (createdRecords > 0)
+        {
+            document.Modified();
         }
     }
 
@@ -318,6 +325,12 @@ internal static class GrasshopperOperations
             throw new NativeCommandException("unsupportedParameterType", "The selected Grasshopper object does not accept a direct value.");
         }
 
+        if (document is not null)
+        {
+            // Preserve the original owner before clearing a component input's defaults.
+            RecordChange(document, target, "Set MCP Grasshopper parameter value");
+        }
+
         return SetPersistentValue(parameter, value);
     }
 
@@ -413,11 +426,23 @@ internal static class GrasshopperOperations
             throw new NativeCommandException("unsupportedParameterType", "The selected Grasshopper parameter does not support persistent values.");
         }
 
+        var persistent = Utility.InvokeGetterSafe(parameter, "PersistentData") as IGH_Structure;
+        if (persistent is null)
+        {
+            throw new NativeCommandException("unsupportedParameterType", "The selected Grasshopper parameter does not support persistent values.");
+        }
+
+        // The SDK's object overload appends. The tool's set operation replaces.
+        persistent.Clear();
         try
         {
             setter.Invoke(parameter, arraySetter is not null
                 ? new object?[] { new[] { rawValue } }
                 : new object?[] { rawValue });
+            if (persistent.DataCount != PersistentItemCount(rawValue))
+            {
+                throw new NativeCommandException("invalidParameterValue", "Grasshopper could not convert every value for the selected parameter.");
+            }
         }
         catch (TargetInvocationException)
         {
@@ -426,6 +451,13 @@ internal static class GrasshopperOperations
 
         return rawValue;
     }
+
+    private static int PersistentItemCount(object? value) => value switch
+    {
+        null => 0,
+        object?[] values => values.Sum(PersistentItemCount),
+        _ => 1,
+    };
 
     private static object? ToPlainObject(JsonElement value) => value.ValueKind switch
     {

@@ -155,6 +155,20 @@ def test_response_schema_infrastructure_error_is_typed_after_dispatch() -> None:
         assert len(fake.command_frames) == 1
 
 
+def test_invalid_planar_region_receipt_is_unknown_and_not_replayed() -> None:
+    with FakeBridge() as fake:
+        client = BridgeClient(bridge_config(fake.endpoint))
+        with pytest.raises(BridgeResultUnknown) as caught:
+            client.call(
+                "create_planar_region",
+                {"outer_curve_id": "00000000-0000-0000-0000-000000000001"},
+            )
+        assert caught.value.category == "resultUnknown"
+        assert client.lifecycle_snapshot() == ("unknown", 0)
+        assert len(fake.command_frames) == 1
+        assert fake.connection_count == 1
+
+
 def test_typed_rhino_error_redacts_credentials_and_windows_paths() -> None:
     def error_response(_command):
         return {

@@ -162,8 +162,8 @@ class TestContractRootAndInventory:
         inventory = validate_contract_inventory(CONTRACTS_DIR)
 
         assert inventory.command_count == 65
-        assert inventory.response_schema_count == 21
-        assert inventory.no_result_schema_count == 44
+        assert inventory.response_schema_count == 22
+        assert inventory.no_result_schema_count == 43
 
     def test_no_result_schema_is_an_explicit_valid_response_disposition(self):
         assert validate_response(

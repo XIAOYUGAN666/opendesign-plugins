@@ -25,7 +25,7 @@ class NativeBuildIdentityTests(unittest.TestCase):
             self.write("runtime/python/Lib/site-packages/" + name, data)
         contracts = {"contracts/protocol.json": b'{"version":1}'}
         inputs = {"provider/pyproject.toml": b'[project]\nname="native-provider"\nversion="1.0.0"\n',
-                  "provider/uv.lock": b"version = 1\npackage = []\n", "global.json": b"{}",
+                  "provider/uv.lock": b'version = 1\n[[package]]\nname="native-provider"\nversion="1.0.0"\nsource={editable="."}\n', "global.json": b"{}",
                   "provider/packaging/runtime-lock.json": canonical({"python": {"version": "3.12.10", "architecture": "amd64", "byteLength": 1, "sha256": digest(b"python")}}),
                   "native/Bridge.csproj": b"<Project />", "native/packages.lock.json": b"{}", "native/package/manifest.yml": b"version: 1.0.0\n"}
         native = {key: value for key, value in inputs.items() if key.startswith("native/")}
@@ -50,6 +50,8 @@ class NativeBuildIdentityTests(unittest.TestCase):
         self.assignment = 'PROVIDER_BUILD_ID = "' + self.expected + '"\n'
         self.write("runtime/python/Lib/site-packages/native_provider/build_identity.py", self.assignment.encode())
         self.identity = {"profile": "native-build-record-v1", "recordPath": "contracts/provider-build.json"}
+        self.write("runtime/python/Lib/site-packages/native_provider-1.0.0.dist-info/METADATA", b"Name: native-provider\nVersion: 1.0.0\n")
+        self.write("runtime/python/Lib/site-packages/native_provider-1.0.0.dist-info/WHEEL", b"Wheel-Version: 1.0\nTag: py3-none-any\n")
 
     def write(self, name, data):
         target = self.root / name
@@ -82,6 +84,33 @@ else:
 
     def test_valid_deployed_source_and_native_inputs(self):
         self.verify()
+
+    def test_provider_distribution_is_required_and_bound_to_project_identity(self):
+        # Its identity comes from signed project inputs, not a registry wheel.
+        self.verify()
+
+    def test_missing_wrong_or_private_provider_metadata_is_rejected(self):
+        path = self.base / "native_provider-1.0.0.dist-info/METADATA"
+        original = path.read_bytes()
+        for kind in ("missing", "version", "privateUrl", "duplicate"):
+            with self.subTest(kind=kind):
+                extra = None
+                if kind == "missing":
+                    path.unlink()
+                elif kind == "version":
+                    path.write_bytes(b"Name: native-provider\nVersion: 9.0\n")
+                elif kind == "privateUrl":
+                    extra = path.parent / "direct_url.json"
+                    extra.write_bytes(b'{"url":"file:///private/build"}')
+                else:
+                    extra = self.base / "native_provider_duplicate.dist-info/METADATA"
+                    extra.parent.mkdir()
+                    extra.write_bytes(original)
+                with self.assertRaisesRegex(ValueError, "buildIdentityMismatch"):
+                    self.verify()
+                path.write_bytes(original)
+                if extra is not None:
+                    extra.unlink()
 
     def test_deployed_non_python_resource_is_not_only_self_attested(self):
         self.write("runtime/python/Lib/site-packages/native_provider/guides/workflow.md", b"changed")
@@ -199,7 +228,7 @@ else:
         for platform in ("win_amd64", "manylinux_2_17_aarch64"):
             filename = "example-1.0-cp312-cp312-" + platform + ".whl"
             wheels.append({"url": "https://example.invalid/" + filename, "hash": digest(platform.encode()), "size": 1})
-        text = 'version = 1\n[[package]]\nname = "example"\nversion = "1.0"\n'
+        text = 'version = 1\n[[package]]\nname="native-provider"\nversion="1.0.0"\nsource={editable="."}\n[[package]]\nname = "example"\nversion = "1.0"\n'
         text += 'wheels = [' + ','.join('{url="' + wheel["url"] + '",hash="' + wheel["hash"] + '",size=1}' for wheel in wheels) + ']\n'
         data = text.encode()
         for path in ("source-inputs/provider/uv.lock", "uv.lock", "runtime/python/Lib/site-packages/uv.lock"):
