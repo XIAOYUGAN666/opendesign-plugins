@@ -21,10 +21,10 @@ except ImportError:
     from verify_artifact import canonical, read_json, verify_artifact
 
 
-# Target labels do not add aliases to Host trust or mutate existing signed receipts.
+# Only current publisher identities may sign; historical IDs are not fallbacks.
 TARGETS = {
-    "dlubal-rfem": ("publisher-v1", "rfem-publisher-v1", "RFEM_PUBLISHER_V1_KEY_B64"),
-    "rhino": ("rhino-publisher-v1", "rhino-publisher-v1", "RHINO_PUBLISHER_V1_KEY_B64"),
+    "dlubal-rfem": ("rfem-publisher-v1", "RFEM_PUBLISHER_V1_KEY_B64"),
+    "rhino": ("rhino-publisher-v1", "RHINO_PUBLISHER_V1_KEY_B64"),
 }
 REPOSITORY = "github:XIAOYUGAN666/opendesign-plugins"
 SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "candidateChangedDuringSigning", "publisherSecretInRepository"}
@@ -32,7 +32,7 @@ SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKey
 
 def take_secrets():
     # Remove BOTH step-local secrets before any validation, failure or Provider child.
-    return {package: os.environ.pop(fields[2], "") for package, fields in TARGETS.items()}
+    return {package: os.environ.pop(fields[1], "") for package, fields in TARGETS.items()}
 
 
 def reject_tracked_private_material(encoded, signers):
@@ -64,10 +64,9 @@ def load_signers(schema_bundle, encoded):
     if policy.get("schemaVersion") != 1:
         raise ValueError("invalidHostPolicyExport")
     signers, reports = {}, []
-    for package, (current_id, target_id, _) in TARGETS.items():
-        host_id = target_id if target_id in policy["publishers"] else current_id
-        publisher = policy["publishers"][host_id]
-        if current_id != target_id and current_id in policy["publishers"] and target_id in policy["publishers"] and policy["publishers"][current_id]["scope"] != publisher["scope"]:
+    for package, (target_id, _) in TARGETS.items():
+        publisher = policy["publishers"].get(target_id)
+        if publisher is None:
             raise ValueError("invalidHostPolicyExport")
         scope = publisher["scope"]
         if scope["repositoryIdentity"] != REPOSITORY or set(scope["releasePackages"]) != {package}:
@@ -85,7 +84,7 @@ def load_signers(schema_bundle, encoded):
         if public.hex() != publisher["publicKey"]:
             raise ValueError("publisherKeyMismatch")
         signers[package] = signer
-        reports.append({"packageId": package, "hostPolicyKeyId": host_id, "candidateKeyId": target_id, "publicKeySha256": hashlib.sha256(public).hexdigest(), "hostIdActivationRequired": host_id != target_id})
+        reports.append({"packageId": package, "hostPolicyKeyId": target_id, "candidateKeyId": target_id, "publicKeySha256": hashlib.sha256(public).hexdigest()})
     if reports[0]["publicKeySha256"] == reports[1]["publicKeySha256"]:
         raise ValueError("publisherKeysNotIndependent")
     return signers, reports
@@ -111,13 +110,13 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     verified = verify_artifact(archive, candidate, schema_bundle, unsigned_candidate=True)
     if candidate.read_bytes() != before or "sha256:" + hashlib.sha256(archive.read_bytes()).hexdigest() != context["archiveDigest"]:
         raise ValueError("candidateChangedDuringSigning")
-    payload["publisherKeyId"] = TARGETS[package][1]
+    payload["publisherKeyId"] = TARGETS[package][0]
     payload["archive"]["url"] = url
     now = int(time.time())
     payload["notBefore"], payload["expiresAt"] = now - 60, now + 365 * 24 * 3600
     signed = sign_envelope(payload, signer)
     signer.public_key().verify(bytes.fromhex(signed["signature"]), canonical({"signatureSchemaVersion": 1, **payload}))
-    return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][1], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
+    return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][0], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
 def main():

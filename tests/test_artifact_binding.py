@@ -106,7 +106,7 @@ from scripts import publisher_signing as signing
 from scripts.verify_artifact import canonical,verify_artifact
 folder=Path(sys.argv[1]);candidate=folder/'unsigned-receipt.json';before=candidate.read_bytes();payload=json.loads(before)
 archive=next(folder.glob('*.zip'));package=payload['release']['packageId'];version=payload['release']['pluginVersion']
-signing.TARGETS[package]=('synthetic-test','synthetic-test','SYNTHETIC_UNUSED')
+signing.TARGETS[package]=('synthetic-test','SYNTHETIC_UNUSED')
 key=Ed25519PrivateKey.from_private_bytes(bytes([7])*32)
 context={'packageId':package,'version':version,'draft':True,'sourceCommit':'1'*40,'targetCommit':'1'*40,'tag':f'plugin-{package}-v{version}','assetUrl':f'https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/plugin-{package}-v{version}/{archive.name}','archiveDigest':payload['archive']['sha256']}
 result,report=signing.sign_draft_candidate(archive,candidate,Path('schemas'),context,key)
