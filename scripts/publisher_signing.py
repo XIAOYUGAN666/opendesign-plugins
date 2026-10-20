@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import sys
 import time
+import subprocess
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -26,12 +27,30 @@ TARGETS = {
     "rhino": ("rhino-publisher-v1", "rhino-publisher-v1", "RHINO_PUBLISHER_V1_KEY_B64"),
 }
 REPOSITORY = "github:XIAOYUGAN666/opendesign-plugins"
-SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "candidateChangedDuringSigning"}
+SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "candidateChangedDuringSigning", "publisherSecretInRepository"}
 
 
 def take_secrets():
     # Remove BOTH step-local secrets before any validation, failure or Provider child.
     return {package: os.environ.pop(fields[2], "") for package, fields in TARGETS.items()}
+
+
+def reject_tracked_private_material(encoded, signers):
+    root = Path(__file__).resolve().parents[1]
+    names = subprocess.check_output(["git", "ls-files", "-z"], cwd=root).decode().split("\0")
+    needles = []
+    for package, signer in signers.items():
+        raw = signer.private_bytes_raw()
+        needles.extend((encoded[package].encode(), raw, raw.hex().encode(), raw.hex().upper().encode()))
+    for name in names:
+        if not name:
+            continue
+        path = root / name
+        if path.is_symlink() or path.is_junction() or not path.resolve().is_relative_to(root):
+            raise ValueError("publisherSecretInRepository")
+        data = path.read_bytes()
+        if any(needle in data for needle in needles):
+            raise ValueError("publisherSecretInRepository")
 
 
 def load_signers(schema_bundle, encoded):
@@ -48,7 +67,7 @@ def load_signers(schema_bundle, encoded):
     for package, (current_id, target_id, _) in TARGETS.items():
         host_id = target_id if target_id in policy["publishers"] else current_id
         publisher = policy["publishers"][host_id]
-        if current_id != target_id and current_id in policy["publishers"] and target_id in policy["publishers"] and policy["publishers"][current_id] != publisher:
+        if current_id != target_id and current_id in policy["publishers"] and target_id in policy["publishers"] and policy["publishers"][current_id]["scope"] != publisher["scope"]:
             raise ValueError("invalidHostPolicyExport")
         scope = publisher["scope"]
         if scope["repositoryIdentity"] != REPOSITORY or set(scope["releasePackages"]) != {package}:
@@ -98,7 +117,7 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     payload["notBefore"], payload["expiresAt"] = now - 60, now + 365 * 24 * 3600
     signed = sign_envelope(payload, signer)
     signer.public_key().verify(bytes.fromhex(signed["signature"]), canonical({"signatureSchemaVersion": 1, **payload}))
-    return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][1], "stablePublication": False}
+    return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][1], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
 def main():
@@ -112,8 +131,9 @@ def main():
     args = parser.parse_args()
     try:
         signers, reports = load_signers(args.schemas, encoded)
+        reject_tracked_private_material(encoded, signers)
         encoded.clear()
-        result = {"keyVerification": reports, "hostTrustModified": False, "stablePublication": False}
+        result = {"keyVerification": reports, "hostTrustModified": False, "trackedPrivateMaterial": False, "stablePublication": False}
         if any((args.archive, args.candidate, args.context, args.output)):
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")

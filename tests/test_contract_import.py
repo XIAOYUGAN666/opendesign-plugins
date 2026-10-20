@@ -39,6 +39,10 @@ class ContractImportTests(unittest.TestCase):
             policy.write_bytes(json.dumps(value, indent=3).encode() + b"\r\n")
             import_contracts(host, agent, base / "out", publisher_policy=policy)
             self.assertEqual((base / "out/host-publisher-policy.json").read_bytes(), policy.read_bytes())
+            value["publishers"]["test-key"]["previousPublicKeys"] = ["22" * 32]
+            policy.write_text(json.dumps(value), encoding="utf-8")
+            import_contracts(host, agent, base / "rotated", publisher_policy=policy)
+            self.assertEqual((base / "rotated/host-publisher-policy.json").read_bytes(), policy.read_bytes())
             value["publishers"]["test-key"]["privateKey"] = "never-export"
             policy.write_text(json.dumps(value), encoding="utf-8")
             with self.assertRaises(ValueError):
