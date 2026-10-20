@@ -77,14 +77,19 @@ class CiContractTests(unittest.TestCase):
         candidate_job = workflow.split("\n  candidate:\n", 1)[1].split("\n  signing:\n", 1)[0]
         self.assertNotIn("${{ secrets.", candidate_job)
 
-    def test_signing_is_manual_main_only_environment_bound_and_cannot_publish(self):
+    def test_signing_is_manual_main_only_environment_bound_and_has_no_publication_operation(self):
         workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
         self.assertIn("environment: plugin-signing", workflow)
         self.assertIn("github.ref == 'refs/heads/main'", workflow)
         self.assertIn("RFEM_PUBLISHER_V1_KEY_B64: ${{ secrets.RFEM_PUBLISHER_V1_KEY_B64 }}", workflow)
         self.assertIn("RHINO_PUBLISHER_V1_KEY_B64: ${{ secrets.RHINO_PUBLISHER_V1_KEY_B64 }}", workflow)
         self.assertIn("scripts/publisher_signing.py", workflow)
-        self.assertNotIn("contents: write", workflow)
+        signing = workflow.split("\n  signing:\n", 1)[1]
+        self.assertIn("permissions:\n      contents: write", signing)
+        self.assertIn("persist-credentials: false", signing)
+        self.assertNotIn("--method", signing)
+        self.assertNotIn("git push", signing)
+        self.assertNotIn("gh api --input", signing)
         self.assertNotIn("gh release create", workflow)
         self.assertNotIn("gh release edit", workflow)
 
