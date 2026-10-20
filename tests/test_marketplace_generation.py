@@ -100,6 +100,14 @@ view(first); entry=read_json(market([first]).read_bytes())['plugins'][0]; assert
 stable=view(first); assert (stable/'skills/workflow/resources/reference.md').is_file(); assert (stable/'plugin.json').read_bytes()==(roots['dlubal-rfem']/'plugin.json').read_bytes(); entry=read_json((stable/'plugin.json').read_bytes())['extensions'][NAMESPACE]['entrypoint']; assert (roots['dlubal-rfem']/entry).is_file(); assert not (stable/entry).exists(); assert (stable/'configuration.schema.json').is_file(); assert not (stable/'mcp.json').exists()
 """)
 
+    def test_signed_root_document_reference_is_preserved_without_runtime_payloads(self):
+        self.run_case("""
+root=roots['dlubal-rfem']; (root/'README.md').write_bytes(b'Read [provenance](ORIGIN.md).\\n'); (root/'ORIGIN.md').write_bytes(b'Signed source provenance.\\n'); rebind(first)
+stable=view(first); assert (stable/'ORIGIN.md').read_bytes()==(root/'ORIGIN.md').read_bytes(); assert not (stable/'runtime').exists()
+assert any(f['path']=='ORIGIN.md' for f in verified_views([first],base/'candidate',policy,roots,contexts)[0][0]['files'])
+(root/'ORIGIN.md').unlink(); rebind(first); rejects(lambda:view(first))
+""")
+
     def test_signatures_bind_raw_market_and_all_view_files(self):
         self.run_case("""
 view(first); view(second); raw=market().read_bytes(); signed=read_json(signing(raw)); signer.public_key().verify(bytes.fromhex(signed['signature']),canonical({'signatureSchemaVersion':1,**{k:v for k,v in signed.items() if k!='signature'}})); assert signed['marketplaceSha256']==digest(raw); assert len(signed['views'])==2
