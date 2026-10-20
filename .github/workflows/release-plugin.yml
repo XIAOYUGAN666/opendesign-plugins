@@ -171,9 +171,11 @@ jobs:
           if ($env:PLUGIN_ID -notin @('dlubal-rfem', 'rhino') -or $env:ARCHIVE_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid signing request' }
           $root = Get-Content -Raw -LiteralPath "plugins/$env:PLUGIN_ID/plugin.json" | ConvertFrom-Json
           if ($env:DRAFT_TAG -cne "plugin-$($env:PLUGIN_ID)-v$($root.version)") { throw 'Draft identity mismatch' }
-          $raw = gh api "repos/XIAOYUGAN666/opendesign-plugins/releases/tags/$env:DRAFT_TAG"
+          $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $release = $raw | ConvertFrom-Json
+          $drafts = @($raw | ConvertFrom-Json | Where-Object { $_.tag_name -ceq $env:DRAFT_TAG })
+          if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
+          $release = $drafts[0]
           if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact-commit draft required' }
           $tags = @(git ls-remote --tags origin "refs/tags/$env:DRAFT_TAG" "refs/tags/$env:DRAFT_TAG^{}")
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -214,9 +216,11 @@ jobs:
           DRAFT_TAG: ${{ inputs.draft_tag }}
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          $raw = gh api "repos/XIAOYUGAN666/opendesign-plugins/releases/tags/$env:DRAFT_TAG"
+          $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $release = $raw | ConvertFrom-Json
+          $drafts = @($raw | ConvertFrom-Json | Where-Object { $_.tag_name -ceq $env:DRAFT_TAG })
+          if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
+          $release = $drafts[0]
           if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Candidate is no longer the reviewed draft' }
       - name: Retain public candidate signature metadata only
         if: success() && inputs.operation == 'sign-draft'

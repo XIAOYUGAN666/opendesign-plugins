@@ -88,6 +88,13 @@ class CiContractTests(unittest.TestCase):
         self.assertNotIn("gh release create", workflow)
         self.assertNotIn("gh release edit", workflow)
 
+    def test_draft_lookup_does_not_use_the_published_release_by_tag_endpoint(self):
+        # An unpublished draft can be listable/by-ID without a published tag.
+        workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
+        self.assertNotIn("/releases/tags/", workflow)
+        self.assertIn("releases?per_page=100", workflow)
+        self.assertIn("$drafts.Count -ne 1", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
