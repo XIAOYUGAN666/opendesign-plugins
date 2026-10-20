@@ -93,6 +93,16 @@ class CiContractTests(unittest.TestCase):
         self.assertNotIn("gh release create", workflow)
         self.assertNotIn("gh release edit", workflow)
 
+    def test_market_review_signing_stays_isolated_from_formal_market_and_binary_artifacts(self):
+        workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
+        self.assertIn("sign-market-candidate", workflow)
+        self.assertIn("--market-inputs", workflow)
+        self.assertIn("market-review", workflow)
+        self.assertIn("rhino_archive_sha256", workflow)
+        self.assertNotIn("gh release upload", workflow)
+        self.assertNotIn("git push", workflow)
+        self.assertNotIn("path: published", workflow)
+
     def test_draft_lookup_does_not_use_the_published_release_by_tag_endpoint(self):
         # An unpublished draft can be listable/by-ID without a published tag.
         workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")

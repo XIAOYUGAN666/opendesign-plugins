@@ -119,10 +119,103 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][0], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
+def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output):
+    """Prepare the first T35 market review; never mutate formal discovery.
+
+    This is release tooling, not Host authority. Full artifact verification and
+    existing view/market generators own their respective checks.
+    """
+    import tempfile
+    try:
+        from .generate_stable_view import generate_stable_view, regular_directory
+        from .generate_marketplace import generate_marketplace, verified_views
+        from .sign_marketplace import sign_marketplace
+        from .verify_artifact import extract, digest
+    except ImportError:
+        from generate_stable_view import generate_stable_view, regular_directory
+        from generate_marketplace import generate_marketplace, verified_views
+        from sign_marketplace import sign_marketplace
+        from verify_artifact import extract, digest
+
+    output = regular_directory(output.absolute())
+    repository = Path(__file__).resolve().parents[1]
+    if output.exists() or (output.is_relative_to(repository) and not output.is_relative_to(repository / "dist")):
+        raise ValueError("invalidDraftContext")
+    formal = read_json((repository / ".agents/plugins/marketplace.json").read_bytes())
+    if formal.get("plugins") or (repository / ".agents/plugins/marketplace.snapshot.json").exists():
+        raise ValueError("invalidDraftContext")
+    if not entries or len(entries) > 64 or not re.fullmatch(r"[a-f0-9]{40}", source_commit):
+        raise ValueError("invalidDraftContext")
+    publishers = host_policy["publishers"]
+    approved, bindings, keys, packages = {}, [], {}, set()
+    for item in entries:
+        receipt_path, archive = Path(item["receipt"]), Path(item["archive"])
+        receipt = read_json(receipt_path.read_bytes())
+        release, context = receipt["release"], item["context"]
+        package = release["packageId"]
+        owner = publishers.get(receipt["publisherKeyId"])
+        if (not owner or owner["scope"]["repositoryIdentity"] != REPOSITORY
+                or package not in owner["scope"]["releasePackages"]
+                or package in packages or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", package)):
+            raise ValueError("invalidHostPolicyExport")
+        tag = f"plugin-{package}-v{release['pluginVersion']}"
+        url = f"https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/{tag}/{archive.name}"
+        if (context.get("draft") is not True or context.get("sourceCommit") != source_commit
+                or context.get("targetCommit") != source_commit or context.get("tag") != tag
+                or context.get("packageId") != package or context.get("version") != release["pluginVersion"]
+                or context.get("assetUrl") != url or receipt["archive"]["url"] != url
+                or context.get("archiveDigest") != receipt["archive"]["sha256"]):
+            raise ValueError("invalidDraftContext")
+        packages.add(package)
+        bindings.append(receipt)
+        approved[receipt["archive"]["sha256"]] = url
+    market_owner = publishers.get(market_key_id)
+    if (not market_owner or market_owner["scope"]["repositoryIdentity"] != REPOSITORY
+            or not packages <= set(market_owner["scope"]["marketplacePackages"])
+            or signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw).hex() != market_owner["publicKey"]):
+        raise ValueError("publisherKeyMismatch")
+    for key_id, publisher in publishers.items():
+        scope = publisher["scope"]
+        keys[key_id] = {"publicKey": publisher["publicKey"], "packages": sorted(set(scope["releasePackages"]) | set(scope["marketplacePackages"])),
+                        "notBefore": 1, "expiresAt": max(r["expiresAt"] for r in bindings), "revoked": False}
+    policy = {"repositoryIdentity": REPOSITORY, "keys": keys, "approvedArchives": approved,
+              "marketplaceKeyId": market_key_id, "previousSequence": 0, "revokedArchives": []}
+    contexts, roots = {}, {}
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="market-review-", dir=output.parent) as temporary:
+        temporary = Path(temporary)
+        staged = temporary / "review"
+        for item, receipt in zip(entries, bindings):
+            package = receipt["release"]["packageId"]
+            contexts[package] = verify_artifact(Path(item["archive"]), Path(item["receipt"]), schema_bundle,
+                trusted_keys={receipt["publisherKeyId"]: bytes.fromhex(publishers[receipt["publisherKeyId"]]["publicKey"])})
+            root = temporary / "artifacts" / package
+            root.mkdir(parents=True)
+            extract(Path(item["archive"]), root)
+            if digest(Path(item["archive"]).read_bytes()) != receipt["archive"]["sha256"]:
+                raise ValueError("candidateChangedDuringSigning")
+            roots[package] = root
+            generate_stable_view(root, receipt, staged, trust_policy=policy, verified_context=contexts[package])
+        market = staged / ".agents/plugins/marketplace.json"
+        generate_marketplace(bindings, market, view_root=staged, trust_policy=policy, artifact_roots=roots, verified_contexts=contexts)
+        views, _ = verified_views(bindings, staged, policy, roots, contexts)
+        snapshot = sign_marketplace(market.read_bytes(), bindings, 1, signer, views=views,
+            trust_policy=policy, view_root=staged, artifact_roots=roots, verified_contexts=contexts)
+        (market.parent / "marketplace.snapshot.json").write_bytes(snapshot)
+        report = {"sequence": 1, "sourceCommit": source_commit, "marketplaceSha256": digest(market.read_bytes()),
+                  "snapshotSha256": digest(snapshot), "views": views, "stablePublication": False,
+                  "assetUrlVerification": "pending-anonymous-publication-check", "finalApprovalRequired": True}
+        (staged / "review.json").write_bytes(canonical(report))
+        staged.rename(output)
+    return report
+
+
 def main():
     encoded = take_secrets()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schemas", type=Path, required=True)
+    parser.add_argument("--market-inputs", type=Path)
+    parser.add_argument("--source-commit")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--context", type=Path)
@@ -133,7 +226,14 @@ def main():
         reject_tracked_private_material(encoded, signers)
         encoded.clear()
         result = {"keyVerification": reports, "hostTrustModified": False, "trackedPrivateMaterial": False, "stablePublication": False}
-        if any((args.archive, args.candidate, args.context, args.output)):
+        if args.market_inputs:
+            if not args.output or not args.source_commit or any((args.archive, args.candidate, args.context)):
+                raise ValueError("invalidDraftContext")
+            entries = read_json(args.market_inputs.read_bytes())
+            result["marketCandidate"] = sign_market_candidate(entries, args.schemas,
+                read_json((args.schemas / "host-publisher-policy.json").read_bytes()),
+                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output)
+        elif any((args.archive, args.candidate, args.context, args.output)):
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")
             context = read_json(args.context.read_bytes())

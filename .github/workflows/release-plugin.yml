@@ -11,12 +11,15 @@ on:
         description: Build unsigned bytes, verify both publisher keys, or sign an existing draft
         type: choice
         default: build
-        options: [build, verify-keys, sign-draft]
+        options: [build, verify-keys, sign-draft, sign-market-candidate]
       draft_tag:
         description: Existing draft tag, pinned to this exact source commit (sign-draft only)
         type: string
       archive_sha256:
-        description: Independently reviewed archive SHA256, without prefix (sign-draft only)
+        description: Reviewed archive SHA256; RFEM for market review, selected plugin for sign-draft
+        type: string
+      rhino_archive_sha256:
+        description: Reviewed Rhino archive SHA256 (sign-market-candidate only)
         type: string
       plugin:
         description: Independently validate this plugin; only synthetic fixture artifacts are uploaded
@@ -164,76 +167,113 @@ jobs:
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Read exact existing draft assets before accessing signing secrets
-        if: inputs.operation == 'sign-draft'
+        if: inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          SIGNING_OPERATION: ${{ inputs.operation }}
           DRAFT_TAG: ${{ inputs.draft_tag }}
           ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          RHINO_ARCHIVE_SHA256: ${{ inputs.rhino_archive_sha256 }}
           PLUGIN_ID: ${{ inputs.plugin }}
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          if ($env:PLUGIN_ID -notin @('dlubal-rfem', 'rhino') -or $env:ARCHIVE_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid signing request' }
-          $root = Get-Content -Raw -LiteralPath "plugins/$env:PLUGIN_ID/plugin.json" | ConvertFrom-Json
-          if ($env:DRAFT_TAG -cne "plugin-$($env:PLUGIN_ID)-v$($root.version)") { throw 'Draft identity mismatch' }
+          $marketReview = $env:SIGNING_OPERATION -eq 'sign-market-candidate'
+          $packages = if ($marketReview) { @('dlubal-rfem', 'rhino') } else { @($env:PLUGIN_ID) }
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $drafts = @($raw | ConvertFrom-Json | Where-Object { $_.tag_name -ceq $env:DRAFT_TAG })
-          if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
-          $release = $drafts[0]
-          if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact-commit draft required' }
-          $tags = @(git ls-remote --tags origin "refs/tags/$env:DRAFT_TAG" "refs/tags/$env:DRAFT_TAG^{}")
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if ($tags.Count -gt 0 -and ($tags[-1] -split '\s+')[0] -cne $env:SOURCE_COMMIT) { throw 'Existing immutable tag targets another commit' }
-          $archives = @($release.assets | Where-Object { $_.name -cmatch '^[A-Za-z0-9._-]+\.zip$' })
-          $receipts = @($release.assets | Where-Object { $_.name -ceq 'unsigned-receipt.json' })
-          if ($archives.Count -ne 1 -or $receipts.Count -ne 1 -or $archives[0].size -gt 1073741824 -or $receipts[0].size -gt 1048576) { throw 'Ambiguous or oversized draft assets' }
+          $allReleases = $raw | ConvertFrom-Json
           $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
           New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null
-          gh release download $env:DRAFT_TAG --repo XIAOYUGAN666/opendesign-plugins --pattern $archives[0].name --pattern 'unsigned-receipt.json' --dir $candidate
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $archive = Join-Path $candidate $archives[0].name
-          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:ARCHIVE_SHA256) { throw 'Draft archive mismatch' }
-          # Draft browser URLs are temporary untagged URLs; bind the confirmed tag's intended final URL.
-          $publicationUrl = "https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/$($release.tag_name)/$($archives[0].name)"
-          @{ packageId=$env:PLUGIN_ID; version=$root.version; draft=$release.draft; tag=$release.tag_name; sourceCommit=$env:SOURCE_COMMIT; targetCommit=$release.target_commitish; assetUrl=$publicationUrl; draftAssetUrl=$archives[0].browser_download_url; archiveDigest="sha256:$env:ARCHIVE_SHA256" } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $candidate 'context.json')
+          $entries = @()
+          foreach ($package in $packages) {
+            $expectedSha = if ($marketReview -and $package -eq 'rhino') { $env:RHINO_ARCHIVE_SHA256 } else { $env:ARCHIVE_SHA256 }
+            if ($package -notin @('dlubal-rfem', 'rhino') -or $expectedSha -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid signing request' }
+            $root = Get-Content -Raw -LiteralPath "plugins/$package/plugin.json" | ConvertFrom-Json
+            $expectedTag = "plugin-$($package)-v$($root.version)"
+            if (-not $marketReview -and $env:DRAFT_TAG -cne $expectedTag) { throw 'Draft identity mismatch' }
+            $drafts = @($allReleases | Where-Object { $_.tag_name -ceq $expectedTag })
+            if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
+            $release = $drafts[0]
+            if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact-commit draft required' }
+            $tags = @(git ls-remote --tags origin "refs/tags/$expectedTag" "refs/tags/$expectedTag^{}")
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if ($tags.Count -gt 0 -and ($tags[-1] -split '\s+')[0] -cne $env:SOURCE_COMMIT) { throw 'Existing immutable tag targets another commit' }
+            $receiptName = if ($marketReview) { 'signed-receipt.json' } else { 'unsigned-receipt.json' }
+            $archives = @($release.assets | Where-Object { $_.name -cmatch '^[A-Za-z0-9._-]+\.zip$' })
+            $receipts = @($release.assets | Where-Object { $_.name -ceq $receiptName })
+            if ($archives.Count -ne 1 -or $receipts.Count -ne 1 -or $archives[0].size -gt 1073741824 -or $receipts[0].size -gt 1048576) { throw 'Ambiguous or oversized draft assets' }
+            $directory = Join-Path $candidate $package
+            New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
+            gh release download $expectedTag --repo XIAOYUGAN666/opendesign-plugins --pattern $archives[0].name --pattern $receiptName --dir $directory
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $archive = Join-Path $directory $archives[0].name
+            if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expectedSha) { throw 'Draft archive mismatch' }
+            # Draft browser URLs are temporary; bind only the confirmed tag's intended final URL.
+            $publicationUrl = "https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/$($release.tag_name)/$($archives[0].name)"
+            $context = @{ packageId=$package; version=$root.version; draft=$release.draft; tag=$release.tag_name; sourceCommit=$env:SOURCE_COMMIT; targetCommit=$release.target_commitish; assetUrl=$publicationUrl; archiveDigest="sha256:$expectedSha" }
+            $context | ConvertTo-Json | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $directory 'context.json')
+            $entries += @{archive=$archive; receipt=(Join-Path $directory $receiptName); context=$context}
+          }
+          ConvertTo-Json -InputObject @($entries) -Depth 10 | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $candidate 'market-inputs.json')
       - name: Match private keys to the exported Host public policy and optionally sign
         shell: pwsh
         env:
           RFEM_PUBLISHER_V1_KEY_B64: ${{ secrets.RFEM_PUBLISHER_V1_KEY_B64 }}
           RHINO_PUBLISHER_V1_KEY_B64: ${{ secrets.RHINO_PUBLISHER_V1_KEY_B64 }}
           SIGNING_OPERATION: ${{ inputs.operation }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          PLUGIN_ID: ${{ inputs.plugin }}
         run: |
           $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
           $arguments = @('-B', 'scripts/publisher_signing.py', '--schemas', 'schemas')
           if ($env:SIGNING_OPERATION -eq 'sign-draft') {
-            $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
+            $candidate = Join-Path (Join-Path $env:RUNNER_TEMP 'signing-candidate') $env:PLUGIN_ID
             $archive = @(Get-ChildItem -LiteralPath $candidate -File -Filter '*.zip')
             if ($archive.Count -ne 1) { throw 'Missing draft archive' }
             $arguments += @('--archive', $archive[0].FullName, '--candidate', (Join-Path $candidate 'unsigned-receipt.json'), '--context', (Join-Path $candidate 'context.json'), '--output', (Join-Path $candidate 'signed-receipt.json'))
+          }
+          if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') {
+            $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
+            $arguments += @('--market-inputs', (Join-Path $candidate 'market-inputs.json'), '--source-commit', $env:SOURCE_COMMIT, '--output', (Join-Path $candidate 'market-review'))
           }
           $report = & $tool @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $report >> $env:GITHUB_STEP_SUMMARY
       - name: Confirm candidate is still a draft before retaining its signature
-        if: success() && inputs.operation == 'sign-draft'
+        if: success() && (inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           DRAFT_TAG: ${{ inputs.draft_tag }}
+          SIGNING_OPERATION: ${{ inputs.operation }}
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $drafts = @($raw | ConvertFrom-Json | Where-Object { $_.tag_name -ceq $env:DRAFT_TAG })
-          if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
-          $release = $drafts[0]
-          if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Candidate is no longer the reviewed draft' }
+          $allReleases = $raw | ConvertFrom-Json
+          $tags = if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') {
+            @('dlubal-rfem','rhino') | ForEach-Object { $root = Get-Content -Raw "plugins/$_/plugin.json" | ConvertFrom-Json; "plugin-$($_)-v$($root.version)" }
+          } else { @($env:DRAFT_TAG) }
+          foreach ($tag in $tags) {
+            $drafts = @($allReleases | Where-Object { $_.tag_name -ceq $tag })
+            if ($drafts.Count -ne 1) { throw 'Exact draft was not found' }
+            if ($drafts[0].draft -ne $true -or $drafts[0].target_commitish -cne $env:SOURCE_COMMIT) { throw 'Candidate is no longer the reviewed draft' }
+          }
       - name: Retain public candidate signature metadata only
         if: success() && inputs.operation == 'sign-draft'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signed-draft-receipt-${{ inputs.plugin }}-${{ github.sha }}
-          path: ${{ runner.temp }}/signing-candidate/signed-receipt.json
+          path: ${{ runner.temp }}/signing-candidate/${{ inputs.plugin }}/signed-receipt.json
+          if-no-files-found: error
+          retention-days: 3
+      - name: Retain isolated first-market review metadata only
+        if: success() && inputs.operation == 'sign-market-candidate'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: market-review-${{ github.sha }}
+          path: ${{ runner.temp }}/signing-candidate/market-review
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3

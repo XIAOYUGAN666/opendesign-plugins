@@ -1,19 +1,6 @@
 {
   "schemaVersion": 1,
   "publishers": {
-    "publisher-v1": {
-      "publicKey": "cc4d65e32141f8da8dae877ddd855e2ef212de859bc7838e81e95b0d83ef3ac0",
-      "scope": {
-        "repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins",
-        "releasePackages": [
-          "dlubal-rfem"
-        ],
-        "marketplacePackages": [
-          "dlubal-rfem",
-          "rhino"
-        ]
-      }
-    },
     "rhino-publisher-v1": {
       "publicKey": "7b198744b9f46d9bccac877710f9fb39c265d2cc1edbddd0feb09973dfdbe4f8",
       "scope": {
@@ -22,10 +9,7 @@
           "rhino"
         ],
         "marketplacePackages": []
-      },
-      "previousPublicKeys": [
-        "21e3d626ff7953304337e8b1e21bcaec86bdf7b7aa369c1146f25cd03624513b"
-      ]
+      }
     },
     "rfem-publisher-v1": {
       "publicKey": "d09da3799bb7a5964eb8e92938e13155ae766bc5ac95bdfc8840eeb0ed3a70fd",

@@ -117,11 +117,28 @@ for change in ({'draft':False},{'targetCommit':'2'*40},{'archiveDigest':'sha256:
  try:signing.sign_draft_candidate(archive,candidate,Path('schemas'),{**context,**change},key)
  except ValueError as error:assert str(error)=='invalidDraftContext'
  else:raise AssertionError('unconfirmed draft accepted')
-print('PASS signed fixture and four closed draft negatives')
+from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
+host_policy={'schemaVersion':1,'publishers':{'synthetic-test':{'publicKey':key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw).hex(),'scope':{'repositoryIdentity':signing.REPOSITORY,'releasePackages':[package],'marketplacePackages':[package]}}}}
+entries=[{'archive':str(archive),'receipt':str(output),'context':context}]
+formal=Path('.agents/plugins/marketplace.json').read_bytes()
+market_report=signing.sign_market_candidate(entries,Path('schemas'),host_policy,key,'synthetic-test','1'*40,folder/'market-review')
+assert market_report['stablePublication'] is False and market_report['sequence']==1
+market_root=folder/'market-review';market=(market_root/'.agents/plugins/marketplace.json').read_bytes()
+snapshot=json.loads((market_root/'.agents/plugins/marketplace.snapshot.json').read_bytes());signature=bytes.fromhex(snapshot.pop('signature'))
+key.public_key().verify(signature,canonical({'signatureSchemaVersion':1,**snapshot}))
+assert snapshot['releases']==[result] and snapshot['views'][0]['packageId']==package
+assert (market_root/'published'/package/'plugin.json').read_bytes()==(folder/'artifact/plugin.json').read_bytes()
+assert Path('.agents/plugins/marketplace.json').read_bytes()==formal
+wrong=json.loads(json.dumps(host_policy));wrong['publishers']['synthetic-test']['scope']['releasePackages']=[]
+try:signing.sign_market_candidate(entries,Path('schemas'),wrong,key,'synthetic-test','1'*40,folder/'wrong-market')
+except ValueError:pass
+else:raise AssertionError('market scope substituted for release authority')
+assert not (folder/'wrong-market').exists()
+print('PASS signed fixture, four closed draft negatives and isolated signed market')
 '''
         result = subprocess.run([str(PYTHON), "-B", "-c", code, str(self.folder / "first")], cwd=ROOT, capture_output=True, timeout=180)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
-        self.assertEqual(result.stdout.strip(), b"PASS signed fixture and four closed draft negatives")
+        self.assertEqual(result.stdout.strip(), b"PASS signed fixture, four closed draft negatives and isolated signed market")
 
     @classmethod
     def setUpClass(cls):

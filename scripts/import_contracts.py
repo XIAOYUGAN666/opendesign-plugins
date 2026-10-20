@@ -59,11 +59,8 @@ def import_contracts(
         if set(policy) != {"schemaVersion", "publishers"} or policy["schemaVersion"] != 1:
             raise ValueError("Invalid public publisher policy")
         for publisher in policy["publishers"].values():
-            if not {"publicKey", "scope"} <= set(publisher) <= {"publicKey", "previousPublicKeys", "scope"} or not re.fullmatch(r"[a-f0-9]{64}", publisher["publicKey"]):
+            if set(publisher) != {"publicKey", "scope"} or not re.fullmatch(r"[a-f0-9]{64}", publisher["publicKey"]):
                 raise ValueError("Publisher export must contain public verification data only")
-            previous = publisher.get("previousPublicKeys", [])
-            if not isinstance(previous, list) or len(previous) > 1 or any(not re.fullmatch(r"[a-f0-9]{64}", key) or key == publisher["publicKey"] for key in previous):
-                raise ValueError("Invalid retained verification key")
             if set(publisher["scope"]) != {"repositoryIdentity", "releasePackages", "marketplacePackages"}:
                 raise ValueError("Invalid publisher scope")
         name = "host-publisher-policy.json"
