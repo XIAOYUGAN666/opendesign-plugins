@@ -17,6 +17,7 @@ def import_contracts(
     configuration_schema: Path | None = None,
     official_schema: Path | None = None,
     bridge_control_schema: Path | None = None,
+    publisher_policy: Path | None = None,
 ) -> dict[str, str]:
     """Copy schema bytes and generate an owner/version/hash-only inventory.
 
@@ -52,6 +53,19 @@ def import_contracts(
             "version": match.group(1),
             "sha256": hashlib.sha256(data).hexdigest(),
         }
+    if publisher_policy is not None:
+        data = publisher_policy.read_bytes()
+        policy = json.loads(data)
+        if set(policy) != {"schemaVersion", "publishers"} or policy["schemaVersion"] != 1:
+            raise ValueError("Invalid public publisher policy")
+        for publisher in policy["publishers"].values():
+            if set(publisher) != {"publicKey", "scope"} or not re.fullmatch(r"[a-f0-9]{64}", publisher["publicKey"]):
+                raise ValueError("Publisher export must contain public verification data only")
+            if set(publisher["scope"]) != {"repositoryIdentity", "releasePackages", "marketplacePackages"}:
+                raise ValueError("Invalid publisher scope")
+        name = "host-publisher-policy.json"
+        copies[name] = data
+        contracts[name] = {"owner": "host", "source": "apps/desktop/src-tauri/resources/plugins/publisher-trust.v1.json", "version": "1", "sha256": hashlib.sha256(data).hexdigest()}
     destination.mkdir(parents=True, exist_ok=True)
     for name, data in copies.items():
         (destination / name).write_bytes(data)
@@ -71,6 +85,7 @@ def main() -> None:
     parser.add_argument("--configuration-schema", type=Path)
     parser.add_argument("--official-schema", type=Path)
     parser.add_argument("--bridge-control-schema", type=Path)
+    parser.add_argument("--publisher-policy", type=Path)
     args = parser.parse_args()
     hashes = import_contracts(
         args.host_schema, args.agent_schema, args.destination,
@@ -78,6 +93,7 @@ def main() -> None:
         configuration_schema=args.configuration_schema,
         official_schema=args.official_schema,
         bridge_control_schema=args.bridge_control_schema,
+        publisher_policy=args.publisher_policy,
     )
     print(json.dumps(hashes, sort_keys=True))
 

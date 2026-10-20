@@ -29,6 +29,22 @@ def public_candidates(root):
 
 
 class ContractImportTests(unittest.TestCase):
+    def test_publisher_policy_export_is_public_byte_exact_and_rejects_private_fields(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            host, agent, policy = [base / name for name in ("host.json", "agent.json", "policy.json")]
+            host.write_bytes(b'{"title":"NativeExtensionV1"}')
+            agent.write_bytes(b'{"title":"PluginRuntimeContractV2"}')
+            value = {"schemaVersion": 1, "publishers": {"test-key": {"publicKey": "11" * 32, "scope": {"repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins", "releasePackages": ["rhino"], "marketplacePackages": []}}}}
+            policy.write_bytes(json.dumps(value, indent=3).encode() + b"\r\n")
+            import_contracts(host, agent, base / "out", publisher_policy=policy)
+            self.assertEqual((base / "out/host-publisher-policy.json").read_bytes(), policy.read_bytes())
+            value["publishers"]["test-key"]["privateKey"] = "never-export"
+            policy.write_text(json.dumps(value), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                import_contracts(host, agent, base / "bad", publisher_policy=policy)
+            self.assertFalse((base / "bad").exists())
+
     def test_contract_import_is_byte_exact(self):
         # Catches serialization/newline drift, missing optional copies and stale inventory.
         with tempfile.TemporaryDirectory() as folder:

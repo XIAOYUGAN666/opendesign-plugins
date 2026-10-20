@@ -96,6 +96,33 @@ class ReleaseInputTests(unittest.TestCase):
 
 
 class ArtifactBindingTests(unittest.TestCase):
+    def test_environment_candidate_signer_round_trip_preserves_original_receipt_bytes(self):
+        # Test-only fixture identity; production CLI still admits only the two approved packages.
+        code = r'''
+import json,sys
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from scripts import publisher_signing as signing
+from scripts.verify_artifact import canonical,verify_artifact
+folder=Path(sys.argv[1]);candidate=folder/'unsigned-receipt.json';before=candidate.read_bytes();payload=json.loads(before)
+archive=next(folder.glob('*.zip'));package=payload['release']['packageId'];version=payload['release']['pluginVersion']
+signing.TARGETS[package]=('synthetic-test','synthetic-test','SYNTHETIC_UNUSED')
+key=Ed25519PrivateKey.from_private_bytes(bytes([7])*32)
+context={'packageId':package,'version':version,'draft':True,'sourceCommit':'1'*40,'targetCommit':'1'*40,'tag':f'plugin-{package}-v{version}','assetUrl':f'https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/plugin-{package}-v{version}/{archive.name}','archiveDigest':payload['archive']['sha256']}
+result,report=signing.sign_draft_candidate(archive,candidate,Path('schemas'),context,key)
+assert candidate.read_bytes()==before and report['stablePublication'] is False
+output=folder/'signing-round-trip.json';output.write_bytes(canonical(result))
+assert verify_artifact(archive,output,Path('schemas'),trusted_keys={'synthetic-test':key.public_key().public_bytes_raw()})['verification']=='signed-receipt'
+for change in ({'draft':False},{'targetCommit':'2'*40},{'archiveDigest':'sha256:'+'0'*64},{'assetUrl':'https://attacker.invalid/asset.zip'}):
+ try:signing.sign_draft_candidate(archive,candidate,Path('schemas'),{**context,**change},key)
+ except ValueError as error:assert str(error)=='invalidDraftContext'
+ else:raise AssertionError('unconfirmed draft accepted')
+print('PASS signed fixture and four closed draft negatives')
+'''
+        result = subprocess.run([str(PYTHON), "-B", "-c", code, str(self.folder / "first")], cwd=ROOT, capture_output=True, timeout=180)
+        self.assertEqual(result.returncode, 0, result.stderr.decode())
+        self.assertEqual(result.stdout.strip(), b"PASS signed fixture and four closed draft negatives")
+
     @classmethod
     def setUpClass(cls):
         cls.temporary = tempfile.TemporaryDirectory(prefix="artifact-binding-")

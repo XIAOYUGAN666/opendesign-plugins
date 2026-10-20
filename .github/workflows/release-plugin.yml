@@ -1,10 +1,21 @@
-name: Validate and build plugin candidate
+name: Validate or sign plugin candidate
 
-# This workflow verifies exact unsigned candidate bytes only. Signing, Releases,
-# Stable views, and marketplace changes use a separately approved publishing step.
+# Signing only verifies keys or signs an independently checked existing draft.
+# The token is read-only: this workflow cannot publish Releases or Marketplace.
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Build unsigned bytes, verify both publisher keys, or sign an existing draft
+        type: choice
+        default: build
+        options: [build, verify-keys, sign-draft]
+      draft_tag:
+        description: Existing draft tag, pinned to this exact source commit (sign-draft only)
+        type: string
+      archive_sha256:
+        description: Independently reviewed archive SHA256, without prefix (sign-draft only)
+        type: string
       plugin:
         description: Independently validate this plugin; only synthetic fixture artifacts are uploaded
         required: true
@@ -17,6 +28,7 @@ permissions:
 
 jobs:
   candidate:
+    if: inputs.operation == 'build'
     name: Candidate / ${{ inputs.plugin }}
     runs-on: windows-2025
     timeout-minutes: 60
@@ -117,5 +129,100 @@ jobs:
         with:
           name: synthetic-fixture-candidate-${{ github.sha }}
           path: ${{ runner.temp }}/plugin-candidate
+          if-no-files-found: error
+          retention-days: 3
+
+  signing:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation != 'build'
+    environment: plugin-signing
+    runs-on: windows-2025
+    timeout-minutes: 20
+    concurrency:
+      group: plugin-signing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12.10'
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: '0.9.21'
+          enable-cache: false
+      - name: Prepare only the existing independent signing tool environment
+        working-directory: tests/fixtures/fixture-engineering/provider
+        shell: pwsh
+        run: |
+          uv sync --frozen --extra test --extra build --python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read exact existing draft assets before accessing signing secrets
+        if: inputs.operation == 'sign-draft'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT_TAG: ${{ inputs.draft_tag }}
+          ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          PLUGIN_ID: ${{ inputs.plugin }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          if ($env:PLUGIN_ID -notin @('dlubal-rfem', 'rhino') -or $env:ARCHIVE_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid signing request' }
+          $root = Get-Content -Raw -LiteralPath "plugins/$env:PLUGIN_ID/plugin.json" | ConvertFrom-Json
+          if ($env:DRAFT_TAG -cne "plugin-$($env:PLUGIN_ID)-v$($root.version)") { throw 'Draft identity mismatch' }
+          $raw = gh api "repos/XIAOYUGAN666/opendesign-plugins/releases/tags/$env:DRAFT_TAG"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $release = $raw | ConvertFrom-Json
+          if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact-commit draft required' }
+          $tags = @(git ls-remote --tags origin "refs/tags/$env:DRAFT_TAG" "refs/tags/$env:DRAFT_TAG^{}")
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($tags.Count -gt 0 -and ($tags[-1] -split '\s+')[0] -cne $env:SOURCE_COMMIT) { throw 'Existing immutable tag targets another commit' }
+          $archives = @($release.assets | Where-Object { $_.name -cmatch '^[A-Za-z0-9._-]+\.zip$' })
+          $receipts = @($release.assets | Where-Object { $_.name -ceq 'unsigned-receipt.json' })
+          if ($archives.Count -ne 1 -or $receipts.Count -ne 1 -or $archives[0].size -gt 1073741824 -or $receipts[0].size -gt 1048576) { throw 'Ambiguous or oversized draft assets' }
+          $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
+          New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null
+          gh release download $env:DRAFT_TAG --repo XIAOYUGAN666/opendesign-plugins --pattern $archives[0].name --pattern 'unsigned-receipt.json' --dir $candidate
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $archive = Join-Path $candidate $archives[0].name
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:ARCHIVE_SHA256) { throw 'Draft archive mismatch' }
+          @{ packageId=$env:PLUGIN_ID; version=$root.version; draft=$release.draft; tag=$release.tag_name; sourceCommit=$env:SOURCE_COMMIT; targetCommit=$release.target_commitish; assetUrl=$archives[0].browser_download_url; archiveDigest="sha256:$env:ARCHIVE_SHA256" } | ConvertTo-Json | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $candidate 'context.json')
+      - name: Match private keys to the unchanged Host public policy and optionally sign
+        shell: pwsh
+        env:
+          RFEM_PUBLISHER_V1_KEY_B64: ${{ secrets.RFEM_PUBLISHER_V1_KEY_B64 }}
+          RHINO_PUBLISHER_V1_KEY_B64: ${{ secrets.RHINO_PUBLISHER_V1_KEY_B64 }}
+          SIGNING_OPERATION: ${{ inputs.operation }}
+        run: |
+          $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          $arguments = @('-B', 'scripts/publisher_signing.py', '--schemas', 'schemas')
+          if ($env:SIGNING_OPERATION -eq 'sign-draft') {
+            $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
+            $archive = @(Get-ChildItem -LiteralPath $candidate -File -Filter '*.zip')
+            if ($archive.Count -ne 1) { throw 'Missing draft archive' }
+            $arguments += @('--archive', $archive[0].FullName, '--candidate', (Join-Path $candidate 'unsigned-receipt.json'), '--context', (Join-Path $candidate 'context.json'), '--output', (Join-Path $candidate 'signed-receipt.json'))
+          }
+          $report = & $tool @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $report >> $env:GITHUB_STEP_SUMMARY
+      - name: Confirm candidate is still a draft before retaining its signature
+        if: success() && inputs.operation == 'sign-draft'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRAFT_TAG: ${{ inputs.draft_tag }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $raw = gh api "repos/XIAOYUGAN666/opendesign-plugins/releases/tags/$env:DRAFT_TAG"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $release = $raw | ConvertFrom-Json
+          if ($release.draft -ne $true -or $release.target_commitish -cne $env:SOURCE_COMMIT) { throw 'Candidate is no longer the reviewed draft' }
+      - name: Retain public candidate signature metadata only
+        if: success() && inputs.operation == 'sign-draft'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-draft-receipt-${{ inputs.plugin }}-${{ github.sha }}
+          path: ${{ runner.temp }}/signing-candidate/signed-receipt.json
           if-no-files-found: error
           retention-days: 3

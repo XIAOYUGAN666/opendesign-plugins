@@ -30,6 +30,12 @@
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/native-extension-v1.schema.json",
       "version": "1"
     },
+    "host-publisher-policy.json": {
+      "owner": "host",
+      "sha256": "c2efee8b7f8f08479bb1ec831e576661e5bd4b39f16191c22f64be0bf857dacb",
+      "source": "apps/desktop/src-tauri/resources/plugins/publisher-trust.v1.json",
+      "version": "1"
+    },
     "plugin-configuration.schema.json": {
       "owner": "host",
       "sha256": "be15d454060b63c490cf4e923656f7eca84f9c0bc9a02f99a12bca71d3c8c56a",
