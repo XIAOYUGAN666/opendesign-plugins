@@ -269,12 +269,12 @@ private=signer.private_bytes(Encoding.Raw,PrivateFormat.Raw,NoEncryption()); res
 again=subprocess.run(command,input=private,capture_output=True); assert again.returncode!=0; assert (base/'snapshot.json').read_bytes()==raw; assert private.hex().encode() not in result.stdout+result.stderr+again.stdout+again.stderr
 """)
 
-    def test_cli_empty_generation_matches_committed_official_market(self):
+    def test_cli_without_approved_bindings_generates_empty_discovery(self):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "marketplace.json"
             result = subprocess.run(["python", "-B", "scripts/generate_marketplace.py", "--view-root", str(ROOT), "--output", str(output)], cwd=ROOT, capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
-            self.assertEqual(output.read_bytes(), (ROOT / ".agents/plugins/marketplace.json").read_bytes())
+            self.assertEqual(json.loads(output.read_bytes())["plugins"], [])
     def test_unapproved_development_roots_are_not_discovered(self):
         from scripts.generate_marketplace import generate_marketplace
         with tempfile.TemporaryDirectory() as folder:
@@ -282,11 +282,28 @@ again=subprocess.run(command,input=private,capture_output=True); assert again.re
             generate_marketplace([], output, view_root=ROOT)
             self.assertEqual(json.loads(output.read_bytes())["plugins"], [])
 
-    def test_official_empty_market_is_generated(self):
-        # RED uses current repository behavior, not a missing import.
-        path = ROOT / ".agents/plugins/marketplace.json"
-        actual = json.loads(path.read_bytes()) if path.exists() else None
-        self.assertEqual(actual, {"name": "team-stable", "interface": {"displayName": "Official stable plugins"}, "plugins": []})
+    def test_committed_market_and_release_signatures_use_exported_host_scopes(self):
+        code = r'''
+import json
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from scripts.verify_artifact import canonical,digest
+from scripts.generate_marketplace import marketplace_document
+root=Path('.');market=(root/'.agents/plugins/marketplace.json').read_bytes()
+snapshot=json.loads((root/'.agents/plugins/marketplace.snapshot.json').read_bytes());policy=json.loads((root/'schemas/host-publisher-policy.json').read_bytes())['publishers']
+signature=snapshot.pop('signature');owner=policy[snapshot['publisherKeyId']]
+Ed25519PublicKey.from_public_bytes(bytes.fromhex(owner['publicKey'])).verify(bytes.fromhex(signature),canonical({'signatureSchemaVersion':1,**snapshot}))
+assert digest(market)==snapshot['marketplaceSha256']
+active={r['release']['packageId']:r for r in snapshot['releases'] if not r['revoked']}
+assert set(active)<=set(owner['scope']['marketplacePackages']) and owner['scope']['repositoryIdentity']==snapshot['repositoryIdentity']
+for package,receipt in active.items():
+ publisher=policy[receipt['publisherKeyId']];assert package in publisher['scope']['releasePackages'] and publisher['scope']['repositoryIdentity']==snapshot['repositoryIdentity']
+ Ed25519PublicKey.from_public_bytes(bytes.fromhex(publisher['publicKey'])).verify(bytes.fromhex(receipt['signature']),canonical({'signatureSchemaVersion':1,**{k:v for k,v in receipt.items() if k!='signature'}}))
+identities=[json.loads((root/v['sourcePath']/'plugin.json').read_bytes()) for v in snapshot['views']]
+assert json.loads(market)==marketplace_document(identities)
+'''
+        result = subprocess.run([str(PYTHON), "-B", "-c", code], cwd=ROOT, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
 
 
 if __name__ == "__main__":

@@ -121,6 +121,10 @@ from cryptography.hazmat.primitives.serialization import Encoding,PublicFormat
 host_policy={'schemaVersion':1,'publishers':{'synthetic-test':{'publicKey':key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw).hex(),'scope':{'repositoryIdentity':signing.REPOSITORY,'releasePackages':[package],'marketplacePackages':[package]}}}}
 entries=[{'archive':str(archive),'receipt':str(output),'context':context}]
 formal=Path('.agents/plugins/marketplace.json').read_bytes()
+fixture_repository=folder/'repository';fixture_market=fixture_repository/'.agents/plugins/marketplace.json';fixture_market.parent.mkdir(parents=True);fixture_market.write_bytes(canonical({'plugins':[]}))
+# The first-market-only tool is tested against an isolated unpublished repository.
+# The actual committed Stable market must remain untouched and cannot be overwritten.
+signing.__file__=str(fixture_repository/'scripts/publisher_signing.py')
 market_report=signing.sign_market_candidate(entries,Path('schemas'),host_policy,key,'synthetic-test','1'*40,folder/'market-review')
 assert market_report['stablePublication'] is False and market_report['sequence']==1
 market_root=folder/'market-review';market=(market_root/'.agents/plugins/marketplace.json').read_bytes()
@@ -134,6 +138,11 @@ try:signing.sign_market_candidate(entries,Path('schemas'),wrong,key,'synthetic-t
 except ValueError:pass
 else:raise AssertionError('market scope substituted for release authority')
 assert not (folder/'wrong-market').exists()
+fixture_market.write_bytes(canonical({'plugins':[{'name':package}]}))
+try:signing.sign_market_candidate(entries,Path('schemas'),host_policy,key,'synthetic-test','1'*40,folder/'existing-market')
+except ValueError as error:assert str(error)=='invalidDraftContext'
+else:raise AssertionError('first-market helper overwrote an existing Stable market')
+assert not (folder/'existing-market').exists()
 print('PASS signed fixture, four closed draft negatives and isolated signed market')
 '''
         result = subprocess.run([str(PYTHON), "-B", "-c", code, str(self.folder / "first")], cwd=ROOT, capture_output=True, timeout=180)

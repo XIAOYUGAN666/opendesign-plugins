@@ -169,7 +169,9 @@ class ContractImportTests(unittest.TestCase):
             if path == ROOT / ".agents/plugins/marketplace.json":
                 from scripts.generate_marketplace import marketplace_document
                 # The one generated official discovery array is not a manual identity catalog.
-                self.assertEqual(value, marketplace_document([]))
+                snapshot = json.loads((path.parent / "marketplace.snapshot.json").read_bytes())
+                identities = [json.loads((ROOT / view["sourcePath"] / "plugin.json").read_bytes()) for view in snapshot["views"]]
+                self.assertEqual(value, marketplace_document(identities))
                 continue
             self.assertFalse(isinstance(value, dict) and ("plugins" in value or "catalog" in value), str(path))
 
@@ -227,9 +229,25 @@ class ContractImportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             output = Path(folder) / "marketplace.json"
             generate_marketplace([], output, view_root=ROOT)
-            self.assertEqual((ROOT / ".agents/plugins/marketplace.json").read_bytes(), output.read_bytes())
-        self.assertFalse((ROOT / "published").exists(), "No approved Stable input in this skeleton")
-        self.assertFalse((ROOT / ".agents/plugins/marketplace.snapshot.json").exists(), "No signed Stable snapshot yet")
+            self.assertEqual(json.loads(output.read_bytes())["plugins"], [])
+        snapshot = json.loads((ROOT / ".agents/plugins/marketplace.snapshot.json").read_bytes())
+        active = {r["release"]["packageId"]: r["release"] for r in snapshot["releases"] if not r["revoked"]}
+        self.assertEqual(set(active), {v["packageId"] for v in snapshot["views"]})
+        expected = set()
+        for view in snapshot["views"]:
+            self.assertEqual(view["sourcePath"], "./published/" + view["packageId"])
+            root = ROOT / view["sourcePath"]
+            identity = json.loads((root / "plugin.json").read_bytes())
+            self.assertEqual(identity["name"], view["packageId"])
+            self.assertEqual(identity["version"], active[view["packageId"]]["pluginVersion"])
+            for file in view["files"]:
+                path = root / file["path"]
+                self.assertTrue(path.resolve().is_relative_to(root.resolve()))
+                data = path.read_bytes()
+                self.assertEqual(len(data), file["byteLength"])
+                self.assertEqual("sha256:" + hashlib.sha256(data).hexdigest(), file["sha256"])
+                expected.add(path.relative_to(ROOT).as_posix())
+        self.assertEqual(expected, {p.relative_to(ROOT).as_posix() for p in (ROOT / "published").rglob("*") if p.is_file()})
         self.assertIn("/published/** -text", text(ROOT / ".gitattributes").splitlines())
         self.assertFalse((ROOT / "plugins/dlubal-rfem/mcp.json").exists())
         self.assertFalse((ROOT / "plugins/rhino/mcp.json").exists())

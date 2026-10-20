@@ -1,0 +1,62 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dlubal-rfem",
+  "version": "0.1.1",
+  "description": "RFEM 6 local engineering tools and workflow skills.",
+  "author": {
+    "name": "OpenDesign team"
+  },
+  "extensions": {
+    "io.github.xiaoyugan666.native": {
+      "platform": {
+        "os": "windows",
+        "architecture": "x86_64"
+      },
+      "hostContract": {
+        "min": 1,
+        "max": 1
+      },
+      "agentContract": {
+        "min": 1,
+        "max": 1
+      },
+      "entrypoint": "runtime/python/python.exe",
+      "module": "dlubal_rfem_mcp.managed_bootstrap",
+      "components": [
+        {
+          "kind": "provider",
+          "id": "dlubal-rfem"
+        }
+      ],
+      "mcp": {
+        "transport": "streamable-http",
+        "path": "/mcp"
+      },
+      "software": {
+        "product": "dlubal-rfem",
+        "major": 6,
+        "supportedBuilds": [
+          "6.14.0013.249"
+        ]
+      },
+      "adapter": {
+        "distribution": "dlubal.api",
+        "version": "2.14.13"
+      },
+      "configurationSchemaVersion": 1,
+      "protocolVersion": 1,
+      "startupEnvelopeVersion": 2,
+      "routine": {
+        "kind": "managed-provider",
+        "version": 1
+      },
+      "configurationSchemaPath": "configuration.schema.json",
+      "secretSlots": [
+        {
+          "fieldId": "dlubal-api-key",
+          "componentId": "dlubal-rfem"
+        }
+      ]
+    }
+  }
+}

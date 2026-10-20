@@ -7,6 +7,8 @@
 /schemas/agent-plugins-1.0.0.schema.json -text
 # Generated approved views and market bytes must survive checkout unchanged.
 /published/** -text
+# Signed projections preserve artifact line endings, including repeated CR bytes.
+/published/** whitespace=-blank-at-eol,-blank-at-eof,cr-at-eol
 /.agents/plugins/marketplace.json -text
 /.agents/plugins/marketplace.snapshot.json -text
 # Frozen Rhino build inputs retain their verified source bytes across checkouts.
