@@ -64,6 +64,18 @@ class CiContractTests(unittest.TestCase):
         self.assertEqual(sync_count, len(re.findall(r"\buv sync\b", workflow)))
         self.assertGreater(sync_count, 0, "No CI project sync was checked")
 
+    def test_manual_candidate_workflow_verifies_real_packages_without_publishing_them(self):
+        workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
+
+        self.assertIn("scripts/build_artifact.py", workflow)
+        self.assertIn("scripts/verify_artifact.py", workflow)
+        self.assertIn("--unsigned", workflow)
+        self.assertIn("only synthetic fixture artifacts are uploaded", workflow)
+        self.assertIn("if: success() && inputs.plugin == 'fixture-engineering'", workflow)
+        self.assertNotIn("Real Provider release builder has not migrated", workflow)
+        self.assertNotIn("gh release create", workflow)
+        self.assertNotIn("${{ secrets.", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
