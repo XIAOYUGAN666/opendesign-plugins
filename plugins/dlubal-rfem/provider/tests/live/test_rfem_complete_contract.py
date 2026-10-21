@@ -127,7 +127,10 @@ class DriverJournal:
             self.observation is None
             or self.lifecycle_task is None
             or not await _safe_to_shutdown(
-                client, self, self.observation, self.lifecycle_task,
+                client,
+                self,
+                self.observation,
+                self.lifecycle_task,
                 require_new_sample=True,
             )
         ):

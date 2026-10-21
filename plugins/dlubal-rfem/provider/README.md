@@ -1,6 +1,6 @@
 # Dlubal RFEM Provider
 
-Independent RFEM-only Provider source migrated with the provenance in [ORIGIN.md](ORIGIN.md). The plugin identity is the parent `plugin.json`; the Python project version is checked against it during build. This candidate is not a Stable release. Historical P1 acceptance of the former package does not establish acceptance of this migrated V2 runtime.
+Independent RFEM-only Provider source migrated with the provenance in [ORIGIN.md](ORIGIN.md). The plugin identity is the parent `plugin.json`; the Python project version is checked against it during build. This is the sole Provider source project; the main application consumes its signed self-contained artifact. RFEM 0.1.1 has an independently verified public Stable artifact, while this development checkout remains separate from that immutable release. Historical P1 evidence does not replace the migrated runtime's T32 acceptance.
 
 The package owns its Python 3.12.10 environment and frozen dependency graph. It targets RFEM `6.14.0013.249` with `dlubal.api==2.14.13`. No main application source, sibling Provider or global engineering environment is imported.
 
@@ -28,4 +28,4 @@ One OperationControl and execution journal own admission, background work and un
 
 An RFEM gRPC `UNAUTHENTICATED` status can also carry a Dlubal license-server network failure. Classification inspects the real RPC detail, distinguishing the known unexpected-connection-close/network-error response as service unavailability rather than invalid credentials or subscription restrictions. It does not change the machine's proxy/TUN configuration, retry paid authentication, or weaken credential readiness.
 
-Real software, native installation, signing trust and engineering acceptance are separate gates. This migration's deterministic and artifact checks do not claim live RFEM acceptance. The separately sourced timber-engineering skill remains independent.
+Real software, native installation, signing trust and engineering acceptance are separate gates. The main application's T32 records the actual RFEM build and engineering write/calculate/read-back postconditions; T35 records approved public artifact, Host verification and installation. Deterministic checks alone do not establish those outcomes. The separately sourced timber-engineering skill remains independent.

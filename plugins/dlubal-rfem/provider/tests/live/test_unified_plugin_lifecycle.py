@@ -56,7 +56,9 @@ from test_rfem_complete_contract import (
 )
 
 
-@pytest.mark.skipif(sys.platform != "win32", reason="Windows embedded Python path contract")
+@pytest.mark.skipif(
+    sys.platform != "win32", reason="Windows embedded Python path contract"
+)
 def test_live_driver_uses_same_verified_directory_under_short_windows_alias(tmp_path):
     from pathlib import Path
 
@@ -65,7 +67,9 @@ def test_live_driver_uses_same_verified_directory_under_short_windows_alias(tmp_
     extended_root.mkdir(parents=True)
     (extended_root / "sentinel.txt").write_text("same verified bytes", encoding="utf-8")
     process_root = getattr(driver, "_artifact_process_root", None)
-    assert callable(process_root), "live driver lacks the Host-equivalent Windows launch path normalization"
+    assert callable(process_root), (
+        "live driver lacks the Host-equivalent Windows launch path normalization"
+    )
     actual = process_root(extended_root)
     assert actual.samefile(extended_root)
     assert len(str(actual)) < len(str(extended_root))
@@ -430,10 +434,14 @@ async def test_startup_dispatch_waits_for_a_new_owned_idle_sample(tmp_path, age)
     observation = LifecycleObservation("idle", 0, time.monotonic() - age, sequence=7)
     journal = DriverJournal(tmp_path, observation=observation, lifecycle_task=reader)
     client = JournalClient("succeeded")
-    pending = asyncio.create_task(journal.dispatch(client, "write_rfem_model", {"execution_id": "one-new-id"}))
+    pending = asyncio.create_task(
+        journal.dispatch(client, "write_rfem_model", {"execution_id": "one-new-id"})
+    )
     try:
         await asyncio.sleep(0)
-        assert not pending.done(), "cached startup idle cannot replace a post-read heartbeat"
+        assert not pending.done(), (
+            "cached startup idle cannot replace a post-read heartbeat"
+        )
         assert not client.calls and not journal.executions
         _fixture_heartbeat(observation)
         await pending
@@ -448,11 +456,17 @@ async def test_startup_dispatch_waits_for_a_new_owned_idle_sample(tmp_path, age)
 
 async def test_startup_dispatch_unknown_remains_refused(tmp_path):
     reader = asyncio.create_task(_pending())
-    journal = DriverJournal(tmp_path, observation=LifecycleObservation("unknown", 0, time.monotonic()), lifecycle_task=reader)
+    journal = DriverJournal(
+        tmp_path,
+        observation=LifecycleObservation("unknown", 0, time.monotonic()),
+        lifecycle_task=reader,
+    )
     client = JournalClient("succeeded")
     try:
         with pytest.raises(RuntimeError, match="unsettled lifecycle"):
-            await journal.dispatch(client, "write_rfem_model", {"execution_id": "never-dispatched"})
+            await journal.dispatch(
+                client, "write_rfem_model", {"execution_id": "never-dispatched"}
+            )
         assert not client.calls and not journal.executions
     finally:
         reader.cancel()
@@ -635,7 +649,10 @@ def test_cleanup_requires_model_absence_after_successful_close_ack(still_open):
 
     target = str(uuid4())
     other = str(uuid4())
-    models = [SimpleNamespace(guid="{" + target.upper() + "}"), SimpleNamespace(guid=other)]
+    models = [
+        SimpleNamespace(guid="{" + target.upper() + "}"),
+        SimpleNamespace(guid=other),
+    ]
     calls = []
 
     def close_model(*, save_changes):

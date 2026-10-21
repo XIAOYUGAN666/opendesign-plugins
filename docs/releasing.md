@@ -4,6 +4,8 @@ The official repository is `XIAOYUGAN666/opendesign-plugins`, with one developme
 
 The first Stable release inputs and marketplace sequence 1 received explicit final approval on 2026-10-20. RFEM 0.1.1 and Rhino 0.1.15 retain their reviewed archives and independently signed receipts. Both anonymously downloaded public assets passed digest/length checks, complete artifact verification and production Host trust/download verification before the exact approved `published/` views and signed discovery were submitted together. Live engineering evidence remains separately tracked in T32–T34; publication and synthetic fixture tests do not claim new engineering executions.
 
+Provider, native Bridge, contracts, build scripts and their independent tests now have one source owner in this repository. The main application's duplicate `apps/backend/plugins/` tree is retired; it retains the generic Host, necessary Windows software adapters, Agent integration and UI. Development and CI use each Provider's own frozen environment here. Installed production artifacts do not import this checkout or require a sibling source path. Retirement does not rebuild, resign or modify the approved Stable assets or `published/` bytes.
+
 ## Verification and candidate workflows
 
 Run root checks with `python -B -m unittest discover -s tests -v`. Cryptographic and runtime checks execute through the existing independent fixture tool environment, prepared from `tests/fixtures/fixture-engineering/provider/` with `uv sync --frozen --extra test --extra build`. Run its tests there with `uv run --frozen --extra test python -B -m pytest -q`.
