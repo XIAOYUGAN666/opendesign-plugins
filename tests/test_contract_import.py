@@ -29,6 +29,13 @@ def public_candidates(root):
 
 
 class ContractImportTests(unittest.TestCase):
+    def test_imported_host_contract_retires_previous_fixed_plugin_facade(self):
+        schema = json.loads((ROOT / "schemas/host-contract.v3.schema.json").read_bytes())
+        self.assertEqual(schema["title"], "HostContractV3")
+        self.assertNotIn("previous", schema["properties"])
+        self.assertNotIn("PluginOperationV2", schema.get("$defs", {}))
+        self.assertNotIn("PluginPackageIdV2", schema.get("$defs", {}))
+
     def test_publisher_policy_export_is_public_byte_exact_and_rejects_private_fields(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)

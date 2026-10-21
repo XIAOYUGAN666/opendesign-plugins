@@ -20,7 +20,7 @@
     },
     "host-contract.v3.schema.json": {
       "owner": "host",
-      "sha256": "f899319d8701ed896dc9e14eee42b0bebf6dd4cd301552ebf9ed3308ac1aca75",
+      "sha256": "128af4ee473a73b6e1ade4c8c298d85d49193cd1f183563ab477a64f476cf0f1",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/host-contract.v3.schema.json",
       "version": "3"
     },

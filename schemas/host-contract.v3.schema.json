@@ -1,66 +1,32 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "HostContractV3",
-  "description": "Aggregate used only to export the new authoritative Host contract.\nLegacy V2 views and operations remain behind their explicit facade during cutover.",
+  "description": "Aggregate used only to export the authoritative generic Host contract.",
   "type": "object",
   "properties": {
-    "delete_secret_request": {
-      "$ref": "#/$defs/DeletePluginSecretRequestV1"
-    },
-    "enabled_request": {
-      "$ref": "#/$defs/SetPluginEnabledRequestV1"
-    },
-    "install_request": {
-      "$ref": "#/$defs/InstallPluginRequestV3"
-    },
-    "lifecycle_hint": {
-      "$ref": "#/$defs/PluginLifecycleHintV2"
-    },
-    "native_extension": {
-      "$ref": "#/$defs/NativeExtensionV1"
-    },
-    "operation": {
-      "$ref": "#/$defs/PluginOperationV3"
-    },
-    "plugin": {
-      "$ref": "#/$defs/PluginViewV2"
-    },
-    "plugin_configuration": {
-      "$ref": "#/$defs/PluginConfigurationV1"
-    },
-    "previous": {
-      "$ref": "#/$defs/HostContractV2"
-    },
-    "purge_request": {
-      "$ref": "#/$defs/PurgePluginRequestV1"
-    },
-    "retry_request": {
-      "$ref": "#/$defs/RetryPluginRequestV2"
-    },
+    "delete_secret_request": { "$ref": "#/$defs/DeletePluginSecretRequestV1" },
+    "enabled_request": { "$ref": "#/$defs/SetPluginEnabledRequestV1" },
+    "install_request": { "$ref": "#/$defs/InstallPluginRequestV3" },
+    "lifecycle_hint": { "$ref": "#/$defs/PluginLifecycleHintV2" },
+    "native_extension": { "$ref": "#/$defs/NativeExtensionV1" },
+    "operation": { "$ref": "#/$defs/PluginOperationV3" },
+    "plugin": { "$ref": "#/$defs/PluginViewV2" },
+    "plugin_configuration": { "$ref": "#/$defs/PluginConfigurationV1" },
+    "purge_request": { "$ref": "#/$defs/PurgePluginRequestV1" },
+    "retry_request": { "$ref": "#/$defs/RetryPluginRequestV2" },
     "set_plugin_configuration_request": {
       "$ref": "#/$defs/SetPluginConfigurationRequestV1"
     },
-    "set_secret_request": {
-      "$ref": "#/$defs/SetPluginSecretRequestV1"
-    },
-    "signed_marketplace": {
-      "$ref": "#/$defs/SignedMarketplaceV1"
-    },
-    "standard_manifest": {
-      "$ref": "#/$defs/AgentPluginsManifestV1"
-    },
-    "uninstall_request": {
-      "$ref": "#/$defs/UninstallPluginRequestV2"
-    },
-    "update_request": {
-      "$ref": "#/$defs/UpdatePluginRequestV1"
-    },
+    "set_secret_request": { "$ref": "#/$defs/SetPluginSecretRequestV1" },
+    "signed_marketplace": { "$ref": "#/$defs/SignedMarketplaceV1" },
+    "standard_manifest": { "$ref": "#/$defs/AgentPluginsManifestV1" },
+    "uninstall_request": { "$ref": "#/$defs/UninstallPluginRequestV2" },
+    "update_request": { "$ref": "#/$defs/UpdatePluginRequestV1" },
     "verify_plugin_connection_request": {
       "$ref": "#/$defs/VerifyPluginConnectionRequestV1"
     }
   },
   "required": [
-    "previous",
     "standard_manifest",
     "native_extension",
     "plugin_configuration",
@@ -83,18 +49,11 @@
     "AdapterV1": {
       "type": "object",
       "properties": {
-        "distribution": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
+        "distribution": { "type": "string" },
+        "version": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "distribution",
-        "version"
-      ]
+      "required": ["distribution", "version"]
     },
     "AgentPluginsManifestV1": {
       "$id": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
@@ -110,40 +69,21 @@
         "author": {
           "type": "object",
           "properties": {
-            "email": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "url": {
-              "type": "string"
-            }
+            "email": { "type": "string" },
+            "name": { "type": "string" },
+            "url": { "type": "string" }
           },
           "additionalProperties": false
         },
-        "description": {
-          "type": "string"
-        },
+        "description": { "type": "string" },
         "extensions": {
           "description": "Client-specific manifest data keyed by reverse-domain extension namespace. Agent Plugins assigns no semantics to namespace object contents.",
           "type": "object",
-          "additionalProperties": {
-            "type": "object"
-          }
+          "additionalProperties": { "type": "object" }
         },
-        "homepage": {
-          "type": "string"
-        },
-        "keywords": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "license": {
-          "type": "string"
-        },
+        "homepage": { "type": "string" },
+        "keywords": { "type": "array", "items": { "type": "string" } },
+        "license": { "type": "string" },
         "name": {
           "description": "Human-readable plugin name.",
           "type": "string",
@@ -151,117 +91,39 @@
           "minLength": 1,
           "pattern": "^(?!.*(?:--|\\.\\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$"
         },
-        "repository": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
+        "repository": { "type": "string" },
+        "version": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "$schema",
-        "name"
-      ]
+      "required": ["$schema", "name"]
     },
     "ArchiveV1": {
       "type": "object",
       "properties": {
-        "byteLength": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "sha256": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
+        "byteLength": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "sha256": { "type": "string" },
+        "url": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "url",
-        "byteLength",
-        "sha256"
-      ]
-    },
-    "Compatibility": {
-      "type": "string",
-      "enum": [
-        "compatible",
-        "unsupportedBuild",
-        "invalidInstallation"
-      ]
+      "required": ["url", "byteLength", "sha256"]
     },
     "ComponentV1": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "kind": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "id"
-      ]
-    },
-    "ConnectionStateV1": {
-      "type": "string",
-      "enum": [
-        "waitingForRhino",
-        "connecting",
-        "connected",
-        "reconnecting",
-        "error"
-      ]
-    },
-    "ConnectorRequest": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": "string"
-        },
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "connectorInstanceId",
-        "expectedRevision"
-      ]
+      "required": ["kind", "id"]
     },
     "ContractRange": {
       "type": "object",
       "properties": {
-        "max": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "min": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
+        "max": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "min": { "type": "integer", "format": "uint32", "minimum": 0 }
       },
       "additionalProperties": false,
-      "required": [
-        "min",
-        "max"
-      ]
+      "required": ["min", "max"]
     },
     "DeletePluginSecretRequestV1": {
       "type": "object",
@@ -272,87 +134,12 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "fieldId": {
-          "type": "string"
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "fieldId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId",
-        "fieldId"
-      ]
-    },
-    "DetectedSoftwareV1": {
-      "type": "object",
-      "properties": {
-        "identities": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/SoftwareIdentityV1"
-          }
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "identities"
-      ]
-    },
-    "HostContractV2": {
-      "description": "Aggregate used only to export the current Host IPC JSON Schema.",
-      "type": "object",
-      "properties": {
-        "connector_request": {
-          "$ref": "#/$defs/ConnectorRequest"
-        },
-        "install_request": {
-          "$ref": "#/$defs/InstallRequest"
-        },
-        "lifecycle_hint": {
-          "$ref": "#/$defs/PluginLifecycleHintV1"
-        },
-        "operation": {
-          "$ref": "#/$defs/PluginOperationV2"
-        },
-        "plugin": {
-          "$ref": "#/$defs/PluginViewV1"
-        },
-        "refresh_plugin_request": {
-          "$ref": "#/$defs/RefreshPluginRequestV1"
-        },
-        "retry_plugin_request": {
-          "$ref": "#/$defs/RetryPluginRequestV1"
-        },
-        "secret_request": {
-          "$ref": "#/$defs/SecretRequest"
-        },
-        "stop_request": {
-          "$ref": "#/$defs/StopRequest"
-        },
-        "uninstall_request": {
-          "$ref": "#/$defs/UninstallRequest"
-        }
-      },
-      "required": [
-        "install_request",
-        "refresh_plugin_request",
-        "retry_plugin_request",
-        "connector_request",
-        "secret_request",
-        "stop_request",
-        "uninstall_request",
-        "plugin",
-        "operation",
-        "lifecycle_hint"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId", "fieldId"]
     },
     "InstallPluginRequestV3": {
       "type": "object",
@@ -363,160 +150,57 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
-    },
-    "InstallRequest": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "expectedRevision": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0
-            },
-            "packageId": {
-              "type": "string",
-              "const": "dlubal-rfem"
-            },
-            "requestId": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "softwareIdentity": {
-              "type": "string"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "packageId",
-            "requestId",
-            "expectedRevision",
-            "softwareIdentity"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "expectedRevision": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0
-            },
-            "packageId": {
-              "type": "string",
-              "const": "rhino"
-            },
-            "requestId": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "packageId",
-            "requestId",
-            "expectedRevision"
-          ]
-        }
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     },
     "McpTransportV1": {
       "type": "object",
       "properties": {
-        "path": {
-          "type": "string"
-        },
-        "transport": {
-          "type": "string"
-        }
+        "path": { "type": "string" },
+        "transport": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "transport",
-        "path"
-      ]
+      "required": ["transport", "path"]
     },
     "NativeExtensionV1": {
       "description": "Host extension, never an Agent Plugins standard root field.",
       "type": "object",
       "properties": {
-        "adapter": {
-          "$ref": "#/$defs/AdapterV1"
-        },
-        "agentContract": {
-          "$ref": "#/$defs/ContractRange"
-        },
+        "adapter": { "$ref": "#/$defs/AdapterV1" },
+        "agentContract": { "$ref": "#/$defs/ContractRange" },
         "components": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ComponentV1"
-          }
+          "items": { "$ref": "#/$defs/ComponentV1" }
         },
-        "configurationSchemaPath": {
-          "type": "string"
-        },
+        "configurationSchemaPath": { "type": "string" },
         "configurationSchemaVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "entrypoint": {
-          "type": "string"
-        },
-        "hostContract": {
-          "$ref": "#/$defs/ContractRange"
-        },
-        "mcp": {
-          "$ref": "#/$defs/McpTransportV1"
-        },
-        "module": {
-          "type": "string"
-        },
+        "entrypoint": { "type": "string" },
+        "hostContract": { "$ref": "#/$defs/ContractRange" },
+        "mcp": { "$ref": "#/$defs/McpTransportV1" },
+        "module": { "type": "string" },
         "native": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/NativePackageV1"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/NativePackageV1" }, { "type": "null" }]
         },
-        "platform": {
-          "$ref": "#/$defs/PlatformV1"
-        },
+        "platform": { "$ref": "#/$defs/PlatformV1" },
         "protocolVersion": {
           "type": "integer",
           "format": "uint32",
           "maximum": 1,
           "minimum": 1
         },
-        "routine": {
-          "$ref": "#/$defs/NativeRoutineV1"
-        },
+        "routine": { "$ref": "#/$defs/NativeRoutineV1" },
         "secretSlots": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/SecretSlotV1"
-          }
+          "items": { "$ref": "#/$defs/SecretSlotV1" }
         },
-        "software": {
-          "$ref": "#/$defs/SoftwareRequirementV1"
-        },
+        "software": { "$ref": "#/$defs/SoftwareRequirementV1" },
         "startupEnvelopeVersion": {
           "type": "integer",
           "format": "uint32",
@@ -546,36 +230,18 @@
     "NativePackageV1": {
       "type": "object",
       "properties": {
-        "capabilityDigest": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "contractDigest": {
-          "type": "string"
-        },
+        "capabilityDigest": { "type": ["string", "null"] },
+        "contractDigest": { "type": "string" },
         "contractVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "packageId": {
-          "type": "string"
-        },
-        "pluginId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "relativePath": {
-          "type": "string"
-        },
-        "sha256": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
+        "packageId": { "type": "string" },
+        "pluginId": { "type": "string", "format": "uuid" },
+        "relativePath": { "type": "string" },
+        "sha256": { "type": "string" },
+        "version": { "type": "string" }
       },
       "additionalProperties": false,
       "required": [
@@ -590,17 +256,12 @@
     },
     "NativeRoutineKindV1": {
       "type": "string",
-      "enum": [
-        "managed-provider",
-        "rhino-yak-bridge"
-      ]
+      "enum": ["managed-provider", "rhino-yak-bridge"]
     },
     "NativeRoutineV1": {
       "type": "object",
       "properties": {
-        "kind": {
-          "$ref": "#/$defs/NativeRoutineKindV1"
-        },
+        "kind": { "$ref": "#/$defs/NativeRoutineKindV1" },
         "version": {
           "type": "integer",
           "format": "uint32",
@@ -609,35 +270,16 @@
         }
       },
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "version"
-      ]
+      "required": ["kind", "version"]
     },
     "PlatformV1": {
       "type": "object",
       "properties": {
-        "architecture": {
-          "type": "string"
-        },
-        "os": {
-          "type": "string"
-        }
+        "architecture": { "type": "string" },
+        "os": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "os",
-        "architecture"
-      ]
-    },
-    "PluginAttachmentStateV1": {
-      "type": "string",
-      "enum": [
-        "detached",
-        "discovering",
-        "attached",
-        "error"
-      ]
+      "required": ["os", "architecture"]
     },
     "PluginConfigurationV1": {
       "description": "Ordinary values are accepted only after validation against the derived schema.",
@@ -651,12 +293,8 @@
           "minimum": 0
         },
         "ordinarySchema": true,
-        "packageId": {
-          "type": "string"
-        },
-        "pendingApply": {
-          "type": "boolean"
-        },
+        "packageId": { "type": "string" },
+        "pendingApply": { "type": "boolean" },
         "revision": {
           "type": "integer",
           "format": "uint64",
@@ -670,9 +308,7 @@
         },
         "secretSlots": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/SecretSlotStatusV1"
-          }
+          "items": { "$ref": "#/$defs/SecretSlotStatusV1" }
         },
         "values": true
       },
@@ -694,19 +330,12 @@
       "properties": {
         "secretSlots": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/SecretSlotStatusV1"
-          }
+          "items": { "$ref": "#/$defs/SecretSlotStatusV1" }
         },
-        "state": {
-          "$ref": "#/$defs/PluginConnectionStateV1"
-        }
+        "state": { "$ref": "#/$defs/PluginConnectionStateV1" }
       },
       "additionalProperties": false,
-      "required": [
-        "state",
-        "secretSlots"
-      ]
+      "required": ["state", "secretSlots"]
     },
     "PluginConnectionStateV1": {
       "type": "string",
@@ -722,108 +351,6 @@
         "quotaRestricted",
         "apiAccessRestricted",
         "connected"
-      ]
-    },
-    "PluginDetailV1": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "attachmentState": {
-              "$ref": "#/$defs/PluginAttachmentStateV1"
-            },
-            "credentialConfigured": {
-              "type": "boolean"
-            },
-            "detectedSoftware": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/DetectedSoftwareV1"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "installationState": {
-              "$ref": "#/$defs/PluginInstallationStateV1"
-            },
-            "kind": {
-              "type": "string",
-              "const": "dlubalRfem"
-            },
-            "processState": {
-              "$ref": "#/$defs/PluginProcessStateV1"
-            },
-            "secretRevision": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "format": "uint64",
-              "minimum": 0
-            },
-            "softwareState": {
-              "$ref": "#/$defs/PluginSoftwareStateV1"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "softwareState",
-            "installationState",
-            "processState",
-            "attachmentState",
-            "credentialConfigured"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "activationRequired": {
-              "type": "boolean"
-            },
-            "attachmentState": {
-              "$ref": "#/$defs/PluginAttachmentStateV1"
-            },
-            "connectionState": {
-              "$ref": "#/$defs/ConnectionStateV1"
-            },
-            "installationState": {
-              "$ref": "#/$defs/PluginInstallationStateV1"
-            },
-            "kind": {
-              "type": "string",
-              "const": "rhino"
-            },
-            "nativePackageVersion": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "providerState": {
-              "$ref": "#/$defs/PluginProcessStateV1"
-            },
-            "ready": {
-              "type": "boolean"
-            },
-            "softwareState": {
-              "$ref": "#/$defs/PluginSoftwareStateV1"
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "kind",
-            "softwareState",
-            "installationState",
-            "connectionState",
-            "providerState",
-            "attachmentState",
-            "activationRequired",
-            "ready"
-          ]
-        }
       ]
     },
     "PluginError": {
@@ -864,13 +391,6 @@
         "resultUnknown"
       ]
     },
-    "PluginIconV1": {
-      "type": "string",
-      "enum": [
-        "dlubalRfem",
-        "rhino"
-      ]
-    },
     "PluginInstallationStateV1": {
       "type": "string",
       "enum": [
@@ -880,92 +400,19 @@
         "repairRequired"
       ]
     },
-    "PluginLifecycleHintV1": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "generation": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "operationId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "packageId",
-        "revision"
-      ]
-    },
     "PluginLifecycleHintV2": {
       "type": "object",
       "properties": {
-        "operationId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
+        "operationId": { "type": ["string", "null"] },
+        "packageId": { "type": "string" },
+        "revision": { "type": "integer", "format": "uint64", "minimum": 0 }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "revision"
-      ]
-    },
-    "PluginLinkV1": {
-      "type": "object",
-      "properties": {
-        "label": {
-          "type": "string"
-        },
-        "url": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "label",
-        "url"
-      ]
+      "required": ["packageId", "revision"]
     },
     "PluginOperationKindV2": {
       "type": "string",
-      "enum": [
-        "install",
-        "update",
-        "uninstall",
-        "purge"
-      ]
+      "enum": ["install", "update", "uninstall", "purge"]
     },
     "PluginOperationStageV2": {
       "type": "string",
@@ -985,144 +432,29 @@
     },
     "PluginOperationStateV2": {
       "type": "string",
-      "enum": [
-        "queued",
-        "running",
-        "succeeded",
-        "failed",
-        "cancelled"
-      ]
-    },
-    "PluginOperationV2": {
-      "type": "object",
-      "properties": {
-        "bytesCompleted": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "bytesTotal": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "canCancel": {
-          "type": "boolean"
-        },
-        "cancelRequested": {
-          "type": "boolean"
-        },
-        "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginError"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "kind": {
-          "$ref": "#/$defs/PluginOperationKindV2"
-        },
-        "operationId": {
-          "type": "string"
-        },
-        "packageId": {
-          "$ref": "#/$defs/PluginPackageIdV2"
-        },
-        "revision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "schemaVersion": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "stage": {
-          "$ref": "#/$defs/PluginOperationStageV2"
-        },
-        "startedAtMs": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "state": {
-          "$ref": "#/$defs/PluginOperationStateV2"
-        },
-        "updatedAtMs": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "operationId",
-        "packageId",
-        "kind",
-        "state",
-        "stage",
-        "revision",
-        "cancelRequested",
-        "canCancel",
-        "startedAtMs",
-        "updatedAtMs"
-      ]
+      "enum": ["queued", "running", "succeeded", "failed", "cancelled"]
     },
     "PluginOperationV3": {
       "type": "object",
       "properties": {
         "bytesCompleted": {
-          "type": [
-            "integer",
-            "null"
-          ],
+          "type": ["integer", "null"],
           "format": "uint64",
           "minimum": 0
         },
         "bytesTotal": {
-          "type": [
-            "integer",
-            "null"
-          ],
+          "type": ["integer", "null"],
           "format": "uint64",
           "minimum": 0
         },
-        "canCancel": {
-          "type": "boolean"
-        },
-        "cancelRequested": {
-          "type": "boolean"
-        },
+        "canCancel": { "type": "boolean" },
+        "cancelRequested": { "type": "boolean" },
         "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginError"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/PluginError" }, { "type": "null" }]
         },
-        "kind": {
-          "$ref": "#/$defs/PluginOperationKindV2"
-        },
-        "operationId": {
-          "type": "string"
-        },
-        "packageId": {
-          "type": "string"
-        },
+        "kind": { "$ref": "#/$defs/PluginOperationKindV2" },
+        "operationId": { "type": "string" },
+        "packageId": { "type": "string" },
         "revision": {
           "type": "integer",
           "format": "uint64",
@@ -1135,22 +467,10 @@
           "maximum": 3,
           "minimum": 3
         },
-        "stage": {
-          "$ref": "#/$defs/PluginOperationStageV2"
-        },
-        "startedAtMs": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "state": {
-          "$ref": "#/$defs/PluginOperationStateV2"
-        },
-        "updatedAtMs": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        }
+        "stage": { "$ref": "#/$defs/PluginOperationStageV2" },
+        "startedAtMs": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "state": { "$ref": "#/$defs/PluginOperationStateV2" },
+        "updatedAtMs": { "type": "integer", "format": "uint64", "minimum": 0 }
       },
       "additionalProperties": false,
       "required": [
@@ -1167,233 +487,37 @@
         "updatedAtMs"
       ]
     },
-    "PluginPackageIdV2": {
-      "type": "string",
-      "enum": [
-        "dlubal-rfem",
-        "rhino"
-      ]
-    },
-    "PluginPresentationV1": {
-      "type": "object",
-      "properties": {
-        "iconKey": {
-          "$ref": "#/$defs/PluginIconV1"
-        },
-        "links": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PluginLinkV1"
-          }
-        },
-        "overview": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "publisher": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "summary": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "iconKey",
-        "summary",
-        "overview",
-        "links"
-      ]
-    },
     "PluginPresentationV2": {
       "type": "object",
       "properties": {
-        "author": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "category": {
-          "type": "string"
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "iconKey": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "version": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
+        "author": { "type": ["string", "null"] },
+        "category": { "type": "string" },
+        "description": { "type": ["string", "null"] },
+        "iconKey": { "type": "string" },
+        "name": { "type": "string" },
+        "version": { "type": ["string", "null"] }
       },
       "additionalProperties": false,
-      "required": [
-        "name",
-        "category",
-        "iconKey"
-      ]
-    },
-    "PluginProcessStateV1": {
-      "type": "string",
-      "enum": [
-        "stopped",
-        "starting",
-        "running",
-        "stopping",
-        "failed"
-      ]
-    },
-    "PluginSoftwareStateV1": {
-      "type": "string",
-      "enum": [
-        "notDetected",
-        "compatible",
-        "unsupported"
-      ]
-    },
-    "PluginViewV1": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "detail": {
-          "$ref": "#/$defs/PluginDetailV1"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginError"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "generation": {
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint64",
-          "minimum": 0
-        },
-        "operationId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "pluginVersion": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "presentation": {
-          "$ref": "#/$defs/PluginPresentationV1"
-        },
-        "revision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "schemaVersion": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "packageId",
-        "displayName",
-        "presentation",
-        "revision",
-        "detail"
-      ]
+      "required": ["name", "category", "iconKey"]
     },
     "PluginViewV2": {
       "description": "Generic safe view. Legacy callers retain their explicit V1 facade.",
       "type": "object",
       "properties": {
-        "connectionSettings": {
-          "$ref": "#/$defs/PluginConnectionSettingsV1"
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "engineeringReady": {
-          "type": "boolean"
-        },
+        "connectionSettings": { "$ref": "#/$defs/PluginConnectionSettingsV1" },
+        "description": { "type": ["string", "null"] },
+        "displayName": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "engineeringReady": { "type": "boolean" },
         "error": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/PluginError"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/PluginError" }, { "type": "null" }]
         },
-        "installationState": {
-          "$ref": "#/$defs/PluginInstallationStateV1"
-        },
-        "mcpReady": {
-          "type": "boolean"
-        },
-        "operationId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "pluginVersion": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "presentation": {
-          "$ref": "#/$defs/PluginPresentationV2"
-        },
+        "installationState": { "$ref": "#/$defs/PluginInstallationStateV1" },
+        "mcpReady": { "type": "boolean" },
+        "operationId": { "type": ["string", "null"] },
+        "packageId": { "type": "string" },
+        "pluginVersion": { "type": ["string", "null"] },
+        "presentation": { "$ref": "#/$defs/PluginPresentationV2" },
         "revision": {
           "type": "integer",
           "format": "uint64",
@@ -1430,117 +554,57 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
-    },
-    "RefreshPluginRequestV1": {
-      "type": "object",
-      "properties": {
-        "packageId": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "packageId"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     },
     "ReleaseManifestV1": {
       "type": "object",
       "properties": {
-        "adapter": {
-          "$ref": "#/$defs/AdapterV1"
-        },
-        "agentContract": {
-          "$ref": "#/$defs/ContractRange"
-        },
-        "artifactVariantId": {
-          "type": "string"
-        },
+        "adapter": { "$ref": "#/$defs/AdapterV1" },
+        "agentContract": { "$ref": "#/$defs/ContractRange" },
+        "artifactVariantId": { "type": "string" },
         "components": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/ComponentV1"
-          }
+          "items": { "$ref": "#/$defs/ComponentV1" }
         },
         "configurationSchemaVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "entrypoint": {
-          "type": "string"
-        },
-        "filesDigest": {
-          "type": "string"
-        },
-        "hostContract": {
-          "$ref": "#/$defs/ContractRange"
-        },
+        "entrypoint": { "type": "string" },
+        "filesDigest": { "type": "string" },
+        "hostContract": { "$ref": "#/$defs/ContractRange" },
         "manifestSchemaVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "mcp": {
-          "$ref": "#/$defs/McpTransportV1"
-        },
-        "module": {
-          "type": "string"
-        },
+        "mcp": { "$ref": "#/$defs/McpTransportV1" },
+        "module": { "type": "string" },
         "native": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/NativePackageV1"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "anyOf": [{ "$ref": "#/$defs/NativePackageV1" }, { "type": "null" }]
         },
-        "packageId": {
-          "type": "string"
-        },
-        "platform": {
-          "$ref": "#/$defs/PlatformV1"
-        },
-        "pluginVersion": {
-          "type": "string"
-        },
-        "providerBuildId": {
-          "type": "string"
-        },
+        "packageId": { "type": "string" },
+        "platform": { "$ref": "#/$defs/PlatformV1" },
+        "pluginVersion": { "type": "string" },
+        "providerBuildId": { "type": "string" },
         "releaseSequence": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0
         },
-        "sbomDigest": {
-          "type": "string"
-        },
-        "software": {
-          "$ref": "#/$defs/SoftwareRequirementV1"
-        },
+        "sbomDigest": { "type": "string" },
+        "software": { "$ref": "#/$defs/SoftwareRequirementV1" },
         "startupEnvelopeVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "toolCatalogDigest": {
-          "type": "string"
-        }
+        "toolCatalogDigest": { "type": "string" }
       },
       "additionalProperties": false,
       "required": [
@@ -1566,29 +630,6 @@
         "sbomDigest"
       ]
     },
-    "RetryPluginRequestV1": {
-      "type": "object",
-      "properties": {
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "packageId",
-        "expectedRevision"
-      ]
-    },
     "RetryPluginRequestV2": {
       "type": "object",
       "properties": {
@@ -1598,73 +639,27 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
-    },
-    "SecretRequest": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": "string"
-        },
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "value": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "connectorInstanceId",
-        "expectedRevision",
-        "value"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     },
     "SecretSlotStatusV1": {
       "description": "Safe state only. This DTO has no credential value or opaque secret reference.",
       "type": "object",
       "properties": {
-        "componentId": {
-          "type": "string"
-        },
-        "configured": {
-          "type": "boolean"
-        },
-        "fieldId": {
-          "type": "string"
-        },
-        "requiredForEngineering": {
-          "type": "boolean"
-        },
+        "componentId": { "type": "string" },
+        "configured": { "type": "boolean" },
+        "fieldId": { "type": "string" },
+        "requiredForEngineering": { "type": "boolean" },
         "revision": {
           "type": "integer",
           "format": "uint64",
           "maximum": 9007199254740991,
           "minimum": 0
         },
-        "status": {
-          "$ref": "#/$defs/PluginConnectionStateV1"
-        }
+        "status": { "$ref": "#/$defs/PluginConnectionStateV1" }
       },
       "additionalProperties": false,
       "required": [
@@ -1679,18 +674,11 @@
     "SecretSlotV1": {
       "type": "object",
       "properties": {
-        "componentId": {
-          "type": "string"
-        },
-        "fieldId": {
-          "type": "string"
-        }
+        "componentId": { "type": "string" },
+        "fieldId": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "fieldId",
-        "componentId"
-      ]
+      "required": ["fieldId", "componentId"]
     },
     "SetPluginConfigurationRequestV1": {
       "type": "object",
@@ -1701,50 +689,28 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        },
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" },
         "values": true
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId",
-        "values"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId", "values"]
     },
     "SetPluginEnabledRequestV1": {
       "type": "object",
       "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
+        "enabled": { "type": "boolean" },
         "expectedRevision": {
           "type": "integer",
           "format": "uint64",
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId",
-        "enabled"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId", "enabled"]
     },
     "SetPluginSecretRequestV1": {
       "type": "object",
@@ -1755,19 +721,10 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "fieldId": {
-          "type": "string"
-        },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "value": {
-          "type": "string"
-        }
+        "fieldId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "value": { "type": "string" }
       },
       "additionalProperties": false,
       "required": [
@@ -1782,49 +739,25 @@
       "description": "One signed binding for the official discovery file and its generated views.\nRuntime verification and origin policy are owned by the later marketplace task.",
       "type": "object",
       "properties": {
-        "expiresAt": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
+        "expiresAt": { "type": "integer", "format": "uint64", "minimum": 0 },
         "marketplaceSchemaVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "marketplaceSha256": {
-          "type": "string"
-        },
-        "notBefore": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "publisherKeyId": {
-          "type": "string"
-        },
+        "marketplaceSha256": { "type": "string" },
+        "notBefore": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "publisherKeyId": { "type": "string" },
         "releases": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/SignedReleaseV1"
-          }
+          "items": { "$ref": "#/$defs/SignedReleaseV1" }
         },
-        "repositoryIdentity": {
-          "type": "string"
-        },
-        "sequence": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "signature": {
-          "type": "string"
-        },
+        "repositoryIdentity": { "type": "string" },
+        "sequence": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "signature": { "type": "string" },
         "views": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/StableViewInventoryV1"
-          }
+          "items": { "$ref": "#/$defs/StableViewInventoryV1" }
         }
       },
       "additionalProperties": false,
@@ -1844,31 +777,13 @@
     "SignedReleaseV1": {
       "type": "object",
       "properties": {
-        "archive": {
-          "$ref": "#/$defs/ArchiveV1"
-        },
-        "expiresAt": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "notBefore": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "publisherKeyId": {
-          "type": "string"
-        },
-        "release": {
-          "$ref": "#/$defs/ReleaseManifestV1"
-        },
-        "revoked": {
-          "type": "boolean"
-        },
-        "signature": {
-          "type": "string"
-        }
+        "archive": { "$ref": "#/$defs/ArchiveV1" },
+        "expiresAt": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "notBefore": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "publisherKeyId": { "type": "string" },
+        "release": { "$ref": "#/$defs/ReleaseManifestV1" },
+        "revoked": { "type": "boolean" },
+        "signature": { "type": "string" }
       },
       "additionalProperties": false,
       "required": [
@@ -1881,141 +796,38 @@
         "signature"
       ]
     },
-    "SoftwareIdentityV1": {
-      "type": "object",
-      "properties": {
-        "architecture": {
-          "type": "string"
-        },
-        "compatibility": {
-          "$ref": "#/$defs/Compatibility"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "exactBuild": {
-          "type": "string"
-        },
-        "product": {
-          "type": "string"
-        },
-        "safeIdentity": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "safeIdentity",
-        "displayName",
-        "product",
-        "exactBuild",
-        "architecture",
-        "compatibility"
-      ]
-    },
     "SoftwareRequirementV1": {
       "type": "object",
       "properties": {
-        "major": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "product": {
-          "type": "string"
-        },
-        "supportedBuilds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "major": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "product": { "type": "string" },
+        "supportedBuilds": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false,
-      "required": [
-        "product",
-        "major",
-        "supportedBuilds"
-      ]
+      "required": ["product", "major", "supportedBuilds"]
     },
     "StableViewFileV1": {
       "type": "object",
       "properties": {
-        "byteLength": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "path": {
-          "type": "string"
-        },
-        "sha256": {
-          "type": "string"
-        }
+        "byteLength": { "type": "integer", "format": "uint64", "minimum": 0 },
+        "path": { "type": "string" },
+        "sha256": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "path",
-        "byteLength",
-        "sha256"
-      ]
+      "required": ["path", "byteLength", "sha256"]
     },
     "StableViewInventoryV1": {
       "type": "object",
       "properties": {
         "files": {
           "type": "array",
-          "items": {
-            "$ref": "#/$defs/StableViewFileV1"
-          }
+          "items": { "$ref": "#/$defs/StableViewFileV1" }
         },
-        "packageId": {
-          "type": "string"
-        },
-        "sourcePath": {
-          "type": "string"
-        }
+        "packageId": { "type": "string" },
+        "sourcePath": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "sourcePath",
-        "files"
-      ]
-    },
-    "StopMode": {
-      "type": "string",
-      "enum": [
-        "graceful",
-        "force"
-      ]
-    },
-    "StopRequest": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": "string"
-        },
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "mode": {
-          "$ref": "#/$defs/StopMode"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "connectorInstanceId",
-        "expectedRevision",
-        "mode"
-      ]
+      "required": ["packageId", "sourcePath", "files"]
     },
     "UninstallPluginRequestV2": {
       "type": "object",
@@ -2026,47 +838,11 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
-    },
-    "UninstallRequest": {
-      "type": "object",
-      "properties": {
-        "connectorInstanceId": {
-          "type": "string"
-        },
-        "deleteConfiguration": {
-          "type": "boolean"
-        },
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
-      },
-      "additionalProperties": false,
-      "required": [
-        "requestId",
-        "connectorInstanceId",
-        "expectedRevision",
-        "deleteConfiguration"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     },
     "UpdatePluginRequestV1": {
       "type": "object",
@@ -2077,20 +853,11 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     },
     "VerifyPluginConnectionRequestV1": {
       "description": "Narrow connection intent; actual verification is integrated by its runtime owner.",
@@ -2102,20 +869,11 @@
           "maximum": 9007199254740991,
           "minimum": 1
         },
-        "packageId": {
-          "type": "string"
-        },
-        "requestId": {
-          "type": "string",
-          "format": "uuid"
-        }
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
       },
       "additionalProperties": false,
-      "required": [
-        "packageId",
-        "expectedRevision",
-        "requestId"
-      ]
+      "required": ["packageId", "expectedRevision", "requestId"]
     }
   }
 }
