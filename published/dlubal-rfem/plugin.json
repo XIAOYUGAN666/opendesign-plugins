@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rfem",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "RFEM 6 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
@@ -57,6 +57,25 @@
           "componentId": "dlubal-rfem"
         }
       ]
+    },
+    "com.openai": {
+      "interface": {
+        "displayName": "Dlubal RFEM",
+        "shortDescription": "RFEM 6 structural modeling, calculation and results tools.",
+        "longDescription": "Connect RFEM 6 through a managed MCP Provider. Includes workflow skills for structural modeling, calculation and results; engineering operations follow the existing permissions and approval flow.",
+        "developerName": "OpenDesign team",
+        "category": "Engineering Design",
+        "capabilities": [
+          "Structural modeling",
+          "Calculation",
+          "Results"
+        ],
+        "websiteURL": "https://www.dlubal.com/en",
+        "supportURL": "https://github.com/XIAOYUGAN666/opendesign-plugins/issues",
+        "brandColor": "#FFC000",
+        "composerIcon": "./assets/rfem.svg",
+        "logo": "./assets/rfem.svg"
+      }
     }
   }
 }

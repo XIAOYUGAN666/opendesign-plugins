@@ -2,6 +2,8 @@
 
 Rhino 8 engineering tools and workflow skills for OpenDesign. The root `plugin.json` owns plugin identity; generated Provider and Yak version copies are checked before building.
 
+This repository is the sole Provider and Bridge source owner; the main application's duplicate source has been retired. Its installed runtime uses a verified self-contained artifact, without requiring this checkout. Rhino 0.1.15 and Marketplace sequence 1 were explicitly approved and published on 2026-10-20; T33/T34 engineering and native lifecycle evidence remains distinct from T35 publication verification. Later development changes require their own checks and approval before any Stable update.
+
 The Provider uses the official MCP SDK and exposes 70 typed tools, four resources/templates and two prompts. Metadata mode lists declarations without connecting to Rhino or accepting engineering calls. Engineering execution requires the compatible Windows Host, the native Bridge and Rhino build `8.26.25349.19001`. Other plugin clients can read supported standard components and static workflow skills.
 
 Release staging builds a standard wheel from the final build-identity-patched Provider source and includes its distribution metadata. The isolated PyPA build consumes the Provider's locked `build` dependency group with archive hash verification; it does not resolve an unbounded backend at release time. Its version must match the root Manifest, Provider project and editable project entry in `uv.lock`; third-party runtime wheels retain their separate frozen URL/hash/tag checks. Editable install metadata and local wheel `direct_url.json` are not copied into artifacts.

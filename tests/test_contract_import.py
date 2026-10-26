@@ -214,7 +214,7 @@ class ContractImportTests(unittest.TestCase):
                 data = path.read_bytes()
                 self.assertNotIn(b"-----BEGIN " + b"PRIVATE KEY-----", data, str(rel))
                 self.assertNotIn(b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----", data, str(rel))
-                if len(rel.parts) >= 4 and rel.parts[0] == "plugins" and rel.parts[2] == "assets" and path.suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+                if len(rel.parts) >= 4 and rel.parts[0] in {"plugins", "published"} and rel.parts[2] == "assets" and path.suffix in {".png", ".jpg", ".jpeg", ".webp"}:
                     from scripts.presentation_assets import declared_assets, validate_icon
                     manifest = json.loads((ROOT / rel.parts[0] / rel.parts[1] / "plugin.json").read_bytes())
                     asset = "/".join(rel.parts[2:])

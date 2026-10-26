@@ -1,6 +1,6 @@
 # Independent candidates and approved Stable publication
 
-## Branding assets in candidates
+## Plugin branding assets
 
 Root `plugin.json` may declare presentation under `extensions.com.openai.interface`: display name, descriptions, developer/category/capabilities, HTTPS links, brand colors, and `logo`/`composerIcon` with optional dark variants. Screenshots and starter prompts are not implemented by OpenDesign. Referenced images belong under `./assets/`; retain official download provenance and SHA-256 in `assets/SOURCES.json`. Do not identify the software vendor as the plugin developer.
 
@@ -8,7 +8,7 @@ Both Provider staging adapters copy `assets/`. Common source closure, final arti
 
 The standard-library candidate verifier checks image containers and dimensions; it is not a full raster decoder. Before approving a candidate, also run the production Host's `plugin_presentation` integration test with `PLUGIN_ASSET_CANDIDATE_ROOT` pointing at that independently extracted candidate and `--include-ignored`. This separately proves the declared images actually decode through the same bounded implementation used by native IPC. Neither check proves a Tauri WebView installation or live engineering operation.
 
-RFEM 0.1.2 and Rhino 0.1.16 development inputs are new unsigned branding candidates, not replacements for approved Stable bytes. Native Rhino bindings and release inputs must be regenerated after all byte-sensitive build inputs are finalized. Candidate verification does not approve publication or change installed applications.
+RFEM 0.1.2 and Rhino 0.1.16 provide plugin-owned branding assets. They are independently signed Releases, with coordinated discovery at marketplace sequence 2. Native Rhino bindings and release inputs must be regenerated after all byte-sensitive build inputs are finalized. Local source edits and candidate verification never change installed applications; the application consumes the signed market and updates through its plugin page.
 
 The official repository is `XIAOYUGAN666/opendesign-plugins`, with one development branch `main`. The runtime source identity remains `github:XIAOYUGAN666/opendesign-plugins`. Development inputs live under `plugins/<id>/`; each Provider owns its project, frozen lock, virtual environment and tests. The root tooling has no Python environment or shared dependency project.
 
