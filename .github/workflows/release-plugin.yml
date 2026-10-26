@@ -11,7 +11,7 @@ on:
         description: Build unsigned bytes, verify both publisher keys, or sign an existing draft
         type: choice
         default: build
-        options: [build, verify-keys, sign-draft, sign-market-candidate]
+        options: [build, verify-keys, sign-draft, sign-market-candidate, sign-market-update]
       draft_tag:
         description: Existing draft tag, pinned to this exact source commit (sign-draft only)
         type: string
@@ -20,6 +20,9 @@ on:
         type: string
       rhino_archive_sha256:
         description: Reviewed Rhino archive SHA256 (sign-market-candidate only)
+        type: string
+      previous_market_sha256:
+        description: Reviewed current signed snapshot SHA256 (sign-market-update only)
         type: string
       plugin:
         description: Independently validate this plugin; only synthetic fixture artifacts are uploaded
@@ -167,7 +170,7 @@ jobs:
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Read exact existing draft assets before accessing signing secrets
-        if: inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate'
+        if: inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate' || inputs.operation == 'sign-market-update'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -178,7 +181,7 @@ jobs:
           PLUGIN_ID: ${{ inputs.plugin }}
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          $marketReview = $env:SIGNING_OPERATION -eq 'sign-market-candidate'
+          $marketReview = $env:SIGNING_OPERATION -in @('sign-market-candidate', 'sign-market-update')
           $packages = if ($marketReview) { @('dlubal-rfem', 'rhino') } else { @($env:PLUGIN_ID) }
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -224,6 +227,7 @@ jobs:
           SIGNING_OPERATION: ${{ inputs.operation }}
           SOURCE_COMMIT: ${{ github.sha }}
           PLUGIN_ID: ${{ inputs.plugin }}
+          PREVIOUS_MARKET_SHA256: ${{ inputs.previous_market_sha256 }}
         run: |
           $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
           $arguments = @('-B', 'scripts/publisher_signing.py', '--schemas', 'schemas')
@@ -233,15 +237,19 @@ jobs:
             if ($archive.Count -ne 1) { throw 'Missing draft archive' }
             $arguments += @('--archive', $archive[0].FullName, '--candidate', (Join-Path $candidate 'unsigned-receipt.json'), '--context', (Join-Path $candidate 'context.json'), '--output', (Join-Path $candidate 'signed-receipt.json'))
           }
-          if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') {
+          if ($env:SIGNING_OPERATION -in @('sign-market-candidate', 'sign-market-update')) {
             $candidate = Join-Path $env:RUNNER_TEMP 'signing-candidate'
             $arguments += @('--market-inputs', (Join-Path $candidate 'market-inputs.json'), '--source-commit', $env:SOURCE_COMMIT, '--output', (Join-Path $candidate 'market-review'))
+            if ($env:SIGNING_OPERATION -eq 'sign-market-update') {
+              if ($env:PREVIOUS_MARKET_SHA256 -cnotmatch '^[a-f0-9]{64}$') { throw 'Previous market digest required' }
+              $arguments += @('--previous-market-digest', "sha256:$env:PREVIOUS_MARKET_SHA256")
+            }
           }
           $report = & $tool @arguments
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $report >> $env:GITHUB_STEP_SUMMARY
       - name: Confirm candidate is still a draft before retaining its signature
-        if: success() && (inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate')
+        if: success() && (inputs.operation == 'sign-draft' || inputs.operation == 'sign-market-candidate' || inputs.operation == 'sign-market-update')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -252,7 +260,7 @@ jobs:
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $allReleases = $raw | ConvertFrom-Json
-          $tags = if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') {
+          $tags = if ($env:SIGNING_OPERATION -in @('sign-market-candidate', 'sign-market-update')) {
             @('dlubal-rfem','rhino') | ForEach-Object { $root = Get-Content -Raw "plugins/$_/plugin.json" | ConvertFrom-Json; "plugin-$($_)-v$($root.version)" }
           } else { @($env:DRAFT_TAG) }
           foreach ($tag in $tags) {
@@ -268,8 +276,8 @@ jobs:
           path: ${{ runner.temp }}/signing-candidate/${{ inputs.plugin }}/signed-receipt.json
           if-no-files-found: error
           retention-days: 3
-      - name: Retain isolated first-market review metadata only
-        if: success() && inputs.operation == 'sign-market-candidate'
+      - name: Retain isolated market review metadata only
+        if: success() && (inputs.operation == 'sign-market-candidate' || inputs.operation == 'sign-market-update')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: market-review-${{ github.sha }}

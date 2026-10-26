@@ -1,0 +1,17 @@
+{
+  "sourcePage": "https://www.rhino3d.com/en/reseller/graphics/",
+  "retrievedOn": "2026-10-26",
+  "description": "Unmodified official Rhino 8 brand images; software trademark remains with McNeel. Plugin maintained by OpenDesign team.",
+  "files": [
+    {
+      "file": "rhino.png",
+      "downloadURL": "https://www.rhino3d.com/reseller/graphics/Rhino8-Icon-1024x1024.png",
+      "sha256": "7863d66049455b76a0a701dd51e1a428fc1588084a39ee9e7b8872f987607850"
+    },
+    {
+      "file": "rhino.svg",
+      "downloadURL": "https://www.rhino3d.com/reseller/graphics/Rhino8-Icon_20260720.svg",
+      "sha256": "602c549bbd321809c94ea0975eae06991056a37a0d743260edf3e934d449c0ef"
+    }
+  ]
+}

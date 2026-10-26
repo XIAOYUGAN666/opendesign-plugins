@@ -214,7 +214,14 @@ class ContractImportTests(unittest.TestCase):
                 data = path.read_bytes()
                 self.assertNotIn(b"-----BEGIN " + b"PRIVATE KEY-----", data, str(rel))
                 self.assertNotIn(b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----", data, str(rel))
-                self.assertNotIn(bytes([0]), data, str(rel))
+                if len(rel.parts) >= 4 and rel.parts[0] == "plugins" and rel.parts[2] == "assets" and path.suffix in {".png", ".jpg", ".jpeg", ".webp"}:
+                    from scripts.presentation_assets import declared_assets, validate_icon
+                    manifest = json.loads((ROOT / rel.parts[0] / rel.parts[1] / "plugin.json").read_bytes())
+                    asset = "/".join(rel.parts[2:])
+                    self.assertIn(asset, set(declared_assets(manifest)), str(rel))
+                    validate_icon(asset, data)
+                else:
+                    self.assertNotIn(bytes([0]), data, str(rel))
 
     def test_public_candidates_allow_ignored_provider_environment_but_scan_tracked_and_untracked_source(self):
         with tempfile.TemporaryDirectory() as folder:

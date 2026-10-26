@@ -159,6 +159,8 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
     for name in ("pyproject.toml", "uv.lock", "README.md"):
         shutil.copyfile(plugin_root / "provider" / name, staging / name)
     shutil.copytree(plugin_root / "skills", staging / "skills")
+    if (plugin_root / "assets").exists():
+        shutil.copytree(plugin_root / "assets", staging / "assets")
     site_packages = source_root.parent
     for relative in ("pyproject.toml", "uv.lock", "packaging/runtime-lock.json"):
         target = site_packages / relative

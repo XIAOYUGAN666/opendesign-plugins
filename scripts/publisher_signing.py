@@ -27,7 +27,7 @@ TARGETS = {
     "rhino": ("rhino-publisher-v1", "RHINO_PUBLISHER_V1_KEY_B64"),
 }
 REPOSITORY = "github:XIAOYUGAN666/opendesign-plugins"
-SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "candidateChangedDuringSigning", "publisherSecretInRepository"}
+SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "invalidPreviousMarket", "candidateChangedDuringSigning", "publisherSecretInRepository"}
 
 
 def take_secrets():
@@ -119,8 +119,84 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][0], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
-def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output):
-    """Prepare the first T35 market review; never mutate formal discovery.
+def verify_previous_market(repository, schema_bundle, host_policy, expected_digest):
+    """Authenticate the exact previous market and its complete immutable views."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    try:
+        from .generate_stable_view import inventory_for, snapshot_files, authorize
+        from .generate_marketplace import marketplace_document
+        from .verify_artifact import digest, validate
+    except ImportError:
+        from generate_stable_view import inventory_for, snapshot_files, authorize
+        from generate_marketplace import marketplace_document
+        from verify_artifact import digest, validate
+    try:
+        raw = (repository / ".agents/plugins/marketplace.snapshot.json").read_bytes()
+        if digest(raw) != expected_digest:
+            raise ValueError()
+        snapshot = read_json(raw)
+        validate(snapshot, read_json((schema_bundle / "host-contract.v3.schema.json").read_bytes()), "SignedMarketplaceV1")
+        publisher = host_policy["publishers"][snapshot["publisherKeyId"]]
+        scope = publisher["scope"]
+        now = int(time.time())
+        if (snapshot["repositoryIdentity"] != REPOSITORY or scope["repositoryIdentity"] != REPOSITORY
+                or not 0 < snapshot["sequence"] < 2**64 - 1
+                or not snapshot["notBefore"] <= now < snapshot["expiresAt"]):
+            raise ValueError()
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(publisher["publicKey"])).verify(
+            bytes.fromhex(snapshot["signature"]), canonical({"signatureSchemaVersion": 1, **{k:v for k,v in snapshot.items() if k != "signature"}}))
+        market = (repository / ".agents/plugins/marketplace.json").read_bytes()
+        if digest(market) != snapshot["marketplaceSha256"]:
+            raise ValueError()
+        previous, identities = {}, []
+        policy = {"repositoryIdentity": REPOSITORY, "keys": {}, "approvedArchives": {}, "revokedArchives": []}
+        for receipt in snapshot["releases"]:
+            package = receipt["release"]["packageId"]
+            owner = host_policy["publishers"][receipt["publisherKeyId"]]
+            # This update operation requires a complete active replacement set;
+            # revocation/tombstone changes require their own explicitly reviewed operation.
+            if (receipt["revoked"] or package in previous or package not in scope["marketplacePackages"]
+                    or owner["scope"]["repositoryIdentity"] != REPOSITORY
+                    or package not in owner["scope"]["releasePackages"]):
+                raise ValueError()
+            policy["keys"][receipt["publisherKeyId"]] = {"publicKey":owner["publicKey"], "packages":owner["scope"]["releasePackages"], "notBefore":1, "expiresAt":2**64-1, "revoked":False}
+            policy["approvedArchives"][receipt["archive"]["sha256"]] = receipt["archive"]["url"]
+            authorize(receipt, policy)
+            previous[package] = receipt["release"]
+        if not previous or {v["packageId"] for v in snapshot["views"]} != set(previous) or len(snapshot["views"]) != len(previous):
+            raise ValueError()
+        for view in snapshot["views"]:
+            package = view["packageId"]
+            files = snapshot_files(repository / "published" / package)
+            if inventory_for(package, files) != view:
+                raise ValueError()
+            identity = read_json(files["plugin.json"])
+            if identity["name"] != package or identity["version"] != previous[package]["pluginVersion"]:
+                raise ValueError()
+            identities.append(identity)
+        # Discovery order is deterministic by package ID, independent of view ordering.
+        if read_json(market) != marketplace_document(sorted(identities, key=lambda i: i["name"])):
+            raise ValueError()
+        return snapshot["sequence"], previous
+    except Exception:
+        raise ValueError("invalidPreviousMarket") from None
+
+
+def require_market_progression(previous, bindings):
+    if {r["release"]["packageId"] for r in bindings} != set(previous) or len(bindings) != len(previous):
+        raise ValueError("invalidPreviousMarket")
+    for receipt in bindings:
+        release = receipt["release"]
+        old = previous[release["packageId"]]
+        versions = (old["pluginVersion"], release["pluginVersion"])
+        if (not all(re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", v) for v in versions)
+                or tuple(map(int, versions[1].split('.'))) <= tuple(map(int, versions[0].split('.')))
+                or release["releaseSequence"] <= old["releaseSequence"]):
+            raise ValueError("invalidPreviousMarket")
+
+
+def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None):
+    """Prepare an isolated initial or authenticated subsequent market review.
 
     This is release tooling, not Host authority. Full artifact verification and
     existing view/market generators own their respective checks.
@@ -142,7 +218,10 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
     if output.exists() or (output.is_relative_to(repository) and not output.is_relative_to(repository / "dist")):
         raise ValueError("invalidDraftContext")
     formal = read_json((repository / ".agents/plugins/marketplace.json").read_bytes())
-    if formal.get("plugins") or (repository / ".agents/plugins/marketplace.snapshot.json").exists():
+    previous_sequence, previous = 0, None
+    if previous_market_digest is not None:
+        previous_sequence, previous = verify_previous_market(repository, schema_bundle, host_policy, previous_market_digest)
+    elif formal.get("plugins") or (repository / ".agents/plugins/marketplace.snapshot.json").exists():
         raise ValueError("invalidDraftContext")
     if not entries or len(entries) > 64 or not re.fullmatch(r"[a-f0-9]{40}", source_commit):
         raise ValueError("invalidDraftContext")
@@ -169,6 +248,8 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         packages.add(package)
         bindings.append(receipt)
         approved[receipt["archive"]["sha256"]] = url
+    if previous is not None:
+        require_market_progression(previous, bindings)
     market_owner = publishers.get(market_key_id)
     if (not market_owner or market_owner["scope"]["repositoryIdentity"] != REPOSITORY
             or not packages <= set(market_owner["scope"]["marketplacePackages"])
@@ -179,7 +260,7 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         keys[key_id] = {"publicKey": publisher["publicKey"], "packages": sorted(set(scope["releasePackages"]) | set(scope["marketplacePackages"])),
                         "notBefore": 1, "expiresAt": max(r["expiresAt"] for r in bindings), "revoked": False}
     policy = {"repositoryIdentity": REPOSITORY, "keys": keys, "approvedArchives": approved,
-              "marketplaceKeyId": market_key_id, "previousSequence": 0, "revokedArchives": []}
+              "marketplaceKeyId": market_key_id, "previousSequence": previous_sequence, "revokedArchives": []}
     contexts, roots = {}, {}
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="market-review-", dir=output.parent) as temporary:
@@ -199,13 +280,20 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         market = staged / ".agents/plugins/marketplace.json"
         generate_marketplace(bindings, market, view_root=staged, trust_policy=policy, artifact_roots=roots, verified_contexts=contexts)
         views, _ = verified_views(bindings, staged, policy, roots, contexts)
-        snapshot = sign_marketplace(market.read_bytes(), bindings, 1, signer, views=views,
+        # Metadata probes run child processes: retain the exact reviewed baseline
+        # through the signing boundary, not only before those probes started.
+        if previous_market_digest is not None:
+            verify_previous_market(repository, schema_bundle, host_policy, previous_market_digest)
+        sequence = previous_sequence + 1
+        snapshot = sign_marketplace(market.read_bytes(), bindings, sequence, signer, views=views,
             trust_policy=policy, view_root=staged, artifact_roots=roots, verified_contexts=contexts)
         (market.parent / "marketplace.snapshot.json").write_bytes(snapshot)
-        report = {"sequence": 1, "sourceCommit": source_commit, "marketplaceSha256": digest(market.read_bytes()),
+        report = {"sequence": sequence, "previousSnapshotSha256": previous_market_digest, "sourceCommit": source_commit, "marketplaceSha256": digest(market.read_bytes()),
                   "snapshotSha256": digest(snapshot), "views": views, "stablePublication": False,
                   "assetUrlVerification": "pending-anonymous-publication-check", "finalApprovalRequired": True}
         (staged / "review.json").write_bytes(canonical(report))
+        if previous_market_digest is not None:
+            verify_previous_market(repository, schema_bundle, host_policy, previous_market_digest)
         staged.rename(output)
     return report
 
@@ -215,6 +303,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--schemas", type=Path, required=True)
     parser.add_argument("--market-inputs", type=Path)
+    parser.add_argument("--previous-market-digest")
     parser.add_argument("--source-commit")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--candidate", type=Path)
@@ -225,6 +314,8 @@ def main():
         signers, reports = load_signers(args.schemas, encoded)
         reject_tracked_private_material(encoded, signers)
         encoded.clear()
+        if args.previous_market_digest and not args.market_inputs:
+            raise ValueError("invalidDraftContext")
         result = {"keyVerification": reports, "hostTrustModified": False, "trackedPrivateMaterial": False, "stablePublication": False}
         if args.market_inputs:
             if not args.output or not args.source_commit or any((args.archive, args.candidate, args.context)):
@@ -232,7 +323,7 @@ def main():
             entries = read_json(args.market_inputs.read_bytes())
             result["marketCandidate"] = sign_market_candidate(entries, args.schemas,
                 read_json((args.schemas / "host-publisher-policy.json").read_bytes()),
-                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output)
+                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output, previous_market_digest=args.previous_market_digest)
         elif any((args.archive, args.candidate, args.context, args.output)):
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")

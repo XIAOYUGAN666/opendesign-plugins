@@ -98,6 +98,11 @@ def snapshot_files(root):
 
 
 def portable_files(files, identity):
+    try:
+        from .presentation_assets import validate_asset_files
+    except ImportError:
+        from presentation_assets import validate_asset_files
+    validate_asset_files(files, identity)
     configuration = identity["extensions"][NAMESPACE]["configurationSchemaPath"]
     selected = {name: raw for name, raw in files.items() if name in {"plugin.json", "README.md", configuration, "tool-preview.json", "mcp.json", "hooks.json"} or ("/" not in name and name.endswith(".md")) or name.split("/")[0] in {"skills", "assets", "agents", "commands", "hooks"}}
     if not {"plugin.json", "README.md", configuration, "tool-preview.json"} <= selected.keys() or not any(name.startswith("skills/") and name.endswith("/SKILL.md") for name in selected):

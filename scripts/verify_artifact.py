@@ -520,6 +520,11 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
             expected.add(item["path"])
         if {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()} != expected:
             raise ValueError("undeclaredFile")
+        try:
+            from .presentation_assets import validate_assets
+        except ImportError:
+            from presentation_assets import validate_assets
+        validate_assets(root, identity)
         preview_bytes = (root / "tool-preview.json").read_bytes()
         preview = read_json(preview_bytes)
         if canonical(preview) != preview_bytes or release["toolCatalogDigest"] != digest(preview_bytes):

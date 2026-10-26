@@ -22,6 +22,10 @@ def generated_input(plugin_root, *, release_sequence):
 
 
 def check_source_closure(plugin_root):
+    try:
+        from .presentation_assets import validate_assets
+    except ImportError:
+        from presentation_assets import validate_assets
     def check(path):
         if path.is_symlink() or path.is_junction():
             raise ValueError("reparseSource")
@@ -30,10 +34,13 @@ def check_source_closure(plugin_root):
     for path in (plugin_root, plugin_root / "plugin.json", plugin_root / "provider"):
         check(path)
     identity = read_json((plugin_root / "plugin.json").read_bytes())
+    validate_assets(plugin_root, identity)
     module = identity["extensions"]["io.github.xiaoyugan666.native"]["module"].split(".")
     if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in module):
         raise ValueError("unsafeProviderModule")
     copied = [plugin_root / "skills", plugin_root / "provider" / module[0], plugin_root / "provider/pyproject.toml", plugin_root / "provider/uv.lock"]
+    if (plugin_root / "assets").exists():
+        copied.append(plugin_root / "assets")
     for source in copied:
         check(source)
         if source.is_dir():

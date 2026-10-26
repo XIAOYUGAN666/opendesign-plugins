@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rhino-mcp-provider"
-version = "0.1.15"
+version = "0.1.16"
 description = "Managed MCP provider for Rhino 8"
 requires-python = ">=3.12,<3.13"
 dependencies = [
