@@ -37,6 +37,8 @@ def verified_views(bindings, view_root, trust_policy, artifact_roots, verified_c
             raise ValueError("stableViewArtifactMismatch")
         identities.append(read_json(selected["plugin.json"]))
         views.append(inventory_for(package, selected))
+    views.sort(key=lambda view: view["packageId"])
+    identities.sort(key=lambda identity: identity["name"])
     return views, identities
 
 

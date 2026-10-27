@@ -72,6 +72,16 @@ view(first); view(second); market(); assert {p['name'] for p in read_json(market
 rejects(lambda:generate_marketplace(receipts,base/'unapproved.json',view_root=base/'candidate'))
 """)
 
+    def test_signed_views_and_discovery_have_same_canonical_package_order(self):
+        self.run_case("""
+view(first); view(second)
+views, identities=verified_views([second,first],base/'candidate',policy,roots,contexts)
+assert [v['packageId'] for v in views]==['dlubal-rfem','rhino']
+assert [i['name'] for i in identities]==['dlubal-rfem','rhino']
+document=read_json(market([second,first]).read_bytes())
+assert [p['name'] for p in document['plugins']]==[v['packageId'] for v in views]
+""")
+
     def test_plugin_versions_are_independent(self):
         self.run_case("""
 view(first); view(second); entries=read_json(market().read_bytes())['plugins']; versions=[read_json((base/'candidate'/entry['source']['path']/'plugin.json').read_bytes())['version'] for entry in entries]; assert versions==['0.1.0','2.3.4']; assert all('version' not in entry for entry in entries)
