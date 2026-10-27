@@ -245,7 +245,7 @@ class ContractImportTests(unittest.TestCase):
             generate_marketplace([], output, view_root=ROOT)
             self.assertEqual(json.loads(output.read_bytes())["plugins"], [])
         snapshot = json.loads((ROOT / ".agents/plugins/marketplace.snapshot.json").read_bytes())
-        active = {r["release"]["packageId"]: r["release"] for r in snapshot["releases"] if not r["revoked"]}
+        active = {r["release"]["packageId"]: r["release"] for r in snapshot["releases"] + snapshot.get("skillReleases", []) if not r["revoked"]}
         self.assertEqual(set(active), {v["packageId"] for v in snapshot["views"]})
         expected = set()
         for view in snapshot["views"]:

@@ -31,12 +31,13 @@ with tempfile.TemporaryDirectory() as folder:
   return digest(raw)
  # Authenticate historical per-plugin signatures with the real exported public keys,
  # while the outer market itself uses the fixture key.
- policy['publishers']['fixture-market']={'publicKey':signer.public_key().public_bytes_raw().hex(),'scope':{'repositoryIdentity':snapshot['repositoryIdentity'],'releasePackages':[],'marketplacePackages':['dlubal-rfem','rhino']}}
+ package_ids=[r['release']['packageId'] for r in snapshot['releases']+snapshot.get('skillReleases',[])]
+ policy['publishers']['fixture-market']={'publicKey':signer.public_key().public_bytes_raw().hex(),'scope':{'repositoryIdentity':snapshot['repositoryIdentity'],'releasePackages':[],'marketplacePackages':package_ids}}
  policy['publishers'][key]=json.loads(Path('schemas/host-publisher-policy.json').read_bytes())['publishers'][key]
  snapshot['publisherKeyId']='fixture-market'
  expected=write(snapshot)
  sequence,previous=verify_previous_market(root,Path('schemas'),policy,expected)
- assert sequence==snapshot['sequence'] and set(previous)=={'dlubal-rfem','rhino'}
+ assert sequence==snapshot['sequence'] and set(previous)==set(package_ids)
  def rejects(action):
   try: action()
   except ValueError: pass
@@ -53,7 +54,7 @@ with tempfile.TemporaryDirectory() as folder:
  rejects(lambda:require_market_progression(previous,unchanged))
  # Adding a package may retain exact previously signed artifacts, but cannot
  # silently replace one at the same sequence or drop an existing package.
- old_receipts={r['release']['packageId']:r for r in snapshot['releases']}
+ old_receipts={r['release']['packageId']:r for r in snapshot['releases']+snapshot.get('skillReleases',[])}
  addition={'release':{'packageId':'new-skill','pluginVersion':'1.0.0','releaseSequence':1}}
  require_market_progression(previous,list(old_receipts.values())+[addition], previous_receipts=old_receipts)
  changed=copy.deepcopy(list(old_receipts.values())); changed[0]['archive']['sha256']='sha256:'+'0'*64

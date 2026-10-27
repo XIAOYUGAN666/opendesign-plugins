@@ -315,7 +315,7 @@ snapshot=json.loads((root/'.agents/plugins/marketplace.snapshot.json').read_byte
 signature=snapshot.pop('signature');owner=policy[snapshot['publisherKeyId']]
 Ed25519PublicKey.from_public_bytes(bytes.fromhex(owner['publicKey'])).verify(bytes.fromhex(signature),canonical({'signatureSchemaVersion':1,**snapshot}))
 assert digest(market)==snapshot['marketplaceSha256']
-active={r['release']['packageId']:r for r in snapshot['releases'] if not r['revoked']}
+active={r['release']['packageId']:r for r in snapshot['releases']+snapshot.get('skillReleases',[]) if not r['revoked']}
 assert set(active)<=set(owner['scope']['marketplacePackages']) and owner['scope']['repositoryIdentity']==snapshot['repositoryIdentity']
 for package,receipt in active.items():
  publisher=policy[receipt['publisherKeyId']];assert package in publisher['scope']['releasePackages'] and publisher['scope']['repositoryIdentity']==snapshot['repositoryIdentity']
