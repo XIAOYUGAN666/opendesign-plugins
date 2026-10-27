@@ -34,7 +34,10 @@ jobs:
       - name: Verify root source, trust, generated discovery and extracted artifacts
         shell: pwsh
         run: |
-          python -B -m unittest discover -s tests -v
+          $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          & $tool -B -m unittest discover -s tests -v
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $tool -B -m pytest tests/test_rfem_timber_skill.py -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

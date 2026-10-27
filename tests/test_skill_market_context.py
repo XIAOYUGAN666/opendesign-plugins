@@ -7,6 +7,11 @@ from scripts.publisher_signing import validate_market_entry_context
 
 
 class SkillMarketContextTests(unittest.TestCase):
+    def test_market_discovery_order_is_canonical_for_three_packages(self):
+        from scripts.generate_marketplace import marketplace_document
+        result = marketplace_document([{'name': 'dlubal-rfem'}, {'name': 'rhino'}, {'name': 'rfem-timber-engineering'}])
+        self.assertEqual([item['name'] for item in result['plugins']], ['dlubal-rfem', 'rfem-timber-engineering', 'rhino'])
+
     def test_workflow_signs_only_bound_drafts_and_keeps_market_isolated(self):
         text = (Path(__file__).resolve().parents[1] / '.github/workflows/release-skill.yml').read_text(encoding='utf-8')
         for required in ('environment: plugin-signing', "github.ref == 'refs/heads/main'", 'persist-credentials: false',

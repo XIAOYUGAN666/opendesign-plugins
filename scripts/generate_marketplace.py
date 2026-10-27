@@ -41,7 +41,7 @@ def verified_views(bindings, view_root, trust_policy, artifact_roots, verified_c
 
 
 def marketplace_document(identities):
-    return {"name": "team-stable", "interface": {"displayName": "Official stable plugins"}, "plugins": [{"name": identity["name"], "source": {"source": "local", "path": "./published/" + identity["name"]}, "policy": {"installation": "AVAILABLE", "authentication": "ON_USE"}, "category": "Engineering Design"} for identity in identities]}
+    return {"name": "team-stable", "interface": {"displayName": "Official stable plugins"}, "plugins": [{"name": identity["name"], "source": {"source": "local", "path": "./published/" + identity["name"]}, "policy": {"installation": "AVAILABLE", "authentication": "ON_USE"}, "category": "Engineering Design"} for identity in sorted(identities, key=lambda item: item["name"])]}
 
 
 def generate_marketplace(bindings: list[dict], output: Path, *, view_root: Path, trust_policy=None, artifact_roots=None, verified_contexts=None) -> Path:
