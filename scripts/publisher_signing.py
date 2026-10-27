@@ -69,7 +69,7 @@ def load_signers(schema_bundle, encoded):
         if publisher is None:
             raise ValueError("invalidHostPolicyExport")
         scope = publisher["scope"]
-        if scope["repositoryIdentity"] != REPOSITORY or set(scope["releasePackages"]) != {package}:
+        if scope["repositoryIdentity"] != REPOSITORY or package not in scope["releasePackages"]:
             raise ValueError("invalidHostPolicyExport")
         if not encoded.get(package):
             raise ValueError("missingPublisherSecret")
@@ -119,6 +119,26 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][0], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
+def sign_skill_draft_candidate(archive, candidate, context, host_policy, signers):
+    try:
+        from .sign_skill_artifact import sign_draft
+        from .verify_skill_artifact import verify
+    except ImportError:
+        from sign_skill_artifact import sign_draft
+        from verify_skill_artifact import verify
+    package = context.get("packageId")
+    owners = [(key_id, signers[owner]) for owner, (key_id, _) in TARGETS.items()
+              if owner in signers and package in host_policy.get("publishers", {}).get(key_id, {}).get("scope", {}).get("releasePackages", [])]
+    if len(owners) != 1:
+        raise ValueError("invalidHostPolicyExport")
+    key_id, signer = owners[0]
+    signed = sign_draft(archive, candidate, context, host_policy, key_id, signer)
+    public = signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+    verified = verify(archive, signed, trusted_keys={key_id: public})
+    return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": key_id,
+                    "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
+
+
 def verify_previous_market(repository, schema_bundle, host_policy, expected_digest):
     """Authenticate the exact previous market and its complete immutable views."""
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -150,7 +170,7 @@ def verify_previous_market(repository, schema_bundle, host_policy, expected_dige
             raise ValueError()
         previous, identities = {}, []
         policy = {"repositoryIdentity": REPOSITORY, "keys": {}, "approvedArchives": {}, "revokedArchives": []}
-        for receipt in snapshot["releases"]:
+        for receipt in snapshot["releases"] + snapshot.get("skillReleases", []):
             package = receipt["release"]["packageId"]
             owner = host_policy["publishers"][receipt["publisherKeyId"]]
             # This update operation requires a complete active replacement set;
@@ -182,17 +202,41 @@ def verify_previous_market(repository, schema_bundle, host_policy, expected_dige
         raise ValueError("invalidPreviousMarket") from None
 
 
-def require_market_progression(previous, bindings):
-    if {r["release"]["packageId"] for r in bindings} != set(previous) or len(bindings) != len(previous):
+def require_market_progression(previous, bindings, *, previous_receipts=None):
+    package_ids = {r["release"]["packageId"] for r in bindings}
+    if not set(previous) <= package_ids or len(bindings) != len(package_ids):
         raise ValueError("invalidPreviousMarket")
     for receipt in bindings:
         release = receipt["release"]
+        if release["packageId"] not in previous:
+            continue
         old = previous[release["packageId"]]
+        if previous_receipts is not None and previous_receipts.get(release["packageId"]) == receipt:
+            continue
         versions = (old["pluginVersion"], release["pluginVersion"])
         if (not all(re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", v) for v in versions)
                 or tuple(map(int, versions[1].split('.'))) <= tuple(map(int, versions[0].split('.')))
                 or release["releaseSequence"] <= old["releaseSequence"]):
             raise ValueError("invalidPreviousMarket")
+
+
+def validate_market_entry_context(receipt, context, archive_name, source_commit, previous_receipts):
+    release = receipt["release"]
+    package, version = release["packageId"], release["pluginVersion"]
+    tag = f"plugin-{package}-v{version}"
+    url = f"https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/{tag}/{archive_name}"
+    if (not re.fullmatch(r"[A-Za-z0-9._-]+\.zip", archive_name)
+            or context.get("tag") != tag or context.get("packageId") != package
+            or context.get("version") != version or context.get("assetUrl") != url
+            or receipt["archive"]["url"] != url
+            or context.get("archiveDigest") != receipt["archive"]["sha256"]):
+        raise ValueError("invalidDraftContext")
+    if previous_receipts.get(package) == receipt:
+        if context.get("published") is not True:
+            raise ValueError("invalidDraftContext")
+    elif (context.get("draft") is not True or context.get("sourceCommit") != source_commit
+          or context.get("targetCommit") != source_commit):
+        raise ValueError("invalidDraftContext")
 
 
 def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None):
@@ -225,6 +269,13 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         raise ValueError("invalidDraftContext")
     if not entries or len(entries) > 64 or not re.fullmatch(r"[a-f0-9]{40}", source_commit):
         raise ValueError("invalidDraftContext")
+    previous_receipts = {}
+    if previous is not None:
+        previous_raw = (repository / ".agents/plugins/marketplace.snapshot.json").read_bytes()
+        if digest(previous_raw) != previous_market_digest:
+            raise ValueError("invalidPreviousMarket")
+        previous_snapshot = read_json(previous_raw)
+        previous_receipts = {receipt["release"]["packageId"]: receipt for receipt in previous_snapshot["releases"] + previous_snapshot.get("skillReleases", [])}
     publishers = host_policy["publishers"]
     approved, bindings, keys, packages = {}, [], {}, set()
     for item in entries:
@@ -237,19 +288,12 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
                 or package not in owner["scope"]["releasePackages"]
                 or package in packages or not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", package)):
             raise ValueError("invalidHostPolicyExport")
-        tag = f"plugin-{package}-v{release['pluginVersion']}"
-        url = f"https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/{tag}/{archive.name}"
-        if (context.get("draft") is not True or context.get("sourceCommit") != source_commit
-                or context.get("targetCommit") != source_commit or context.get("tag") != tag
-                or context.get("packageId") != package or context.get("version") != release["pluginVersion"]
-                or context.get("assetUrl") != url or receipt["archive"]["url"] != url
-                or context.get("archiveDigest") != receipt["archive"]["sha256"]):
-            raise ValueError("invalidDraftContext")
+        validate_market_entry_context(receipt, context, archive.name, source_commit, previous_receipts)
         packages.add(package)
         bindings.append(receipt)
-        approved[receipt["archive"]["sha256"]] = url
+        approved[receipt["archive"]["sha256"]] = receipt["archive"]["url"]
     if previous is not None:
-        require_market_progression(previous, bindings)
+        require_market_progression(previous, bindings, previous_receipts=previous_receipts)
     market_owner = publishers.get(market_key_id)
     if (not market_owner or market_owner["scope"]["repositoryIdentity"] != REPOSITORY
             or not packages <= set(market_owner["scope"]["marketplacePackages"])
@@ -268,8 +312,16 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         staged = temporary / "review"
         for item, receipt in zip(entries, bindings):
             package = receipt["release"]["packageId"]
-            contexts[package] = verify_artifact(Path(item["archive"]), Path(item["receipt"]), schema_bundle,
-                trusted_keys={receipt["publisherKeyId"]: bytes.fromhex(publishers[receipt["publisherKeyId"]]["publicKey"])})
+            if "providerBuildId" in receipt["release"]:
+                contexts[package] = verify_artifact(Path(item["archive"]), Path(item["receipt"]), schema_bundle,
+                    trusted_keys={receipt["publisherKeyId"]: bytes.fromhex(publishers[receipt["publisherKeyId"]]["publicKey"])})
+            else:
+                try:
+                    from .verify_skill_artifact import verify as verify_skill
+                except ImportError:
+                    from verify_skill_artifact import verify as verify_skill
+                contexts[package] = verify_skill(Path(item["archive"]), receipt,
+                    trusted_keys={receipt["publisherKeyId"]: bytes.fromhex(publishers[receipt["publisherKeyId"]]["publicKey"])})
             root = temporary / "artifacts" / package
             root.mkdir(parents=True)
             extract(Path(item["archive"]), root)
@@ -328,9 +380,14 @@ def main():
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")
             context = read_json(args.context.read_bytes())
-            if context.get("packageId") not in signers:
-                raise ValueError("invalidDraftContext")
-            signed, verification = sign_draft_candidate(args.archive, args.candidate, args.schemas, context, signers[context["packageId"]])
+            payload = read_json(args.candidate.read_bytes())
+            if "providerBuildId" in payload.get("release", {}):
+                if context.get("packageId") not in signers:
+                    raise ValueError("invalidDraftContext")
+                signed, verification = sign_draft_candidate(args.archive, args.candidate, args.schemas, context, signers[context["packageId"]])
+            else:
+                signed, verification = sign_skill_draft_candidate(args.archive, args.candidate, context,
+                    read_json((args.schemas / "host-publisher-policy.json").read_bytes()), signers)
             with args.output.open("xb") as stream:
                 stream.write(canonical(signed))
             result["candidate"] = verification

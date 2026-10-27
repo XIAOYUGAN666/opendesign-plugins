@@ -1,0 +1,156 @@
+name: Sign pure skill candidate and market review
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        type: choice
+        required: true
+        options: [sign-skill-draft, sign-skill-market]
+      archive_sha256:
+        description: Reviewed skill archive SHA256
+        required: true
+        type: string
+      previous_market_sha256:
+        description: Exact current signed market SHA256 (market operation)
+        type: string
+permissions:
+  contents: read
+jobs:
+  signing:
+    if: github.ref == 'refs/heads/main'
+    environment: plugin-signing
+    permissions:
+      contents: write
+    runs-on: windows-2025
+    timeout-minutes: 45
+    concurrency:
+      group: plugin-signing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.10'
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        with:
+          version: '0.9.21'
+          enable-cache: false
+      - name: Prepare independent signing dependencies
+        working-directory: tests/fixtures/fixture-engineering/provider
+        shell: pwsh
+        run: |
+          uv sync --frozen --extra test --extra build --python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify exact market and download bound archives
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPERATION: ${{ inputs.operation }}
+          SKILL_SHA: ${{ inputs.archive_sha256 }}
+          PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          if ($env:SKILL_SHA -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid archive digest' }
+          $candidate = Join-Path $env:RUNNER_TEMP 'skill-release-review'
+          New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null
+          $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $releases = $raw | ConvertFrom-Json
+          $root = Get-Content -Raw 'plugins/rfem-timber-engineering/plugin.json' | ConvertFrom-Json
+          $tag = "plugin-$($root.name)-v$($root.version)"
+          $drafts = @($releases | Where-Object { $_.tag_name -ceq $tag })
+          if ($drafts.Count -ne 1 -or $drafts[0].draft -ne $true -or $drafts[0].target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact source-commit draft required' }
+          $tags = @(git ls-remote --tags origin "refs/tags/$tag" "refs/tags/$tag^{}")
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($tags.Count -gt 0 -and ($tags[-1] -split '\s+')[0] -cne $env:SOURCE_COMMIT) { throw 'Existing tag targets another commit' }
+          $release = $drafts[0]
+          $archives = @($release.assets | Where-Object { $_.name -cmatch '^[A-Za-z0-9._-]+\.zip$' })
+          $receiptName = if ($env:OPERATION -eq 'sign-skill-market') { 'signed-receipt.json' } else { 'unsigned-receipt.json' }
+          if ($archives.Count -ne 1 -or $archives[0].size -gt 16777216 -or @($release.assets | Where-Object name -CEQ $receiptName).Count -ne 1) { throw 'Ambiguous draft assets' }
+          $skillDir = Join-Path $candidate 'skill'
+          New-Item -ItemType Directory -Path $skillDir -ErrorAction Stop | Out-Null
+          gh release download $tag --repo XIAOYUGAN666/opendesign-plugins --pattern $archives[0].name --pattern $receiptName --dir $skillDir
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $archive = Join-Path $skillDir $archives[0].name
+          if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:SKILL_SHA) { throw 'Skill archive mismatch' }
+          $url = "https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/$tag/$($archives[0].name)"
+          $context = @{packageId=$root.name; version=$root.version; draft=$true; tag=$tag; sourceCommit=$env:SOURCE_COMMIT; targetCommit=$release.target_commitish; assetUrl=$url; archiveDigest="sha256:$env:SKILL_SHA"}
+          ConvertTo-Json -InputObject $context -Depth 10 | Set-Content -Encoding utf8NoBOM (Join-Path $skillDir 'context.json')
+          if ($env:OPERATION -eq 'sign-skill-market') {
+            if ($env:PREVIOUS_SHA -cnotmatch '^[a-f0-9]{64}$' -or (Get-FileHash '.agents/plugins/marketplace.snapshot.json' -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:PREVIOUS_SHA) { throw 'Previous market mismatch' }
+            $snapshot = Get-Content -Raw '.agents/plugins/marketplace.snapshot.json' | ConvertFrom-Json
+            $entries = @()
+            foreach ($receipt in @($snapshot.releases) + @($snapshot.skillReleases)) {
+              if ($null -eq $receipt -or $receipt.revoked) { continue }
+              $old = $receipt.release
+              $oldTag = "plugin-$($old.packageId)-v$($old.pluginVersion)"
+              $public = @($releases | Where-Object { $_.tag_name -ceq $oldTag -and $_.draft -eq $false -and $_.prerelease -eq $false })
+              if ($public.Count -ne 1) { throw 'Previously published release missing' }
+              $name = [IO.Path]::GetFileName(([uri]$receipt.archive.url).AbsolutePath)
+              if ($name -cnotmatch '^[A-Za-z0-9._-]+\.zip$' -or @($public[0].assets | Where-Object { $_.name -ceq $name -and $_.size -eq $receipt.archive.byteLength }).Count -ne 1) { throw 'Previous asset mismatch' }
+              $directory = Join-Path $candidate $old.packageId
+              New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
+              gh release download $oldTag --repo XIAOYUGAN666/opendesign-plugins --pattern $name --dir $directory
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $oldArchive = Join-Path $directory $name
+              if ("sha256:$((Get-FileHash $oldArchive -Algorithm SHA256).Hash.ToLowerInvariant())" -cne $receipt.archive.sha256) { throw 'Previous archive digest mismatch' }
+              $oldReceipt = Join-Path $directory 'signed-receipt.json'
+              ConvertTo-Json -InputObject $receipt -Depth 100 -Compress | Set-Content -Encoding utf8NoBOM $oldReceipt
+              $oldContext = @{published=$true; packageId=$old.packageId; version=$old.pluginVersion; tag=$oldTag; assetUrl=$receipt.archive.url; archiveDigest=$receipt.archive.sha256}
+              $entries += @{archive=$oldArchive; receipt=$oldReceipt; context=$oldContext}
+            }
+            $entries += @{archive=$archive; receipt=(Join-Path $skillDir $receiptName); context=$context}
+            ConvertTo-Json -InputObject @($entries) -Depth 100 | Set-Content -Encoding utf8NoBOM (Join-Path $candidate 'market-inputs.json')
+          }
+      - name: Sign only the reviewed candidate
+        shell: pwsh
+        env:
+          RFEM_PUBLISHER_V1_KEY_B64: ${{ secrets.RFEM_PUBLISHER_V1_KEY_B64 }}
+          RHINO_PUBLISHER_V1_KEY_B64: ${{ secrets.RHINO_PUBLISHER_V1_KEY_B64 }}
+          OPERATION: ${{ inputs.operation }}
+          PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $python = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          $candidate = Join-Path $env:RUNNER_TEMP 'skill-release-review'
+          $skill = Join-Path $candidate 'skill'
+          if ($env:OPERATION -eq 'sign-skill-draft') {
+            $archive = @(Get-ChildItem -LiteralPath $skill -File -Filter '*.zip')
+            if ($archive.Count -ne 1) { throw 'Missing skill archive' }
+            & $python -B scripts/publisher_signing.py --schemas schemas --archive $archive[0].FullName --candidate (Join-Path $skill 'unsigned-receipt.json') --context (Join-Path $skill 'context.json') --output (Join-Path $skill 'signed-receipt.json')
+          } else {
+            & $python -B scripts/publisher_signing.py --schemas schemas --market-inputs (Join-Path $candidate 'market-inputs.json') --previous-market-digest "sha256:$env:PREVIOUS_SHA" --source-commit $env:SOURCE_COMMIT --output (Join-Path $candidate 'market-review')
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Recheck exact draft before retaining signatures
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $root = Get-Content -Raw 'plugins/rfem-timber-engineering/plugin.json' | ConvertFrom-Json
+          $tag = "plugin-$($root.name)-v$($root.version)"
+          $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $drafts = @($raw | ConvertFrom-Json | Where-Object { $_.tag_name -ceq $tag })
+          if ($drafts.Count -ne 1 -or $drafts[0].draft -ne $true -or $drafts[0].target_commitish -cne $env:SOURCE_COMMIT) { throw 'Draft changed during signing' }
+      - name: Retain signed receipt only
+        if: inputs.operation == 'sign-skill-draft'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: signed-skill-receipt-${{ github.sha }}
+          path: ${{ runner.temp }}/skill-release-review/skill/signed-receipt.json
+          if-no-files-found: error
+          retention-days: 3
+      - name: Retain isolated signed market review
+        if: inputs.operation == 'sign-skill-market'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: skill-market-review-${{ github.sha }}
+          path: ${{ runner.temp }}/skill-release-review/market-review
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3

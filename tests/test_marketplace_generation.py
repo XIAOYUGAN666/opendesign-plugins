@@ -100,6 +100,17 @@ view(first); entry=read_json(market([first]).read_bytes())['plugins'][0]; assert
 stable=view(first); assert (stable/'skills/workflow/resources/reference.md').is_file(); assert (stable/'plugin.json').read_bytes()==(roots['dlubal-rfem']/'plugin.json').read_bytes(); entry=read_json((stable/'plugin.json').read_bytes())['extensions'][NAMESPACE]['entrypoint']; assert (roots['dlubal-rfem']/entry).is_file(); assert not (stable/entry).exists(); assert (stable/'configuration.schema.json').is_file(); assert not (stable/'mcp.json').exists()
 """)
 
+    def test_connector_without_skills_has_a_signed_portable_view(self):
+        self.run_case("""
+root=roots['dlubal-rfem']; (root/'skills/workflow/resources/reference.md').unlink(); (root/'skills/workflow/SKILL.md').unlink(); rebind(first)
+stable=view(first); assert (stable/'plugin.json').is_file(); assert (stable/'tool-preview.json').is_file(); assert not (stable/'skills').exists(); assert not (stable/'runtime').exists()
+""")
+
+    def test_orphaned_skill_resources_cannot_form_a_portable_view(self):
+        self.run_case("""
+root=roots['dlubal-rfem']; (root/'skills/workflow/SKILL.md').unlink(); rebind(first); rejects(lambda:view(first))
+""")
+
     def test_signed_root_document_reference_is_preserved_without_runtime_payloads(self):
         self.run_case("""
 root=roots['dlubal-rfem']; (root/'README.md').write_bytes(b'Read [provenance](ORIGIN.md).\\n'); (root/'ORIGIN.md').write_bytes(b'Signed source provenance.\\n'); rebind(first)

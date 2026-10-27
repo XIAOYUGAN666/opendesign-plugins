@@ -16,11 +16,13 @@
       "scope": {
         "repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins",
         "releasePackages": [
-          "dlubal-rfem"
+          "dlubal-rfem",
+          "rfem-timber-engineering"
         ],
         "marketplacePackages": [
           "dlubal-rfem",
-          "rhino"
+          "rhino",
+          "rfem-timber-engineering"
         ]
       }
     }

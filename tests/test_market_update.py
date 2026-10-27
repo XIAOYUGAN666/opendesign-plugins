@@ -51,6 +51,13 @@ with tempfile.TemporaryDirectory() as folder:
  rejects(lambda:require_market_progression(previous,rollback))
  unchanged=copy.deepcopy(upgrades);unchanged[0]['release']['pluginVersion']=previous[unchanged[0]['release']['packageId']]['pluginVersion']
  rejects(lambda:require_market_progression(previous,unchanged))
+ # Adding a package may retain exact previously signed artifacts, but cannot
+ # silently replace one at the same sequence or drop an existing package.
+ old_receipts={r['release']['packageId']:r for r in snapshot['releases']}
+ addition={'release':{'packageId':'new-skill','pluginVersion':'1.0.0','releaseSequence':1}}
+ require_market_progression(previous,list(old_receipts.values())+[addition], previous_receipts=old_receipts)
+ changed=copy.deepcopy(list(old_receipts.values())); changed[0]['archive']['sha256']='sha256:'+'0'*64
+ rejects(lambda:require_market_progression(previous,changed+[addition],previous_receipts=old_receipts))
  rejects(lambda:verify_previous_market(root,Path('schemas'),policy,'sha256:'+'0'*64))
  raw=(root/'.agents/plugins/marketplace.snapshot.json').read_bytes(); bad=json.loads(raw); bad['sequence']+=1
  (root/'.agents/plugins/marketplace.snapshot.json').write_bytes(canonical(bad))

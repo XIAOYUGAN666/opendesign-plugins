@@ -20,6 +20,7 @@ encoded={}
 for (package,(target,secret)),key in zip(TARGETS.items(),keys):
  policy['publishers'][target]={'publicKey':key.public_key().public_bytes_raw().hex(),'scope':{'repositoryIdentity':'github:XIAOYUGAN666/opendesign-plugins','releasePackages':[package],'marketplacePackages':[]}}
  encoded[package]=base64.b64encode(key.private_bytes_raw()).decode()
+if sys.argv[1]=='multi-scope': policy['publishers']['rfem-publisher-v1']['scope']['releasePackages'].append('rfem-timber-engineering')
 with tempfile.TemporaryDirectory() as folder:
  schema=Path(folder);raw=canonical(policy);(schema/'host-publisher-policy.json').write_bytes(raw)
  inventory={'contracts':{'host-publisher-policy.json':{'owner':'host','source':'apps/desktop/src-tauri/resources/plugins/publisher-trust.v1.json','version':'1','sha256':hashlib.sha256(raw).hexdigest()}}}
@@ -28,7 +29,7 @@ with tempfile.TemporaryDirectory() as folder:
  if scenario=='historical-id':
   policy['publishers']['publisher-v1']=policy['publishers'].pop('rfem-publisher-v1')
   raw=canonical(policy);(schema/'host-publisher-policy.json').write_bytes(raw);inventory['contracts']['host-publisher-policy.json']['sha256']=hashlib.sha256(raw).hexdigest();(schema/'owner-contracts.json').write_bytes(canonical(inventory))
- if scenario=='match':
+ if scenario in ('match','multi-scope'):
   signers,reports=load_signers(schema,encoded)
   assert len(signers)==2 and reports[0]['candidateKeyId']=='rfem-publisher-v1'
   assert reports[0]['hostPolicyKeyId']=='rfem-publisher-v1'
@@ -69,16 +70,16 @@ with tempfile.TemporaryDirectory() as folder:
  env={**os.environ,**{fields[1]:encoded[p] for p,fields in TARGETS.items()}}
  if scenario not in ('sanitized','leak-check'):
   result=subprocess.run([sys.executable,'-B','scripts/publisher_signing.py','--schemas',str(schema)],env=env,capture_output=True)
-  assert result.returncode==(0 if scenario=='match' else 1)
+  assert result.returncode==(0 if scenario in ('match','multi-scope') else 1)
   assert all(not v or v.encode() not in result.stdout+result.stderr for v in encoded.values())
-  if scenario!='match':assert result.stderr.strip()==expected.encode()
+  if scenario not in ('match','multi-scope'):assert result.stderr.strip()==expected.encode()
 print('PASS '+scenario)
 '''
 
 
 class PublisherSigningTests(unittest.TestCase):
     def test_matching_independent_keys_and_safe_failure_modes(self):
-        for scenario in ("match", "sanitized", "leak-check", "swapped", "missing", "malformed", "wrong-length", "tampered-export", "shared", "historical-id", "wrong-public-key"):
+        for scenario in ("match", "multi-scope", "sanitized", "leak-check", "swapped", "missing", "malformed", "wrong-length", "tampered-export", "shared", "historical-id", "wrong-public-key"):
             with self.subTest(scenario=scenario):
                 result = subprocess.run([str(PYTHON), "-B", "-c", CHECK, scenario], cwd=ROOT, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr.decode())

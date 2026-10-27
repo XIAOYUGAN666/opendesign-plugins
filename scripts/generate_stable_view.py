@@ -31,7 +31,7 @@ def authorize(receipt, policy, *, allow_revoked=False):
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     if not policy or policy.get("repositoryIdentity") != REPOSITORY:
         raise ValueError("missingPublicationAuthorization")
-    contract(receipt, "SignedReleaseV1")
+    contract(receipt, "SignedReleaseV1" if "providerBuildId" in receipt.get("release", {}) else "SignedSkillReleaseV1")
     release = receipt["release"]
     package = release["packageId"]
     if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", package) or not STABLE_VERSION.fullmatch(release["pluginVersion"]):
@@ -105,8 +105,13 @@ def portable_files(files, identity):
     validate_asset_files(files, identity)
     configuration = identity["extensions"][NAMESPACE]["configurationSchemaPath"]
     selected = {name: raw for name, raw in files.items() if name in {"plugin.json", "README.md", configuration, "tool-preview.json", "mcp.json", "hooks.json"} or ("/" not in name and name.endswith(".md")) or name.split("/")[0] in {"skills", "assets", "agents", "commands", "hooks"}}
-    if not {"plugin.json", "README.md", configuration, "tool-preview.json"} <= selected.keys() or not any(name.startswith("skills/") and name.endswith("/SKILL.md") for name in selected):
+    if not {"plugin.json", "README.md", configuration, "tool-preview.json"} <= selected.keys():
         raise ValueError("incompletePortableView")
+    for name in selected:
+        if name.startswith("skills/"):
+            parts = name.split("/")
+            if len(parts) < 3 or not parts[1] or f"skills/{parts[1]}/SKILL.md" not in selected:
+                raise ValueError("incompletePortableView")
     if "mcp.json" in selected:
         # No standard managed endpoint has been approved for the first plugins.
         raise ValueError("unapprovedStandardMcp")
@@ -150,6 +155,23 @@ def inventory_for(package, files):
 
 def approved_portable_files(artifact_root, receipt, trust_policy, verified_context):
     release = authorize(receipt, trust_policy)
+    if "providerBuildId" not in release:
+        try:
+            from .build_skill_artifact import validate_files
+        except ImportError:
+            from build_skill_artifact import validate_files
+        expected_context = {"archiveDigest": receipt["archive"]["sha256"], "filesDigest": release["filesDigest"], "verification": "signed-receipt"}
+        if verified_context != expected_context:
+            raise ValueError("verifiedArtifactContextRequired")
+        artifact_root = regular_directory(artifact_root.absolute())
+        if artifact_root.is_relative_to((ROOT / "plugins").resolve()):
+            raise ValueError("developmentRootForbidden")
+        files = snapshot_files(artifact_root)
+        identity = validate_files(files)
+        inventory = inventory_for(release["packageId"], files)["files"]
+        if identity["name"] != release["packageId"] or identity["version"] != release["pluginVersion"] or digest(canonical(inventory)) != release["filesDigest"]:
+            raise ValueError("releaseInventoryMismatch")
+        return files
     expected_context = {"archiveDigest": receipt["archive"]["sha256"], "filesDigest": release["filesDigest"], "toolCatalogDigest": release["toolCatalogDigest"], "verification": "signed-receipt"}
     if verified_context != expected_context:
         raise ValueError("verifiedArtifactContextRequired")

@@ -1,0 +1,142 @@
+[
+  {
+    "id": "dev-positive-portal-create",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "请用 Dlubal RFEM 6 建立一榀胶合木双坡门式刚架并完成结构分析和木结构验算。",
+    "required_behaviors": ["task_contract", "knowledge_evidence", "api_inspection", "staged_execution", "result_validation"]
+  },
+  {
+    "id": "dev-positive-gb-design",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "Use RFEM Timber Design to check this glulam frame to GB 50005 and explain the governing utilization.",
+    "required_behaviors": ["task_contract", "knowledge_evidence", "evidence_gate", "timber_design_validation"]
+  },
+  {
+    "id": "dev-positive-existing-analysis",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "分析当前 RFEM 木框架模型的位移和稳定问题，不要重建模型。",
+    "required_behaviors": ["model_protection", "api_inspection", "result_validation"]
+  },
+  {
+    "id": "dev-positive-troubleshoot",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "Troubleshoot why my RFEM timber model reports an instability and no Timber Design results.",
+    "required_behaviors": ["model_protection", "api_inspection", "partial_state_inspection", "result_validation"]
+  },
+  {
+    "id": "dev-positive-modify",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "把当前 RFEM 胶合木梁截面改成用户指定的新截面，再重新计算。",
+    "required_behaviors": ["task_contract", "model_protection", "staged_execution", "result_validation"]
+  },
+  {
+    "id": "dev-positive-optimize",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "在 RFEM 中按我给定的截面候选集优化木梁，最多迭代 5 次，固定几何和荷载。",
+    "required_behaviors": ["optimization_contract", "knowledge_evidence", "staged_execution", "result_validation"]
+  },
+  {
+    "id": "dev-positive-typos",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "用 dluabl rfme 建一个 glulam 木框架并做验算。",
+    "required_behaviors": ["task_contract", "api_inspection", "staged_execution"]
+  },
+  {
+    "id": "dev-positive-hybrid",
+    "split": "development",
+    "should_trigger": true,
+    "prompt": "Use RFEM to analyze a hybrid steel frame with glulam roof members and design the timber members.",
+    "required_behaviors": ["task_contract", "knowledge_evidence", "timber_design_validation"]
+  },
+  {
+    "id": "dev-negative-rfem-steel",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "请在 RFEM 中建立纯钢结构工业厂房并完成钢结构设计。",
+    "required_behaviors": []
+  },
+  {
+    "id": "dev-negative-code-only",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "解释 GB 50005-2017 木结构稳定验算的一般要求，不使用 RFEM。",
+    "required_behaviors": []
+  },
+  {
+    "id": "dev-negative-carpentry",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "帮我设计一个榫卯木桌的加工步骤。",
+    "required_behaviors": []
+  },
+  {
+    "id": "dev-negative-install",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "如何安装 Dlubal RFEM 并启动本地 MCP server？",
+    "required_behaviors": []
+  },
+  {
+    "id": "dev-negative-knowledge-admin",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "检查知识库中 GB 50005 文档是否完成摄取和发布。",
+    "required_behaviors": []
+  },
+  {
+    "id": "dev-negative-furniture",
+    "split": "development",
+    "should_trigger": false,
+    "prompt": "Recommend wood species for an indoor bookshelf.",
+    "required_behaviors": []
+  },
+  {
+    "id": "holdout-positive-truss",
+    "split": "holdout",
+    "should_trigger": true,
+    "prompt": "在 RFEM 中审查木桁架的节点释放、轴力和稳定验算。",
+    "required_behaviors": ["task_contract", "model_protection", "knowledge_evidence", "result_validation"]
+  },
+  {
+    "id": "holdout-positive-arch",
+    "split": "holdout",
+    "should_trigger": true,
+    "prompt": "Build and design a curved glulam arch in RFEM, including stability checks.",
+    "required_behaviors": ["task_contract", "api_inspection", "staged_execution", "timber_design_validation"]
+  },
+  {
+    "id": "holdout-positive-clt",
+    "split": "holdout",
+    "should_trigger": true,
+    "prompt": "用 RFEM 建立 CLT 楼板面模型并检查 ULS、SLS 和变形。",
+    "required_behaviors": ["task_contract", "knowledge_evidence", "api_inspection", "timber_design_validation"]
+  },
+  {
+    "id": "holdout-positive-existing-audit",
+    "split": "holdout",
+    "should_trigger": true,
+    "prompt": "只读审查当前 RFEM 胶合木模型，找出建模、荷载组合和设计结果问题。",
+    "required_behaviors": ["model_protection", "knowledge_evidence", "api_inspection", "result_validation"]
+  },
+  {
+    "id": "holdout-negative-rfem-concrete",
+    "split": "holdout",
+    "should_trigger": false,
+    "prompt": "Use RFEM to design a reinforced-concrete flat slab.",
+    "required_behaviors": []
+  },
+  {
+    "id": "holdout-negative-glulam-no-rfem",
+    "split": "holdout",
+    "should_trigger": false,
+    "prompt": "手算一根胶合木梁的抗弯承载力，不要使用 RFEM。",
+    "required_behaviors": []
+  }
+]
