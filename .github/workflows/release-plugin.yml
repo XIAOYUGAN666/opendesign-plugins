@@ -16,7 +16,7 @@ on:
         description: Existing draft tag, pinned to this exact source commit (sign-draft only)
         type: string
       archive_sha256:
-        description: Reviewed archive SHA256; RFEM for market review, selected plugin for sign-draft
+        description: Reviewed archive SHA256; selected plugin for sign-draft or sign-market-update, RFEM for initial market
         type: string
       rhino_archive_sha256:
         description: Reviewed Rhino archive SHA256 (sign-market-candidate only)
@@ -180,9 +180,10 @@ jobs:
           RHINO_ARCHIVE_SHA256: ${{ inputs.rhino_archive_sha256 }}
           PLUGIN_ID: ${{ inputs.plugin }}
           SOURCE_COMMIT: ${{ github.sha }}
+          PREVIOUS_MARKET_SHA256: ${{ inputs.previous_market_sha256 }}
         run: |
           $marketReview = $env:SIGNING_OPERATION -in @('sign-market-candidate', 'sign-market-update')
-          $packages = if ($marketReview) { @('dlubal-rfem', 'rhino') } else { @($env:PLUGIN_ID) }
+          $packages = if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') { @('dlubal-rfem', 'rhino') } else { @($env:PLUGIN_ID) }
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $allReleases = $raw | ConvertFrom-Json
@@ -190,7 +191,7 @@ jobs:
           New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null
           $entries = @()
           foreach ($package in $packages) {
-            $expectedSha = if ($marketReview -and $package -eq 'rhino') { $env:RHINO_ARCHIVE_SHA256 } else { $env:ARCHIVE_SHA256 }
+            $expectedSha = if ($env:SIGNING_OPERATION -eq 'sign-market-candidate' -and $package -eq 'rhino') { $env:RHINO_ARCHIVE_SHA256 } else { $env:ARCHIVE_SHA256 }
             if ($package -notin @('dlubal-rfem', 'rhino') -or $expectedSha -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid signing request' }
             $root = Get-Content -Raw -LiteralPath "plugins/$package/plugin.json" | ConvertFrom-Json
             $expectedTag = "plugin-$($package)-v$($root.version)"
@@ -217,6 +218,30 @@ jobs:
             $context = @{ packageId=$package; version=$root.version; draft=$release.draft; tag=$release.tag_name; sourceCommit=$env:SOURCE_COMMIT; targetCommit=$release.target_commitish; assetUrl=$publicationUrl; archiveDigest="sha256:$expectedSha" }
             $context | ConvertTo-Json | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $directory 'context.json')
             $entries += @{archive=$archive; receipt=(Join-Path $directory $receiptName); context=$context}
+          }
+          if ($env:SIGNING_OPERATION -eq 'sign-market-update') {
+            if ($env:PREVIOUS_MARKET_SHA256 -cnotmatch '^[a-f0-9]{64}$' -or (Get-FileHash '.agents/plugins/marketplace.snapshot.json' -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:PREVIOUS_MARKET_SHA256) { throw 'Previous market mismatch' }
+            $snapshot = Get-Content -Raw '.agents/plugins/marketplace.snapshot.json' | ConvertFrom-Json
+            foreach ($receipt in @($snapshot.releases) + @($snapshot.skillReleases)) {
+              if ($null -eq $receipt -or $receipt.revoked) { throw 'Invalid previous receipt' }
+              $old = $receipt.release
+              if ($old.packageId -ceq $env:PLUGIN_ID) { continue }
+              $oldTag = "plugin-$($old.packageId)-v$($old.pluginVersion)"
+              $public = @($allReleases | Where-Object { $_.tag_name -ceq $oldTag -and $_.draft -eq $false -and $_.prerelease -eq $false })
+              if ($public.Count -ne 1) { throw 'Previously published release missing' }
+              $name = [IO.Path]::GetFileName(([uri]$receipt.archive.url).AbsolutePath)
+              if ($name -cnotmatch '^[A-Za-z0-9._-]+\.zip$' -or @($public[0].assets | Where-Object { $_.name -ceq $name -and $_.size -eq $receipt.archive.byteLength }).Count -ne 1) { throw 'Previous asset mismatch' }
+              $directory = Join-Path $candidate $old.packageId
+              New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
+              gh release download $oldTag --repo XIAOYUGAN666/opendesign-plugins --pattern $name --dir $directory
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+              $oldArchive = Join-Path $directory $name
+              if ("sha256:$((Get-FileHash -LiteralPath $oldArchive -Algorithm SHA256).Hash.ToLowerInvariant())" -cne $receipt.archive.sha256) { throw 'Previous archive digest mismatch' }
+              $oldReceipt = Join-Path $directory 'signed-receipt.json'
+              ConvertTo-Json -InputObject $receipt -Depth 100 -Compress | Set-Content -Encoding utf8NoBOM $oldReceipt
+              $oldContext = @{published=$true; packageId=$old.packageId; version=$old.pluginVersion; tag=$oldTag; assetUrl=$receipt.archive.url; archiveDigest=$receipt.archive.sha256}
+              $entries += @{archive=$oldArchive; receipt=$oldReceipt; context=$oldContext}
+            }
           }
           ConvertTo-Json -InputObject @($entries) -Depth 10 | Set-Content -Encoding utf8NoBOM -LiteralPath (Join-Path $candidate 'market-inputs.json')
       - name: Match private keys to the exported Host public policy and optionally sign
@@ -256,12 +281,16 @@ jobs:
           DRAFT_TAG: ${{ inputs.draft_tag }}
           SIGNING_OPERATION: ${{ inputs.operation }}
           SOURCE_COMMIT: ${{ github.sha }}
+          PLUGIN_ID: ${{ inputs.plugin }}
         run: |
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $allReleases = $raw | ConvertFrom-Json
-          $tags = if ($env:SIGNING_OPERATION -in @('sign-market-candidate', 'sign-market-update')) {
+          $tags = if ($env:SIGNING_OPERATION -eq 'sign-market-candidate') {
             @('dlubal-rfem','rhino') | ForEach-Object { $root = Get-Content -Raw "plugins/$_/plugin.json" | ConvertFrom-Json; "plugin-$($_)-v$($root.version)" }
+          } elseif ($env:SIGNING_OPERATION -eq 'sign-market-update') {
+            $root = Get-Content -Raw "plugins/$env:PLUGIN_ID/plugin.json" | ConvertFrom-Json
+            @("plugin-$($env:PLUGIN_ID)-v$($root.version)")
           } else { @($env:DRAFT_TAG) }
           foreach ($tag in $tags) {
             $drafts = @($allReleases | Where-Object { $_.tag_name -ceq $tag })
