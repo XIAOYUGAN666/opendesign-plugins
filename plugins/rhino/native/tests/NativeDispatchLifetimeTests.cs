@@ -251,6 +251,7 @@ public sealed class NativeDispatchLifetimeTests
     [InlineData("delete_layer")]
     [InlineData("create_object")]
     [InlineData("delete_object")]
+    [InlineData("gh_get_document_info")]
     public async Task Closed_handler_return_allows_next_session_to_report_quiescent(string command)
     {
         using var native = NativeTestAssembly.Load();
@@ -268,7 +269,6 @@ public sealed class NativeDispatchLifetimeTests
     [InlineData("run_command")]
     [InlineData("execute_rhinocommon_csharp_code")]
     [InlineData("execute_rhinoscript_python_code")]
-    [InlineData("gh_get_document_info")]
     [InlineData("gh_run_solution")]
     public async Task Open_world_callback_entry_stays_unknown_across_future_sessions(string command)
     {
@@ -336,7 +336,7 @@ public sealed class NativeDispatchLifetimeTests
             "project_curve", "intersect_curves", "split_curve", "create_planar_region",
             "modify_object", "modify_objects", "get_or_set_current_layer", "select_objects", "undo", "redo",
             "get_object_attributes", "update_object_attributes",
-            "create_layer", "delete_layer", "create_object", "delete_object",
+            "create_layer", "delete_layer", "create_object", "delete_object", "gh_get_document_info",
         };
         foreach (var command in commands)
         {

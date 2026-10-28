@@ -49,7 +49,7 @@ internal static class GrasshopperDocumentCommands
         };
     }
 
-    [McpCommand("gh_get_document_info", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("gh_get_document_info", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object GetDocumentInfo(RequestContext context, JsonElement parameters) =>
         DocumentInfo(GrasshopperHelpers.RequireDocument(context));
 
