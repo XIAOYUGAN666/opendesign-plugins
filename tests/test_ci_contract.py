@@ -103,6 +103,13 @@ class CiContractTests(unittest.TestCase):
         self.assertNotIn("git push", workflow)
         self.assertNotIn("path: published", workflow)
 
+    def test_market_update_can_sign_both_exact_commit_plugin_drafts_together(self):
+        workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
+        self.assertIn("Select RFEM when updating both packages", workflow)
+        self.assertIn("@('dlubal-rfem', 'rhino')", workflow)
+        self.assertIn("if ($old.packageId -in $packages) { continue }", workflow)
+        self.assertIn("sign-market-update' -and $env:RHINO_ARCHIVE_SHA256", workflow)
+
     def test_draft_lookup_does_not_use_the_published_release_by_tag_endpoint(self):
         # An unpublished draft can be listable/by-ID without a published tag.
         workflow = (ROOT / ".github/workflows/release-plugin.yml").read_text(encoding="utf-8")
