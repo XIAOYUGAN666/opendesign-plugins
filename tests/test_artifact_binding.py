@@ -347,7 +347,7 @@ print('signed round trip and six zero-runtime trust negatives passed')
         first_archive = next((self.folder / "first").glob("*.zip"))
         second_archive = next(second.glob("*.zip"))
         self.assertEqual(first_archive.read_bytes(), second_archive.read_bytes())
-        for name in ("files.json", "tool-preview.json", "release.json", "tool-preview.schema.json", "lifecycle.schema.json", "configuration.schema.json", "startup-envelope.schema.json"):
+        for name in ("files.json", "tool-preview.json", "release.json", "tool-preview.schema.json", "execution-status.schema.json", "configuration.schema.json", "startup-envelope.schema.json"):
             self.assertEqual((self.staged / name).read_bytes(), (second / "artifact" / name).read_bytes(), name)
 
     def test_nested_inventory_names_are_regular_digest_bound_resources(self):

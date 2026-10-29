@@ -82,6 +82,15 @@ class ExactModel(BaseModel):
     )
 
 
+class ConfigurationV1(ExactModel):
+    """Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。"""
+
+    model_config = ConfigDict(
+        title="Rhino",
+        description="Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。",
+    )
+
+
 class BindSettings(ExactModel):
     host: Literal["127.0.0.1"]
     port: int = Field(strict=True, ge=1024, le=65535)
@@ -152,7 +161,8 @@ def read_connector_envelope(stream: BinaryIO) -> ConnectorRuntimeContext:
     try:
         payload = stream.readline(MAX_STARTUP_BYTES + 2).removesuffix(b"\n")
         value = decode_bootstrap(payload)
-        if value["connectorBuildId"] != CONNECTOR_BUILD_ID or value["configuration"] != {} or value["secrets"]:
+        ConfigurationV1.model_validate(value["configuration"])
+        if value["connectorBuildId"] != CONNECTOR_BUILD_ID or value["secrets"]:
             raise ValueError("invalidConnectorConfiguration")
         bearer = value["bearerToken"]
         if not _TOKEN_PATTERN.fullmatch(bearer):

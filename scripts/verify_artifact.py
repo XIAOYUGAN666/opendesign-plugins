@@ -181,7 +181,7 @@ async def main():
   if ready!=expected: raise ValueError('invalidReady')
   async def drain_lifecycle():
    sequence=0
-   lifecycle=json.loads((root/'lifecycle.schema.json').read_text('utf-8'))
+   lifecycle=json.loads((root/'execution-status.schema.json').read_text('utf-8'))
    while True:
     line=await process.stdout.readline()
     if not line: return
@@ -574,7 +574,7 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         observed = discover(root)
         if observed["preview"] != preview:
             raise ValueError("stagedToolCatalogMismatch")
-        validate(observed["ready"], read_json((root / "lifecycle.schema.json").read_bytes()))
+        validate(observed["ready"], read_json((root / "execution-status.schema.json").read_bytes()))
         runtime = observed["runtime"]
         if runtime["python"] != "3.12.10" or runtime["architecture"].upper() != "AMD64" or runtime["isolated"] != 1 or runtime["packages"] != {w["name"]:w["version"] for w in locked["wheels"]} or not Path(runtime["executable"]).is_relative_to(root):
             raise ValueError("runtimeIsolationMismatch")

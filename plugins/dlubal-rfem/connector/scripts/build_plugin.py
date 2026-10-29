@@ -326,7 +326,9 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
         engineeringAcceptance="not-performed",
         previewDigest=digest(canonical_json(preview)),
         connectorBuildId=build_id,
-        sourceDigest=digest(canonical_json(sources)),
+        sourceDigest=digest(
+            canonical_json([source.model_dump(mode="json") for source in sources])
+        ),
         sourceFiles=sources,
         buildIdentity=InputManifestIdentityV1(
             profile="input-manifest-v1",

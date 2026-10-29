@@ -2,7 +2,7 @@
 
 Rhino 8 engineering tools and workflow skills for OpenDesign. The root `plugin.json` owns plugin identity; generated Connector and Yak version copies are checked before building.
 
-This repository is the sole Connector and Bridge source owner; the main application's duplicate source has been retired. Its installed runtime uses a verified self-contained artifact, without requiring this checkout. Rhino 0.1.15 and Marketplace sequence 1 were explicitly approved and published on 2026-10-20; T33/T34 engineering and native lifecycle evidence remains distinct from T35 publication verification. Later development changes require their own checks and approval before any Stable update.
+This repository contains the current Rhino Connector and native Bridge source; the main application consumes a verified self-contained artifact. Stable versions, receipts and release history are maintained remotely by the plugin marketplace, not as local version directories.
 
 The Connector uses the official MCP SDK and exposes 70 typed tools, four resources/templates and two prompts. Metadata mode lists declarations without connecting to Rhino or accepting engineering calls. Engineering execution requires the compatible Windows Host, the native Bridge and Rhino build `8.26.25349.19001`. Other plugin clients can read supported standard components and static workflow skills.
 

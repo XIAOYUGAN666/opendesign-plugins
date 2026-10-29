@@ -21,19 +21,19 @@ def test_builder_outputs_real_embedded_interpreter_and_frozen_inventory(tmp_path
     from fixture_engineering.managed_bootstrap import ConfigurationV1
     assert configuration == ConfigurationV1.model_json_schema()
     assert configuration.get("title") == "ConfigurationV1", "configuration must come from the typed source"
-    lifecycle_path = staged / "lifecycle.schema.json"
-    lifecycle = json.loads(lifecycle_path.read_text()) if lifecycle_path.exists() else {}
+    status_path = staged / "execution-status.schema.json"
+    status_schema = json.loads(status_path.read_text()) if status_path.exists() else {}
     from fixture_engineering.managed_bootstrap import ConnectorExecutionStatusV1
     from fixture_engineering._connector_control import lifecycle_schema
     from jsonschema import validate, ValidationError
-    assert lifecycle == lifecycle_schema(ConnectorExecutionStatusV1.model_json_schema())
+    assert status_schema == lifecycle_schema(ConnectorExecutionStatusV1.model_json_schema())
     binding = {"packageId":"fixture-engineering","releaseDigest":"sha256:"+"b"*64,"connectorInstanceId":"ci_"+"1"*32,"generation":1,"configurationRevision":1,"secretRevision":0}
     ready = {"schemaVersion":3,"kind":"ready","binding":binding,"connectorBuildId":"sha256:"+"a"*64,"port":8123}
     status = {"schemaVersion":1,"kind":"status","connectorInstanceId":"ci_"+"1"*32,"generation":1,"sequence":1,"state":"unknown","inFlight":0}
-    validate(ready,lifecycle)
-    validate(status,lifecycle)
+    validate(ready,status_schema)
+    validate(status,status_schema)
     for invalid in ({**status,"sequence":0},{**status,"state":"fabricated"},{**ready,"port":80},{**status,"secret":"forbidden"}):
-        with pytest.raises(ValidationError): validate(invalid,lifecycle)
+        with pytest.raises(ValidationError): validate(invalid,status_schema)
     preview_schema_path = staged / "tool-preview.schema.json"
     preview_schema = json.loads(preview_schema_path.read_text()) if preview_schema_path.exists() else {}
     assert preview_schema.get("properties", {}).get("normalizationVersion", {}).get("const") == 1, "preview normalization must be locked by its typed contract"

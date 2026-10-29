@@ -207,7 +207,7 @@ def test_bootstrap_requires_exact_identity_and_required_fields():
     }
     invalid = [
         {**value, "extra": "rejected"},
-        {**value, "binding": {**value["binding"], "generation": 2}},
+        {**value, "binding": {**value["binding"], "generation": 0}},
         {**value, "nativePeer": {"unexpected": True}},
     ]
     for item in invalid:

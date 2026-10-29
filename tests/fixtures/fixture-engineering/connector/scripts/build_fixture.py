@@ -279,7 +279,7 @@ def build_fixture(plugin_root: Path, output_dir: Path) -> Path:
     (staged / "configuration.schema.json").write_bytes(
         canonical(ConfigurationV1.model_json_schema())
     )
-    (staged / "lifecycle.schema.json").write_bytes(canonical(lifecycle_schema(ConnectorExecutionStatusV1.model_json_schema())))
+    (staged / "execution-status.schema.json").write_bytes(canonical(lifecycle_schema(ConnectorExecutionStatusV1.model_json_schema())))
     preview = ToolPreviewV1(normalizationVersion=1, tools=asyncio.run(typed_declarations())).model_dump(mode="json", by_alias=True, exclude_none=True)
     (staged / "tool-preview.schema.json").write_bytes(canonical(ToolPreviewV1.model_json_schema(by_alias=True)))
     (staged / "tool-preview.json").write_bytes(canonical(preview))

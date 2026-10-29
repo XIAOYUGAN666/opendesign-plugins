@@ -1,6 +1,6 @@
 # Dlubal RFEM Connector
 
-Independent RFEM-only Connector source migrated with the provenance in [ORIGIN.md](ORIGIN.md). The plugin identity is the parent `plugin.json`; the Python project version is checked against it during build. This is the sole Connector source project; the main application consumes its signed self-contained artifact. RFEM 0.1.1 has an independently verified public Stable artifact, while this development checkout remains separate from that immutable release. Historical P1 evidence does not replace the migrated runtime's T32 acceptance.
+This repository contains the current RFEM Connector source and its provenance in [ORIGIN.md](ORIGIN.md). The root `plugin.json` owns plugin identity; the Python project version is checked against it during build. The main application consumes its signed self-contained artifact. Stable versions and release history are maintained remotely by the plugin marketplace.
 
 The package owns its Python 3.12.10 environment and frozen dependency graph. It targets RFEM `6.14.0013.249` with `dlubal.api==2.14.13`. No main application source, sibling Connector or global engineering environment is imported.
 
@@ -14,7 +14,7 @@ pwsh -NoProfile -File scripts/build-plugin.ps1 -ReleaseSequence <publisher-count
 pwsh -NoProfile -File scripts/verify-plugin.ps1 -Artifact <built-zip>
 ```
 
-The builder accepts `--plugin-root` for the parent root and requires an explicit `--release-sequence`. First generate root and existing Connector release inputs with the same counter through the repository's common builder (see the repository release guide); drift is rejected before staging. The final archive includes the root identity, static workflow skill, full official MCP Tool preview, typed startup/configuration/lifecycle declarations, exact file inventory, frozen runtime/wheel hashes, SBOM and pending risk evidence. Candidate receipts are unsigned and authorize no publication. Native tools require a compatible Windows Host and real software; ordinary clients can consume their supported standard skill component.
+The builder accepts `--plugin-root` for the parent root and requires an explicit `--release-sequence`. First generate root and existing Connector release inputs with the same counter through the repository's common builder (see the repository release guide); drift is rejected before staging. The final archive includes the root identity, static workflow skill, full official MCP Tool preview, typed startup/configuration/execution-status declarations, exact file inventory, frozen runtime/wheel hashes, SBOM and pending risk evidence. Candidate receipts are unsigned and authorize no publication. Native tools require a compatible Windows Host and real software; ordinary clients can consume their supported standard skill component.
 
 Managed V2 startup uses anonymous stdin. `mode=metadata` needs no business key, software binding or execution directory; it lists all eight declarations and rejects every tool call before any RFEM Application construction. Metadata availability is not engineering readiness. Normal disconnected UI uses a signed preview.
 

@@ -270,6 +270,7 @@ def probe_managed_runtime(
         )
         assert process.stdin is not None
         process.stdin.write(json.dumps(startup, separators=(",", ":")) + "\n")
+        process.stdin.flush()
 
         line = _read_line_with_timeout(process, timeout=20)
         if not line:

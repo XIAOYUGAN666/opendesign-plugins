@@ -11,6 +11,7 @@ import pytest
 
 from rhino_mcp.build_identity import CONNECTOR_BUILD_ID
 from rhino_mcp.managed_bootstrap import (
+    ConfigurationV1,
     MAX_STARTUP_BYTES,
     StartupConfigurationError,
     read_connector_envelope,
@@ -37,6 +38,18 @@ def _payload():
         "dataDirectory": None,
         "nativePeer": None,
     }
+
+
+def test_rhino_configuration_is_typed_and_has_no_user_fields():
+    assert ConfigurationV1.model_json_schema() == {
+        "additionalProperties": False,
+        "description": "Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。",
+        "properties": {},
+        "title": "Rhino",
+        "type": "object",
+    }
+    with pytest.raises(ValueError):
+        ConfigurationV1.model_validate({"apiKey": "not-accepted"})
 
 
 def test_startup_frame_leaves_following_control_frame_unread():
