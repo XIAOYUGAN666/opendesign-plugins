@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rhino",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "Rhino 8 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
@@ -24,7 +24,7 @@
       "module": "rhino_mcp.managed_bootstrap",
       "components": [
         {
-          "kind": "provider",
+          "kind": "connector",
           "id": "rhino"
         },
         {
@@ -49,7 +49,7 @@
       },
       "configurationSchemaVersion": 1,
       "protocolVersion": 1,
-      "startupEnvelopeVersion": 2,
+      "startupEnvelopeVersion": 3,
       "routine": {
         "kind": "rhino-yak-bridge",
         "version": 1
@@ -62,16 +62,16 @@
         "contractVersion": 1,
         "packageId": "rhino-mcp-bridge",
         "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
-        "relativePath": "native/rhino-mcp-bridge-0.1.18-rh8-win.yak",
-        "sha256": "sha256:f8bcdd0d7fdde160749b43af6c656dc0b91d4e6fb30875c06a5e996d4e16ae22",
-        "version": "0.1.18"
+        "relativePath": "native/rhino-mcp-bridge-0.1.19-rh8-win.yak",
+        "sha256": "sha256:2f8cc868bf7e60ae3ac3b25b6ef287f7a20542da6d1b702075e35954ce744360",
+        "version": "0.1.19"
       }
     },
     "com.openai": {
       "interface": {
         "displayName": "Rhino",
         "shortDescription": "Rhino 8 geometry and Grasshopper tools.",
-        "longDescription": "Connect Rhino 8 and Grasshopper through a managed MCP Provider and native Bridge. Includes workflow skills; engineering operations follow the existing permissions and approval flow.",
+        "longDescription": "Connect Rhino 8 and Grasshopper through a managed connector and native Bridge. Includes workflow skills; engineering operations follow the existing permissions and approval flow.",
         "developerName": "OpenDesign team",
         "category": "Engineering Design",
         "capabilities": [

@@ -7,7 +7,7 @@
 - SHA-256: `947fac2c183061a79bdb59ddab053a30aebd8ea7d23702202bf516c42c20b0b7`.
 - Authors/source attribution: Dlubal; original source attribution and docstrings are retained where applicable.
 
-The verified sdist was downloaded and inspected outside the repository. RFEM and shared core are the one-time blueprint; applicable file, class, function and native tool names are preserved under the independent `dlubal_rfem_mcp` package boundary. RSTAB/RSECTION source, tests, extras and unified product dispatch are excluded. No source, fixture, configuration or lock was taken from the legacy repository Provider.
+The verified sdist was downloaded and inspected outside the repository. RFEM and shared core are the one-time blueprint; applicable file, class, function and native tool names are preserved under the independent `dlubal_rfem_mcp` package boundary. RSTAB/RSECTION source, tests, extras and unified product dispatch are excluded. No source, fixture, configuration or lock was taken from the legacy repository Connector.
 
 Source inventory confirms eight definitions across `core/server.py`, `rfem/model_operations.py` and `rfem/tools.py`: `health_check`, `get_rfem_application_info`, `inspect_rfem_api`, `write_rfem_model`, `calculate_rfem_model`, `run_rfem_script`, `get_rfem_execution`, `read_rfem_results`. This is AST evidence, not eight successful runtime calls.
 
