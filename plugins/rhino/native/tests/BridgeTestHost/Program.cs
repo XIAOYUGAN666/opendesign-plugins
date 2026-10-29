@@ -40,15 +40,15 @@ internal static class Program
             var digest = (string)identityType
                 .GetMethod("ComputeContractDigest", BindingFlags.Static | BindingFlags.NonPublic)!
                 .Invoke(null, null)!;
-            var providerBuildId = (string)identityType
-                .GetMethod("ReadProviderBuildId", BindingFlags.Static | BindingFlags.NonPublic)!
+            var connectorBuildId = (string)identityType
+                .GetMethod("ReadConnectorBuildId", BindingFlags.Static | BindingFlags.NonPublic)!
                 .Invoke(null, null)!;
 
             var leaseType = assembly.GetType("RhinoMcpBridge.BridgeLease", throwOnError: true)!;
             var lease = leaseType
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .Single(constructor => constructor.GetParameters().Length == 4)
-                .Invoke([configuration.Generation, configuration.BridgeToken, providerBuildId, digest]);
+                .Invoke([configuration.Generation, configuration.BridgeToken, connectorBuildId, digest]);
 
             Func<string, string, bool, bool, CancellationToken, Task<byte[]>> executor =
                 (command, parameters, _, _, cancellationToken) =>
@@ -73,7 +73,7 @@ internal static class Program
                 kind = "bridgeReady",
                 host = "127.0.0.1",
                 port,
-                providerBuildId,
+                connectorBuildId,
             }));
             Console.Out.Flush();
             await Console.In.ReadLineAsync();
@@ -198,7 +198,7 @@ internal static class Program
     {
         if (command == delayCommand && delayCommand.Length > 0)
         {
-            // Exceed the integration Provider's 5-second timeout after successful startup.
+            // Exceed the integration Connector's 5-second timeout after successful startup.
             await Task.Delay(TimeSpan.FromSeconds(6), cancellationToken).ConfigureAwait(false);
         }
 

@@ -55,10 +55,10 @@ jobs:
           } elseif ($env:PLUGIN_ID -in @('dlubal-rfem', 'rhino')) {
             $root = "plugins/$env:PLUGIN_ID"
           } else { throw 'Unknown plugin' }
-          $project = "$root/provider"
+          $project = "$root/connector"
           $hasProject = Test-Path -LiteralPath "$project/pyproject.toml"
           $hasLock = Test-Path -LiteralPath "$project/uv.lock"
-          if (-not $hasProject -or -not $hasLock) { throw 'Selected Provider project is incomplete; candidate build refused' }
+          if (-not $hasProject -or -not $hasLock) { throw 'Selected connector project is incomplete; candidate build refused' }
           "root=$root" >> $env:GITHUB_OUTPUT
           "project=$project" >> $env:GITHUB_OUTPUT
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -68,7 +68,7 @@ jobs:
         with:
           version: '0.9.21'
           enable-cache: false
-      - name: Verify selected root and frozen Provider versions agree
+      - name: Verify selected root and frozen connector versions agree
         working-directory: ${{ steps.project.outputs.project }}
         shell: pwsh
         run: |
@@ -78,7 +78,7 @@ jobs:
         if: inputs.plugin == 'rhino'
         with:
           global-json-file: plugins/rhino/global.json
-      - name: Build the owned Rhino Bridge before provider interoperability tests
+      - name: Build the owned Rhino Bridge before connector interoperability tests
         if: inputs.plugin == 'rhino'
         working-directory: plugins/rhino
         shell: pwsh
@@ -87,7 +87,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Synchronize only the selected Provider's frozen test environment
+      - name: Synchronize only the selected connector's frozen test environment
         working-directory: ${{ steps.project.outputs.project }}
         shell: pwsh
         env:
@@ -98,7 +98,7 @@ jobs:
           $syncArgs += @('--python', (Get-Command python).Source)
           uv @syncArgs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Run the selected Provider suite without supplying engineering credentials
+      - name: Run the selected connector suite without supplying engineering credentials
         working-directory: ${{ steps.project.outputs.project }}
         shell: pwsh
         env:
@@ -125,8 +125,8 @@ jobs:
           $archives = @(Get-ChildItem -LiteralPath $output -File -Filter '*.zip')
           if ($archives.Count -ne 1) { throw 'Candidate build must produce exactly one archive' }
           $receipt = Join-Path $output 'unsigned-receipt.json'
-          $providerPython = Join-Path $env:PLUGIN_ROOT 'provider/.venv/Scripts/python.exe'
-          $verification = & $providerPython -B scripts/verify_artifact.py $archives[0].FullName $receipt schemas --unsigned
+          $connectorPython = Join-Path $env:PLUGIN_ROOT 'connector/.venv/Scripts/python.exe'
+          $verification = & $connectorPython -B scripts/verify_artifact.py $archives[0].FullName $receipt schemas --unsigned
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $verified = ($verification -join "`n") | ConvertFrom-Json
           $release = Get-Content -Raw -LiteralPath (Join-Path $output 'artifact/release.json') | ConvertFrom-Json
@@ -164,7 +164,7 @@ jobs:
           version: '0.9.21'
           enable-cache: false
       - name: Prepare only the existing independent signing tool environment
-        working-directory: tests/fixtures/fixture-engineering/provider
+        working-directory: tests/fixtures/fixture-engineering/connector
         shell: pwsh
         run: |
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
@@ -254,7 +254,7 @@ jobs:
           PLUGIN_ID: ${{ inputs.plugin }}
           PREVIOUS_MARKET_SHA256: ${{ inputs.previous_market_sha256 }}
         run: |
-          $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          $tool = 'tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe'
           $arguments = @('-B', 'scripts/publisher_signing.py', '--schemas', 'schemas')
           if ($env:SIGNING_OPERATION -eq 'sign-draft') {
             $candidate = Join-Path (Join-Path $env:RUNNER_TEMP 'signing-candidate') $env:PLUGIN_ID

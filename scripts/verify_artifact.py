@@ -1,4 +1,4 @@
-"""Independent extracted-byte verification; no Provider private imports."""
+"""Independent extracted-byte verification; no Connector private imports."""
 import argparse
 import ast
 import email.parser
@@ -145,7 +145,7 @@ def validate_configuration_declaration(schema):
 
 
 # Runs inside the archive's embedded interpreter and imports only official clients.
-# Provider startup is its public -m/anonymous-stdin interface, discovery standard MCP.
+# Connector startup is its public -m/anonymous-stdin interface, discovery standard MCP.
 PROBE = r'''
 import asyncio,json,os,socket,sys,uuid,platform
 from pathlib import Path
@@ -164,7 +164,8 @@ async def main():
  with socket.socket() as sock:
   sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
  connector='ci_'+uuid.uuid4().hex; token=uuid.uuid4().hex+uuid.uuid4().hex
- envelope={'schemaVersion':release['startupEnvelopeVersion'],'mode':'metadata','connectorInstanceId':connector,'generation':1,'bind':{'host':'127.0.0.1','port':port,'path':'/mcp'},'bearerToken':token,'providerBuildId':release['providerBuildId']}
+ binding={'packageId':release['packageId'],'releaseDigest':'sha256:'+'0'*64,'connectorInstanceId':connector,'generation':1,'configurationRevision':1,'secretRevision':0}
+ envelope={'schemaVersion':3,'mode':'metadata','binding':binding,'bind':{'host':'127.0.0.1','port':port,'path':'/mcp'},'bearerToken':token,'connectorBuildId':release['connectorBuildId'],'configuration':{},'secrets':[],'dataDirectory':None,'nativePeer':None}
  schema=json.loads((root/'startup-envelope.schema.json').read_text('utf-8'))
  validator=validators.validator_for(schema); validator.check_schema(schema)
  def deny(_uri): raise ValueError('externalSchemaReference')
@@ -172,11 +173,11 @@ async def main():
  env={k:os.environ[k] for k in ('SystemRoot','WINDIR','TEMP','TMP') if k in os.environ}
  process=await asyncio.create_subprocess_exec(sys.executable,'-I','-s','-B','-m',release['module'],cwd=root,env=env,stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.DEVNULL)
  try:
-  process.stdin.write(json.dumps(envelope,separators=(',',':')).encode()); await process.stdin.drain(); process.stdin.close()
+  process.stdin.write(json.dumps(envelope,separators=(',',':')).encode()+b'\n'); await process.stdin.drain()
   probe_stage='ready'
   try: ready=json.loads(await asyncio.wait_for(process.stdout.readline(),30))
   except TimeoutError: raise ValueError('providerReadyTimeout') from None
-  expected={'schemaVersion':2,'kind':'ready','mode':'metadata','connectorInstanceId':connector,'generation':1,'providerBuildId':release['providerBuildId'],'port':port}
+  expected={'schemaVersion':3,'kind':'ready','binding':binding,'connectorBuildId':release['connectorBuildId'],'port':port}
   if ready!=expected: raise ValueError('invalidReady')
   async def drain_lifecycle():
    sequence=0
@@ -300,7 +301,7 @@ def verify_build_identity(root, module, identity, expected):
 
 def verify_native_build_identity(root, module, identity, expected):
     """Verify public source records against deployed bytes; never execute them."""
-    if identity != {"profile": "native-build-record-v1", "recordPath": "contracts/provider-build.json"}:
+    if identity != {"profile": "native-build-record-v1", "recordPath": "contracts/connector-build.json"}:
         raise ValueError("unknownBuildIdentityProfile")
     try:
         _verify_native_build_identity(root, module, expected)
@@ -312,7 +313,7 @@ def _verify_native_build_identity(root, module, expected):
     parts = module.split(".")
     if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in parts):
         raise ValueError("invalidModule")
-    record = read_json((root / "contracts/provider-build.json").read_bytes())
+    record = read_json((root / "contracts/connector-build.json").read_bytes())
     if set(record) != {"schemaVersion", "packageId", "releaseVersion", "providerSource", "contractSource", "buildInputs", "pythonRuntime", "native"} or record["schemaVersion"] != 1 or type(record["schemaVersion"]) is not int:
         raise ValueError("invalidRecord")
     plugin = read_json((root / "plugin.json").read_bytes())
@@ -347,21 +348,21 @@ def _verify_native_build_identity(root, module, expected):
         if path == source / "build_identity.py":
             text = data.decode("utf-8")
             tree = ast.parse(text)
-            stores = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id == "PROVIDER_BUILD_ID"]
-            assignment = 'PROVIDER_BUILD_ID = "' + expected + '"'
+            stores = [node for node in ast.walk(tree) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id == "CONNECTOR_BUILD_ID"]
+            assignment = 'CONNECTOR_BUILD_ID = "' + expected + '"'
             if len(stores) != 1 or text.splitlines().count(assignment) != 1:
                 raise ValueError("invalidBuildAssignment")
-            data = text.replace(assignment, 'PROVIDER_BUILD_ID = "<provider-build-id>"', 1).encode("utf-8")
+            data = text.replace(assignment, 'CONNECTOR_BUILD_ID = "<connector-build-id>"', 1).encode("utf-8")
         actual[path.relative_to(base).as_posix()] = digest(data)
     declared = records(record["providerSource"])
     if source / "build_identity.py" not in source.rglob("*.py") or declared != actual:
         raise ValueError("providerInputMismatch")
-    actual_contracts = {path.relative_to(root).as_posix(): digest(path.read_bytes()) for path in sorted((root / "contracts").rglob("*.json")) if path.name not in {"provider-build.json", "tool-catalog.json"}}
+    actual_contracts = {path.relative_to(root).as_posix(): digest(path.read_bytes()) for path in sorted((root / "contracts").rglob("*.json")) if path.name not in {"connector-build.json", "tool-catalog.json"}}
     if records(record["contractSource"]) != actual_contracts:
         raise ValueError("contractInputMismatch")
     build_inputs = records(record["buildInputs"])
     native_inputs = records(native["inputs"])
-    required = {"provider/pyproject.toml", "provider/uv.lock", "global.json", "provider/packaging/runtime-lock.json", "native/packages.lock.json", "native/package/manifest.yml"}
+    required = {"connector/pyproject.toml", "connector/uv.lock", "global.json", "connector/packaging/runtime-lock.json", "native/packages.lock.json", "native/package/manifest.yml"}
     projects = {name for name in native_inputs if re.fullmatch(r"native/[^/]+\.csproj", name)}
     if len(projects) != 1 or set(build_inputs) != required | projects or not all(name.startswith("native/") and (name.endswith(".cs") or name in projects or name in {"native/packages.lock.json", "native/package/manifest.yml"}) for name in native_inputs):
         raise ValueError("invalidInputSet")
@@ -374,10 +375,10 @@ def _verify_native_build_identity(root, module, expected):
     if staged_inputs != all_inputs:
         raise ValueError("sourceInputMismatch")
     for name in ("pyproject.toml", "uv.lock"):
-        original = root / "source-inputs/provider" / name
+        original = root / "source-inputs/connector" / name
         if original.read_bytes() != (root / name).read_bytes() or original.read_bytes() != (base / name).read_bytes():
             raise ValueError("deployedInputMismatch")
-    runtime_bytes = (root / "source-inputs/provider/packaging/runtime-lock.json").read_bytes()
+    runtime_bytes = (root / "source-inputs/connector/packaging/runtime-lock.json").read_bytes()
     if runtime_bytes != (base / "packaging/runtime-lock.json").read_bytes():
         raise ValueError("runtimeInputMismatch")
     runtime = read_json(runtime_bytes)["python"]
@@ -408,7 +409,7 @@ def _verify_native_build_identity(root, module, expected):
     if installed.pop(own_name, None) != own_version or installed_tags.pop(own_name, None) != {"py3-none-any"}:
         raise ValueError("providerDistributionMetadataMismatch")
     # The verifier runs in the locked Windows CP312 tool environment, not the
-    # extracted Provider. Reuse public wheel rules rather than copy tag logic.
+    # extracted Connector. Reuse public wheel rules rather than copy tag logic.
     from packaging.tags import sys_tags
     from packaging.utils import parse_wheel_filename
     target_tags = {tag: rank for rank, tag in enumerate(sys_tags())}
@@ -444,7 +445,7 @@ def native_runtime_packages(root, release, locked):
         path = native["relativePath"]
         data = root.joinpath(*safe_path(path)).read_bytes()
         expected_lock = [{"name": native["packageId"], "version": native["version"], "path": path, "sha256": native["sha256"]}]
-        record = read_json((root / "contracts/provider-build.json").read_bytes())
+        record = read_json((root / "contracts/connector-build.json").read_bytes())
         if locked.get("native") != expected_lock or digest(data) != native["sha256"] or record["native"]["pluginId"] != native["pluginId"] or record["native"]["targetFrameworks"] != ["net48", "net8.0"] or digest((root / "contracts/protocol.json").read_bytes()) != native["contractDigest"]:
             raise ValueError("invalidNativeBinding")
         # This checks container closure, not assembly semantics. The existing
@@ -538,7 +539,8 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         startup = read_json((root / "startup-envelope.schema.json").read_bytes())
         from jsonschema import validators
         validators.validator_for(startup).check_schema(startup)
-        if startup.get("properties", {}).get("schemaVersion", {}).get("const") != release["startupEnvelopeVersion"]:
+        version = startup.get("properties", {}).get("schemaVersion", {})
+        if release["startupEnvelopeVersion"] != 3 or version.get("minimum") != 3 or version.get("maximum") != 3:
             raise ValueError("startupDeclarationVersionMismatch")
         if release["sbomDigest"] != digest((root / "sbom.spdx.json").read_bytes()):
             raise ValueError("sbomDigestMismatch")
@@ -554,17 +556,17 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
             if embedded_input.read_bytes() != canonical(expected_input):
                 raise ValueError("providerRootInputsMismatch")
         sources = [{"path": p.relative_to(source_root).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(source_root.rglob("*.py"))]
-        if not sources or risk["sourceFiles"] != sources or risk["sourceDigest"] != digest(canonical(sources)) or risk["providerBuildId"] != release["providerBuildId"] or risk["previewDigest"] != release["toolCatalogDigest"] or risk["status"] not in {"pending-review/internal-fixture-only", "pending-review/provider-candidate"} or risk["engineeringAcceptance"] != "not-performed":
+        if not sources or risk["sourceFiles"] != sources or risk["sourceDigest"] != digest(canonical(sources)) or risk["connectorBuildId"] != release["connectorBuildId"] or risk["previewDigest"] != release["toolCatalogDigest"] or risk["status"] not in {"pending-review/internal-fixture-only", "pending-review/connector-candidate"} or risk["engineeringAcceptance"] != "not-performed":
             raise ValueError("riskEvidenceMismatch")
         if "buildIdentity" in risk:
-            verify_build_identity(root, release["module"], risk["buildIdentity"], release["providerBuildId"])
-        elif risk["providerBuildId"] != digest(canonical(sources)):
+            verify_build_identity(root, release["module"], risk["buildIdentity"], release["connectorBuildId"])
+        elif risk["connectorBuildId"] != digest(canonical(sources)):
             raise ValueError("buildIdentityMismatch")
         locked = read_json((root / "runtime-lock.json").read_bytes())
         sbom = read_json((root / "sbom.spdx.json").read_bytes())
         expected_packages = {(x["name"], x["version"], x["url"], x["sha256"][7:]) for x in locked["wheels"]}
         expected_packages.add(("python", "3.12.10", locked["python"]["url"], locked["python"]["sha256"][7:]))
-        expected_packages.add((identity["name"], identity["version"], "NOASSERTION", release["providerBuildId"][7:]))
+        expected_packages.add((identity["name"], identity["version"], "NOASSERTION", release["connectorBuildId"][7:]))
         expected_packages.update(native_runtime_packages(root, release, locked))
         actual_packages = {(x["name"], x["versionInfo"], x["downloadLocation"], x["checksums"][0]["checksumValue"]) for x in sbom["packages"]}
         if sbom["name"] != identity["name"] or len(sbom["packages"]) != len(expected_packages) or actual_packages != expected_packages or any(x["checksums"][0]["algorithm"] != "SHA256" for x in sbom["packages"]):

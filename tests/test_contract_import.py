@@ -29,6 +29,22 @@ def public_candidates(root):
 
 
 class ContractImportTests(unittest.TestCase):
+    def test_connector_control_import_preserves_owner_schema_bytes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            base = Path(folder)
+            host, agent, control, bootstrap = (base / name for name in ("host.json", "agent.json", "control.json", "bootstrap.json"))
+            host.write_bytes(b'{"title":"NativeExtensionV1"}')
+            agent.write_bytes(b'{"title":"PluginRuntimeContractV2"}')
+            data = b'{  "title":"ConnectorWireContractV1" }\r\n'
+            control.write_bytes(data)
+            bootstrap_data = b'{"title":"ConnectorBootstrapV3"}\n'
+            bootstrap.write_bytes(bootstrap_data)
+            result = import_contracts(host, agent, base / "out", connector_control_schema=control, connector_bootstrap_schema=bootstrap)
+            self.assertEqual((base / "out/connector-control-v1.schema.json").read_bytes(), data)
+            self.assertEqual(result["connector-control-v1.schema.json"], hashlib.sha256(data).hexdigest())
+            self.assertEqual((base / "out/connector-bootstrap-v3.schema.json").read_bytes(), bootstrap_data)
+            self.assertEqual(result["connector-bootstrap-v3.schema.json"], hashlib.sha256(bootstrap_data).hexdigest())
+
     def test_imported_host_contract_retires_previous_fixed_plugin_facade(self):
         schema = json.loads((ROOT / "schemas/host-contract.v3.schema.json").read_bytes())
         self.assertEqual(schema["title"], "HostContractV3")
@@ -228,13 +244,13 @@ class ContractImportTests(unittest.TestCase):
             base = Path(folder)
             subprocess.run(["git", "init", "-q", str(base)], check=True)
             (base / ".gitignore").write_text(".venv/\ndist/\ncache/\n*.pem\n")
-            for name in ("provider/.venv/python.exe", "provider/dist/a.zip", "provider/cache/a.json", "provider/test_fixture.py", "provider/credentials.pem"):
+            for name in ("connector/.venv/python.exe", "connector/dist/a.zip", "connector/cache/a.json", "connector/test_fixture.py", "connector/credentials.pem"):
                 path = base / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("source")
-            subprocess.run(["git", "-C", str(base), "add", "-f", "provider/credentials.pem"], check=True)
+            subprocess.run(["git", "-C", str(base), "add", "-f", "connector/credentials.pem"], check=True)
             candidates = {path.relative_to(base).as_posix() for path in public_candidates(base)}
-            self.assertEqual(candidates, {".gitignore", "provider/test_fixture.py", "provider/credentials.pem"})
+            self.assertEqual(candidates, {".gitignore", "connector/test_fixture.py", "connector/credentials.pem"})
 
     def test_published_is_generated_and_not_development_source(self):
         # Catches placing unapproved development roots into formal discovery.

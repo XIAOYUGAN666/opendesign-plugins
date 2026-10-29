@@ -7,9 +7,9 @@ The native tools are `health_check`, `get_rfem_application_info`, `inspect_rfem_
 ## Preflight
 
 1. Confirm the task contract and evidence-gate status.
-2. Use `health_check` when provider or RFEM reachability must be known.
+2. Use `health_check` when connector or RFEM reachability must be known.
 3. Identify whether the task uses a new/dedicated model, an existing model, or read-only inspection.
-4. If the provider is stopped, ask the user to start it through the existing Desktop/Tauri control plane. The Agent Server does not manage the process.
+4. If the connector is stopped, ask the user to start it through the existing Desktop/Tauri control plane. The Agent Server does not manage the process.
 5. If RFEM is unavailable, stop RFEM work and report the actual state.
 
 ## Inspect the installed API
@@ -55,7 +55,7 @@ The existing runtime interrupt permits approve/reject for `run_rfem_script`. If 
 
 ## Script contract
 
-- Use only provider-injected `app`, `rfem`, `common`, `math`, orientation helpers, and confirmed API identifiers.
+- Use only connector-injected `app`, `rfem`, `common`, `math`, orientation helpers, and confirmed API identifiers.
 - Do not use imports, file or environment access, credentials, subprocesses, network access, or attempts to bypass validation/HITL.
 - Keep the scope minimal.
 - Print created/modified object IDs, counts, calculation status, and planned postconditions.

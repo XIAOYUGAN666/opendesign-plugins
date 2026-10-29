@@ -37,8 +37,8 @@ def signing_payload(raw, bindings, sequence, views, trust_policy, view_root, art
         raise ValueError("marketplaceSignerScopeDenied")
     not_before = max([key["notBefore"]] + [r["notBefore"] for r in bindings])
     expires_at = min([key["expiresAt"]] + [r["expiresAt"] for r in bindings])
-    native = [item for item in bindings if "providerBuildId" in item["release"]]
-    skills = [item for item in bindings if "providerBuildId" not in item["release"]]
+    native = [item for item in bindings if "connectorBuildId" in item["release"]]
+    skills = [item for item in bindings if "connectorBuildId" not in item["release"]]
     result = {"marketplaceSchemaVersion": 1, "repositoryIdentity": REPOSITORY, "sequence": sequence, "marketplaceSha256": digest(raw), "releases": native, "views": views, "publisherKeyId": key_id, "notBefore": not_before, "expiresAt": expires_at}
     if skills:
         result["skillReleases"] = skills

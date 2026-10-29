@@ -16,18 +16,14 @@
       "maximum": 9007199254740991,
       "minimum": 1
     },
-    "kind": {
-      "$ref": "#/$defs/BridgeReadyKindV2"
-    },
+    "kind": { "$ref": "#/$defs/BridgeReadyKindV2" },
     "port": {
       "type": "integer",
       "format": "uint16",
       "maximum": 65535,
       "minimum": 1
     },
-    "previousSessionState": {
-      "$ref": "#/$defs/PreviousSessionStateV2"
-    },
+    "previousSessionState": { "$ref": "#/$defs/PreviousSessionStateV2" },
     "schemaVersion": {
       "type": "integer",
       "format": "uint32",
@@ -45,19 +41,11 @@
     "previousSessionState"
   ],
   "$defs": {
-    "BridgeReadyKindV2": {
-      "type": "string",
-      "enum": [
-        "bridgeReady"
-      ]
-    },
+    "BridgeReadyKindV2": { "type": "string", "enum": ["bridgeReady"] },
     "PreviousSessionStateV2": {
       "description": "Native executor evidence, never an engineering result or replay permission.",
       "type": "string",
-      "enum": [
-        "quiescent",
-        "unknown"
-      ]
+      "enum": ["quiescent", "unknown"]
     }
   }
 }

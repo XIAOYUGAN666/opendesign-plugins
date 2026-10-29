@@ -64,7 +64,7 @@ public sealed class ControlPipeClientTests
                 "contractDigest",
                 "kind",
                 "pluginId",
-                "providerBuildId",
+                "connectorBuildId",
                 "protocol",
                 "rhinoMajor",
                 "schemaVersion",
@@ -76,8 +76,8 @@ public sealed class ControlPipeClientTests
         Assert.Equal("74a1e8f4-1134-4686-a3e5-ee8bf393dec9", registrationJson.GetProperty("pluginId").GetString());
         Assert.Equal(8, registrationJson.GetProperty("rhinoMajor").GetInt32());
         Assert.Equal(
-            BridgeTestSupport.ProviderBuildId,
-            registrationJson.GetProperty("providerBuildId").GetString()
+            BridgeTestSupport.ConnectorBuildId,
+            registrationJson.GetProperty("connectorBuildId").GetString()
         );
         Assert.Equal(
             BridgeTestSupport.ContractDigest,
@@ -90,7 +90,7 @@ public sealed class ControlPipeClientTests
         await BridgeTestSupport.WriteFrameAsync(
             server,
             """
-            {"schemaVersion":1,"kind":"lease","generation":9,"token":"test-bridge-token-0123456789abcdef","providerBuildId":"sha256:0000000000000000000000000000000000000000000000000000000000000000","contractDigest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"}
+            {"schemaVersion":1,"kind":"lease","generation":9,"token":"test-bridge-token-0123456789abcdef","connectorBuildId":"sha256:0000000000000000000000000000000000000000000000000000000000000000","contractDigest":"sha256:2222222222222222222222222222222222222222222222222222222222222222"}
             """
         );
 
@@ -99,7 +99,7 @@ public sealed class ControlPipeClientTests
         Assert.NotNull(lease);
         Assert.Equal(9UL, BridgeTestSupport.Property(lease!, "Generation"));
         Assert.Equal(BridgeTestSupport.Token, BridgeTestSupport.Property(lease!, "Token"));
-        Assert.Equal(BridgeTestSupport.ProviderBuildId, BridgeTestSupport.Property(lease!, "ProviderBuildId"));
+        Assert.Equal(BridgeTestSupport.ConnectorBuildId, BridgeTestSupport.Property(lease!, "ConnectorBuildId"));
         Assert.Equal(BridgeTestSupport.ContractDigest, BridgeTestSupport.Property(lease!, "ContractDigest"));
 
         ((IDisposable)session).Dispose();
@@ -176,12 +176,12 @@ public sealed class ControlPipeClientTests
     }
 
     [Fact]
-    public void Registration_must_match_the_provider_build_identity_embedded_in_the_bridge()
+    public void Registration_must_match_the_connector_build_identity_embedded_in_the_bridge()
     {
         using var native = NativeTestAssembly.Load();
         var registration = BridgeTestSupport.CreateRegistration(native);
         var registrationType = registration.GetType();
-        var buildId = registrationType.GetProperty("ProviderBuildId");
+        var buildId = registrationType.GetProperty("ConnectorBuildId");
         Assert.NotNull(buildId);
         buildId!.SetValue(
             registration,

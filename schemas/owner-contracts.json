@@ -2,7 +2,7 @@
   "contracts": {
     "agent-control.schema.json": {
       "owner": "agent",
-      "sha256": "e24fc594af2d90b18db800ad2308333dda873e479710555063a9203fd10cdba5",
+      "sha256": "65d7ea80e58443b186e69c7da313d599519206345e4db06c893f9e7570e7c0c1",
       "source": "apps/backend/agent-server/schema/plugin-runtime.schema.json",
       "version": "2"
     },
@@ -14,19 +14,37 @@
     },
     "bridge-control-v2.schema.json": {
       "owner": "host",
-      "sha256": "23de4c7aa03ee92bce571a8938ae6d90afb93828905823a83ed8aca57536be8d",
+      "sha256": "706a59b35f6567e3e60dc58e7b597e98f0ab04b1807c67cd4f1eac2366148d21",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/bridge-control-v2.schema.json",
       "version": "2"
     },
+    "connector-bootstrap-v3.schema.json": {
+      "owner": "host",
+      "sha256": "664680fb08c30cb897a9254fcbde30618ae9546c37af977d74a767b426a2e49f",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/connector-bootstrap-v3.schema.json",
+      "version": "3"
+    },
+    "connector-control-v1.schema.json": {
+      "owner": "host",
+      "sha256": "120c3f52f61e7480d92e646e14f7966455cf081bdb2dc4847a061518c9d806f8",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/connector-control-v1.schema.json",
+      "version": "1"
+    },
+    "connector-ready-v3.schema.json": {
+      "owner": "host",
+      "sha256": "c6ae443df489a5825f0fdc95c18e5b86b2082acc7a00da76e33ad1c2eb017ce5",
+      "source": "apps/desktop/src-tauri/resources/plugins/schemas/connector-ready-v3.schema.json",
+      "version": "3"
+    },
     "host-contract.v3.schema.json": {
       "owner": "host",
-      "sha256": "e9c635ff8c88a3a13231b4902616dfbdb5d58b19cae1cb7d2347a229a0024be8",
+      "sha256": "3c0d9cf4da63e6032479c656667846d5616b71f2d764632dd5faa9a781c38b39",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/host-contract.v3.schema.json",
       "version": "3"
     },
     "host-native.schema.json": {
       "owner": "host",
-      "sha256": "dbfc21a76c95692d981e2d70287716a022e8bfb11661df84f0015f6e364a17c0",
+      "sha256": "16bb5839267ea3bfc1c12b9c097bb871d749bdbc32570ec83672f867da2130b4",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/native-extension-v1.schema.json",
       "version": "1"
     },
@@ -38,7 +56,7 @@
     },
     "plugin-configuration.schema.json": {
       "owner": "host",
-      "sha256": "be15d454060b63c490cf4e923656f7eca84f9c0bc9a02f99a12bca71d3c8c56a",
+      "sha256": "aaadfa43f3bb0364598a76512d05a900249f6dbc3e1ed42afcdc8b00ac1a067e",
       "source": "apps/desktop/src-tauri/resources/plugins/schemas/plugin-configuration.schema.json",
       "version": "1"
     }

@@ -4,7 +4,7 @@ import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / "tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe"
+PYTHON = ROOT / "tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe"
 
 
 class MarketUpdateTests(unittest.TestCase):

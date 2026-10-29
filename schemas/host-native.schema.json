@@ -4,73 +4,42 @@
   "description": "Host extension, never an Agent Plugins standard root field.",
   "type": "object",
   "properties": {
-    "adapter": {
-      "$ref": "#/$defs/AdapterV1"
-    },
-    "agentContract": {
-      "$ref": "#/$defs/ContractRange"
-    },
+    "adapter": { "$ref": "#/$defs/AdapterV1" },
+    "agentContract": { "$ref": "#/$defs/ContractRange" },
     "components": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/ComponentV1"
-      }
+      "items": { "$ref": "#/$defs/ComponentV1" }
     },
-    "configurationSchemaPath": {
-      "type": "string"
-    },
+    "configurationSchemaPath": { "type": "string" },
     "configurationSchemaVersion": {
       "type": "integer",
       "format": "uint32",
       "minimum": 0
     },
-    "entrypoint": {
-      "type": "string"
-    },
-    "hostContract": {
-      "$ref": "#/$defs/ContractRange"
-    },
-    "mcp": {
-      "$ref": "#/$defs/McpTransportV1"
-    },
-    "module": {
-      "type": "string"
-    },
+    "entrypoint": { "type": "string" },
+    "hostContract": { "$ref": "#/$defs/ContractRange" },
+    "mcp": { "$ref": "#/$defs/McpTransportV1" },
+    "module": { "type": "string" },
     "native": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/NativePackageV1"
-        },
-        {
-          "type": "null"
-        }
-      ]
+      "anyOf": [{ "$ref": "#/$defs/NativePackageV1" }, { "type": "null" }]
     },
-    "platform": {
-      "$ref": "#/$defs/PlatformV1"
-    },
+    "platform": { "$ref": "#/$defs/PlatformV1" },
     "protocolVersion": {
       "type": "integer",
       "format": "uint32",
       "maximum": 1,
       "minimum": 1
     },
-    "routine": {
-      "$ref": "#/$defs/NativeRoutineV1"
-    },
+    "routine": { "$ref": "#/$defs/NativeRoutineV1" },
     "secretSlots": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/SecretSlotV1"
-      }
+      "items": { "$ref": "#/$defs/SecretSlotV1" }
     },
-    "software": {
-      "$ref": "#/$defs/SoftwareRequirementV1"
-    },
+    "software": { "$ref": "#/$defs/SoftwareRequirementV1" },
     "startupEnvelopeVersion": {
       "type": "integer",
       "format": "uint32",
-      "maximum": 2,
+      "maximum": 3,
       "minimum": 2
     }
   },
@@ -96,104 +65,54 @@
     "AdapterV1": {
       "type": "object",
       "properties": {
-        "distribution": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
+        "distribution": { "type": "string" },
+        "version": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "distribution",
-        "version"
-      ]
+      "required": ["distribution", "version"]
     },
     "ComponentV1": {
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
-        "kind": {
-          "type": "string"
-        }
+        "id": { "type": "string" },
+        "kind": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "id"
-      ]
+      "required": ["kind", "id"]
     },
     "ContractRange": {
       "type": "object",
       "properties": {
-        "max": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "min": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        }
+        "max": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "min": { "type": "integer", "format": "uint32", "minimum": 0 }
       },
       "additionalProperties": false,
-      "required": [
-        "min",
-        "max"
-      ]
+      "required": ["min", "max"]
     },
     "McpTransportV1": {
       "type": "object",
       "properties": {
-        "path": {
-          "type": "string"
-        },
-        "transport": {
-          "type": "string"
-        }
+        "path": { "type": "string" },
+        "transport": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "transport",
-        "path"
-      ]
+      "required": ["transport", "path"]
     },
     "NativePackageV1": {
       "type": "object",
       "properties": {
-        "capabilityDigest": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "contractDigest": {
-          "type": "string"
-        },
+        "capabilityDigest": { "type": ["string", "null"] },
+        "contractDigest": { "type": "string" },
         "contractVersion": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0
         },
-        "packageId": {
-          "type": "string"
-        },
-        "pluginId": {
-          "type": "string",
-          "format": "uuid"
-        },
-        "relativePath": {
-          "type": "string"
-        },
-        "sha256": {
-          "type": "string"
-        },
-        "version": {
-          "type": "string"
-        }
+        "packageId": { "type": "string" },
+        "pluginId": { "type": "string", "format": "uuid" },
+        "relativePath": { "type": "string" },
+        "sha256": { "type": "string" },
+        "version": { "type": "string" }
       },
       "additionalProperties": false,
       "required": [
@@ -208,17 +127,12 @@
     },
     "NativeRoutineKindV1": {
       "type": "string",
-      "enum": [
-        "managed-provider",
-        "rhino-yak-bridge"
-      ]
+      "enum": ["managed-connector", "rhino-yak-bridge"]
     },
     "NativeRoutineV1": {
       "type": "object",
       "properties": {
-        "kind": {
-          "$ref": "#/$defs/NativeRoutineKindV1"
-        },
+        "kind": { "$ref": "#/$defs/NativeRoutineKindV1" },
         "version": {
           "type": "integer",
           "format": "uint32",
@@ -227,67 +141,35 @@
         }
       },
       "additionalProperties": false,
-      "required": [
-        "kind",
-        "version"
-      ]
+      "required": ["kind", "version"]
     },
     "PlatformV1": {
       "type": "object",
       "properties": {
-        "architecture": {
-          "type": "string"
-        },
-        "os": {
-          "type": "string"
-        }
+        "architecture": { "type": "string" },
+        "os": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "os",
-        "architecture"
-      ]
+      "required": ["os", "architecture"]
     },
     "SecretSlotV1": {
       "type": "object",
       "properties": {
-        "componentId": {
-          "type": "string"
-        },
-        "fieldId": {
-          "type": "string"
-        }
+        "componentId": { "type": "string" },
+        "fieldId": { "type": "string" }
       },
       "additionalProperties": false,
-      "required": [
-        "fieldId",
-        "componentId"
-      ]
+      "required": ["fieldId", "componentId"]
     },
     "SoftwareRequirementV1": {
       "type": "object",
       "properties": {
-        "major": {
-          "type": "integer",
-          "format": "uint32",
-          "minimum": 0
-        },
-        "product": {
-          "type": "string"
-        },
-        "supportedBuilds": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
+        "major": { "type": "integer", "format": "uint32", "minimum": 0 },
+        "product": { "type": "string" },
+        "supportedBuilds": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false,
-      "required": [
-        "product",
-        "major",
-        "supportedBuilds"
-      ]
+      "required": ["product", "major", "supportedBuilds"]
     }
   }
 }

@@ -39,7 +39,7 @@ jobs:
           version: '0.9.21'
           enable-cache: false
       - name: Prepare independent signing dependencies
-        working-directory: tests/fixtures/fixture-engineering/provider
+        working-directory: tests/fixtures/fixture-engineering/connector
         shell: pwsh
         run: |
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
@@ -114,7 +114,7 @@ jobs:
           PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
           SOURCE_COMMIT: ${{ github.sha }}
         run: |
-          $python = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          $python = 'tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe'
           $candidate = Join-Path $env:RUNNER_TEMP 'skill-release-review'
           $skill = Join-Path $candidate 'skill'
           if ($env:OPERATION -eq 'sign-skill-draft') {

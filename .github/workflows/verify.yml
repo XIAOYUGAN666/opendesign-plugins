@@ -26,7 +26,7 @@ jobs:
           version: '0.9.21'
           enable-cache: false
       - name: Prepare only the fixture's independent tool environment
-        working-directory: tests/fixtures/fixture-engineering/provider
+        working-directory: tests/fixtures/fixture-engineering/connector
         shell: pwsh
         run: |
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
@@ -34,7 +34,7 @@ jobs:
       - name: Verify root source, trust, generated discovery and extracted artifacts
         shell: pwsh
         run: |
-          $tool = 'tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe'
+          $tool = 'tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe'
           & $tool -B -m unittest discover -s tests -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & $tool -B -m pytest tests/test_rfem_timber_skill.py -q
@@ -58,7 +58,7 @@ jobs:
           version: '0.9.21'
           enable-cache: false
       - name: Test its own frozen lock
-        working-directory: tests/fixtures/fixture-engineering/provider
+        working-directory: tests/fixtures/fixture-engineering/connector
         shell: pwsh
         run: |
           uv sync --frozen --extra test --extra build --python (Get-Command python).Source
@@ -66,8 +66,8 @@ jobs:
           uv run --frozen --extra test python -B -m pytest -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-  provider:
-    name: Independent provider / ${{ matrix.plugin }}
+  connector:
+    name: Independent connector / ${{ matrix.plugin }}
     runs-on: windows-2025
     timeout-minutes: 20
     strategy:
@@ -84,15 +84,15 @@ jobs:
         env:
           PLUGIN_ID: ${{ matrix.plugin }}
         run: |
-          $project = Join-Path 'plugins' "$env:PLUGIN_ID/provider"
+          $project = Join-Path 'plugins' "$env:PLUGIN_ID/connector"
           $hasProject = Test-Path -LiteralPath (Join-Path $project 'pyproject.toml')
           $hasLock = Test-Path -LiteralPath (Join-Path $project 'uv.lock')
-          if ($hasProject -ne $hasLock) { throw 'Incomplete independent Provider project' }
+          if ($hasProject -ne $hasLock) { throw 'Incomplete independent connector project' }
           if ($hasProject) {
             'present=true' >> $env:GITHUB_OUTPUT
           } else {
             'present=false' >> $env:GITHUB_OUTPUT
-            "$env:PLUGIN_ID=notPresent (Provider has not migrated; no Provider test/build PASS claim)" >> $env:GITHUB_STEP_SUMMARY
+            "$env:PLUGIN_ID=notPresent (connector has not migrated; no connector test/build PASS claim)" >> $env:GITHUB_STEP_SUMMARY
             Write-Output "$env:PLUGIN_ID=notPresent"
           }
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -117,9 +117,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Test the selected Provider's own lock and environment
+      - name: Test the selected connector's own lock and environment
         if: steps.project.outputs.present == 'true'
-        working-directory: plugins/${{ matrix.plugin }}/provider
+        working-directory: plugins/${{ matrix.plugin }}/connector
         shell: pwsh
         env:
           NATIVE_REPRODUCIBILITY_CHECK: ${{ matrix.plugin == 'rhino' && '1' || '0' }}

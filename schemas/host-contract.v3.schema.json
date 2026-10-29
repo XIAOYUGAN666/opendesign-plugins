@@ -8,6 +8,7 @@
     "confirm_local_package_request": {
       "$ref": "#/$defs/ConfirmLocalPackageRequestV1"
     },
+    "connect_plugin_request": { "$ref": "#/$defs/ConnectPluginRequestV1" },
     "delete_secret_request": { "$ref": "#/$defs/DeletePluginSecretRequestV1" },
     "enabled_request": { "$ref": "#/$defs/SetPluginEnabledRequestV1" },
     "install_request": { "$ref": "#/$defs/InstallPluginRequestV3" },
@@ -31,7 +32,7 @@
     "pick_local_package_request": {
       "$ref": "#/$defs/PickLocalPackageRequestV1"
     },
-    "plugin": { "$ref": "#/$defs/PluginViewV2" },
+    "plugin": { "$ref": "#/$defs/PluginViewV3" },
     "plugin_asset_data": { "$ref": "#/$defs/PluginAssetDataV1" },
     "plugin_configuration": { "$ref": "#/$defs/PluginConfigurationV1" },
     "plugin_skill_preview": { "$ref": "#/$defs/PluginSkillPreviewV1" },
@@ -57,10 +58,7 @@
     },
     "standard_manifest": { "$ref": "#/$defs/AgentPluginsManifestV1" },
     "uninstall_request": { "$ref": "#/$defs/UninstallPluginRequestV2" },
-    "update_request": { "$ref": "#/$defs/UpdatePluginRequestV1" },
-    "verify_plugin_connection_request": {
-      "$ref": "#/$defs/VerifyPluginConnectionRequestV1"
-    }
+    "update_request": { "$ref": "#/$defs/UpdatePluginRequestV1" }
   },
   "required": [
     "package_skill_reference",
@@ -84,7 +82,7 @@
     "native_extension",
     "plugin_configuration",
     "plugin",
-    "verify_plugin_connection_request",
+    "connect_plugin_request",
     "set_plugin_configuration_request",
     "signed_marketplace",
     "install_request",
@@ -214,6 +212,42 @@
       },
       "additionalProperties": false,
       "required": ["token", "digest"]
+    },
+    "ConnectPluginRequestV1": {
+      "type": "object",
+      "properties": {
+        "expectedRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": { "type": "string" },
+        "requestId": { "type": "string", "format": "uuid" }
+      },
+      "additionalProperties": false,
+      "required": ["packageId", "expectedRevision", "requestId"]
+    },
+    "ConnectionReasonV1": {
+      "type": "string",
+      "enum": [
+        "none",
+        "softwareNotRunning",
+        "credentialMissing",
+        "credentialInvalid",
+        "nativeComponentUnavailable",
+        "unsupportedVersion",
+        "trustFailure",
+        "softwareStarting",
+        "transportUnavailable",
+        "softwareBusy",
+        "timeout",
+        "unknown"
+      ]
+    },
+    "ConnectionRetryDispositionV1": {
+      "type": "string",
+      "enum": ["none", "automatic", "userAction"]
     },
     "ContractRange": {
       "type": "object",
@@ -415,7 +449,7 @@
         "startupEnvelopeVersion": {
           "type": "integer",
           "format": "uint32",
-          "maximum": 2,
+          "maximum": 3,
           "minimum": 2
         }
       },
@@ -467,7 +501,7 @@
     },
     "NativeRoutineKindV1": {
       "type": "string",
-      "enum": ["managed-provider", "rhino-yak-bridge"]
+      "enum": ["managed-connector", "rhino-yak-bridge"]
     },
     "NativeRoutineV1": {
       "type": "object",
@@ -583,34 +617,6 @@
         "secretSlots"
       ]
     },
-    "PluginConnectionSettingsV1": {
-      "type": "object",
-      "properties": {
-        "secretSlots": {
-          "type": "array",
-          "items": { "$ref": "#/$defs/SecretSlotStatusV1" }
-        },
-        "state": { "$ref": "#/$defs/PluginConnectionStateV1" }
-      },
-      "additionalProperties": false,
-      "required": ["state", "secretSlots"]
-    },
-    "PluginConnectionStateV1": {
-      "type": "string",
-      "enum": [
-        "unverified",
-        "missingSecret",
-        "storedUnverified",
-        "softwareUnavailable",
-        "unsupportedSoftwareVersion",
-        "verifying",
-        "authenticationFailed",
-        "authorizationRestricted",
-        "quotaRestricted",
-        "apiAccessRestricted",
-        "connected"
-      ]
-    },
     "PluginError": {
       "type": "string",
       "enum": [
@@ -632,8 +638,8 @@
         "operationCancelled",
         "operationInterrupted",
         "hostAlreadyRunning",
-        "providerStartFailed",
-        "providerExited",
+        "connectorStartFailed",
+        "connectorExited",
         "portInUse",
         "pluginBusy",
         "agentUnavailable",
@@ -825,11 +831,9 @@
       "additionalProperties": false,
       "required": ["packageId", "revision", "skills"]
     },
-    "PluginViewV2": {
-      "description": "Generic safe view. Legacy callers retain their explicit V1 facade.",
+    "PluginViewV3": {
       "type": "object",
       "properties": {
-        "connectionSettings": { "$ref": "#/$defs/PluginConnectionSettingsV1" },
         "description": { "type": ["string", "null"] },
         "displayName": { "type": "string" },
         "enabled": { "type": "boolean" },
@@ -852,8 +856,18 @@
         "schemaVersion": {
           "type": "integer",
           "format": "uint32",
-          "maximum": 2,
-          "minimum": 2
+          "maximum": 3,
+          "minimum": 3
+        },
+        "secretSlots": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SecretPresenceV1" }
+        },
+        "softwareConnection": {
+          "anyOf": [
+            { "$ref": "#/$defs/SoftwareConnectionViewV1" },
+            { "type": "null" }
+          ]
         }
       },
       "additionalProperties": false,
@@ -867,7 +881,7 @@
         "revision",
         "enabled",
         "installationState",
-        "connectionSettings"
+        "secretSlots"
       ]
     },
     "PreviewAvailableSkillRequestV1": {
@@ -954,6 +968,7 @@
           "format": "uint32",
           "minimum": 0
         },
+        "connectorBuildId": { "type": "string" },
         "entrypoint": { "type": "string" },
         "filesDigest": { "type": "string" },
         "hostContract": { "$ref": "#/$defs/ContractRange" },
@@ -970,7 +985,10 @@
         "packageId": { "type": "string" },
         "platform": { "$ref": "#/$defs/PlatformV1" },
         "pluginVersion": { "type": "string" },
-        "providerBuildId": { "type": "string" },
+        "providerBuildId": {
+          "description": "Immutable field name retained in previously signed releases.",
+          "type": "string"
+        },
         "releaseSequence": {
           "type": "integer",
           "format": "uint64",
@@ -986,6 +1004,10 @@
         "toolCatalogDigest": { "type": "string" }
       },
       "additionalProperties": false,
+      "oneOf": [
+        { "required": ["connectorBuildId"] },
+        { "required": ["providerBuildId"] }
+      ],
       "required": [
         "manifestSchemaVersion",
         "packageId",
@@ -1002,7 +1024,6 @@
         "mcp",
         "software",
         "adapter",
-        "providerBuildId",
         "toolCatalogDigest",
         "configurationSchemaVersion",
         "filesDigest",
@@ -1024,8 +1045,7 @@
       "additionalProperties": false,
       "required": ["packageId", "expectedRevision", "requestId"]
     },
-    "SecretSlotStatusV1": {
-      "description": "Safe state only. This DTO has no credential value or opaque secret reference.",
+    "SecretPresenceV1": {
       "type": "object",
       "properties": {
         "componentId": { "type": "string" },
@@ -1037,8 +1057,7 @@
           "format": "uint64",
           "maximum": 9007199254740991,
           "minimum": 0
-        },
-        "status": { "$ref": "#/$defs/PluginConnectionStateV1" }
+        }
       },
       "additionalProperties": false,
       "required": [
@@ -1046,8 +1065,31 @@
         "componentId",
         "requiredForEngineering",
         "configured",
-        "revision",
-        "status"
+        "revision"
+      ]
+    },
+    "SecretSlotStatusV1": {
+      "description": "Safe credential presence only. Secret values and software connection state stay separate.",
+      "type": "object",
+      "properties": {
+        "componentId": { "type": "string" },
+        "configured": { "type": "boolean" },
+        "fieldId": { "type": "string" },
+        "requiredForEngineering": { "type": "boolean" },
+        "revision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "fieldId",
+        "componentId",
+        "requiredForEngineering",
+        "configured",
+        "revision"
       ]
     },
     "SecretSlotV1": {
@@ -1230,7 +1272,7 @@
       ]
     },
     "SkillReleaseV1": {
-      "description": "Release identity for a signed package containing static skills and no Provider.",
+      "description": "Release identity for a signed package containing static skills and no Connector.",
       "type": "object",
       "properties": {
         "filesDigest": { "type": "string" },
@@ -1249,6 +1291,33 @@
         "releaseSequence",
         "filesDigest"
       ]
+    },
+    "SoftwareConnectionStateV1": {
+      "type": "string",
+      "enum": ["disconnected", "connecting", "connected", "unconfirmed"]
+    },
+    "SoftwareConnectionViewV1": {
+      "type": "object",
+      "properties": {
+        "hasAttempted": { "type": "boolean" },
+        "lastCheckedAt": {
+          "type": ["integer", "null"],
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "lastVerifiedAt": {
+          "type": ["integer", "null"],
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        },
+        "reason": { "$ref": "#/$defs/ConnectionReasonV1" },
+        "retryDisposition": { "$ref": "#/$defs/ConnectionRetryDispositionV1" },
+        "state": { "$ref": "#/$defs/SoftwareConnectionStateV1" }
+      },
+      "additionalProperties": false,
+      "required": ["state", "reason", "retryDisposition", "hasAttempted"]
     },
     "SoftwareRequirementV1": {
       "type": "object",
@@ -1299,22 +1368,6 @@
       "required": ["packageId", "expectedRevision", "requestId"]
     },
     "UpdatePluginRequestV1": {
-      "type": "object",
-      "properties": {
-        "expectedRevision": {
-          "type": "integer",
-          "format": "uint64",
-          "maximum": 9007199254740991,
-          "minimum": 1
-        },
-        "packageId": { "type": "string" },
-        "requestId": { "type": "string", "format": "uuid" }
-      },
-      "additionalProperties": false,
-      "required": ["packageId", "expectedRevision", "requestId"]
-    },
-    "VerifyPluginConnectionRequestV1": {
-      "description": "Narrow connection intent; actual verification is integrated by its runtime owner.",
       "type": "object",
       "properties": {
         "expectedRevision": {

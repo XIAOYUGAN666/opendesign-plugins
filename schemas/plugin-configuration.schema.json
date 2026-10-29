@@ -12,28 +12,18 @@
       "minimum": 0
     },
     "ordinarySchema": true,
-    "packageId": {
-      "type": "string"
-    },
-    "pendingApply": {
-      "type": "boolean"
-    },
+    "packageId": { "type": "string" },
+    "pendingApply": { "type": "boolean" },
     "revision": {
       "type": "integer",
       "format": "uint64",
       "maximum": 9007199254740991,
       "minimum": 0
     },
-    "schemaVersion": {
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0
-    },
+    "schemaVersion": { "type": "integer", "format": "uint32", "minimum": 0 },
     "secretSlots": {
       "type": "array",
-      "items": {
-        "$ref": "#/$defs/SecretSlotStatusV1"
-      }
+      "items": { "$ref": "#/$defs/SecretSlotStatusV1" }
     },
     "values": true
   },
@@ -50,46 +40,19 @@
     "secretSlots"
   ],
   "$defs": {
-    "PluginConnectionStateV1": {
-      "type": "string",
-      "enum": [
-        "unverified",
-        "missingSecret",
-        "storedUnverified",
-        "softwareUnavailable",
-        "unsupportedSoftwareVersion",
-        "verifying",
-        "authenticationFailed",
-        "authorizationRestricted",
-        "quotaRestricted",
-        "apiAccessRestricted",
-        "connected"
-      ]
-    },
     "SecretSlotStatusV1": {
-      "description": "Safe state only. This DTO has no credential value or opaque secret reference.",
+      "description": "Safe credential presence only. Secret values and software connection state stay separate.",
       "type": "object",
       "properties": {
-        "componentId": {
-          "type": "string"
-        },
-        "configured": {
-          "type": "boolean"
-        },
-        "fieldId": {
-          "type": "string"
-        },
-        "requiredForEngineering": {
-          "type": "boolean"
-        },
+        "componentId": { "type": "string" },
+        "configured": { "type": "boolean" },
+        "fieldId": { "type": "string" },
+        "requiredForEngineering": { "type": "boolean" },
         "revision": {
           "type": "integer",
           "format": "uint64",
           "maximum": 9007199254740991,
           "minimum": 0
-        },
-        "status": {
-          "$ref": "#/$defs/PluginConnectionStateV1"
         }
       },
       "additionalProperties": false,
@@ -98,8 +61,7 @@
         "componentId",
         "requiredForEngineering",
         "configured",
-        "revision",
-        "status"
+        "revision"
       ]
     }
   }

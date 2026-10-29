@@ -30,8 +30,14 @@ REPOSITORY = "github:XIAOYUGAN666/opendesign-plugins"
 SAFE_ERRORS = {"missingPublisherSecret", "invalidPublisherSecret", "publisherKeyMismatch", "publisherKeysNotIndependent", "invalidHostPolicyExport", "invalidDraftContext", "invalidPreviousMarket", "candidateChangedDuringSigning", "publisherSecretInRepository"}
 
 
+def is_connector_release(release):
+    # Signed releases created before the connector naming change keep their
+    # immutable providerBuildId field; newly built releases use connectorBuildId.
+    return "connectorBuildId" in release or "providerBuildId" in release
+
+
 def take_secrets():
-    # Remove BOTH step-local secrets before any validation, failure or Provider child.
+    # Remove BOTH step-local secrets before any validation, failure or Connector child.
     return {package: os.environ.pop(fields[1], "") for package, fields in TARGETS.items()}
 
 
@@ -48,6 +54,8 @@ def reject_tracked_private_material(encoded, signers):
         path = root / name
         if path.is_symlink() or path.is_junction() or not path.resolve().is_relative_to(root):
             raise ValueError("publisherSecretInRepository")
+        if not path.exists():
+            continue
         data = path.read_bytes()
         if any(needle in data for needle in needles):
             raise ValueError("publisherSecretInRepository")
@@ -312,7 +320,7 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         staged = temporary / "review"
         for item, receipt in zip(entries, bindings):
             package = receipt["release"]["packageId"]
-            if "providerBuildId" in receipt["release"]:
+            if is_connector_release(receipt["release"]):
                 contexts[package] = verify_artifact(Path(item["archive"]), Path(item["receipt"]), schema_bundle,
                     trusted_keys={receipt["publisherKeyId"]: bytes.fromhex(publishers[receipt["publisherKeyId"]]["publicKey"])})
             else:
@@ -381,7 +389,7 @@ def main():
                 raise ValueError("invalidDraftContext")
             context = read_json(args.context.read_bytes())
             payload = read_json(args.candidate.read_bytes())
-            if "providerBuildId" in payload.get("release", {}):
+            if is_connector_release(payload.get("release", {})):
                 if context.get("packageId") not in signers:
                     raise ValueError("invalidDraftContext")
                 signed, verification = sign_draft_candidate(args.archive, args.candidate, args.schemas, context, signers[context["packageId"]])

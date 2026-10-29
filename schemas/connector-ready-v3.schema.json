@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConnectorReadyV3",
+  "type": "object",
+  "properties": {
+    "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+    "connectorBuildId": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "kind": { "$ref": "#/$defs/ConnectorReadyKindV3" },
+    "port": {
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 1024
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 3,
+      "minimum": 3
+    }
+  },
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "binding", "connectorBuildId", "port"],
+  "$defs": {
+    "ConnectionBindingV1": {
+      "type": "object",
+      "properties": {
+        "configurationRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "connectorInstanceId": {
+          "type": "string",
+          "pattern": "^ci_[a-f0-9]{32}$"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^(?!.*\\.\\.)[a-z](?:[a-z0-9_.-]*[a-z0-9])?$"
+        },
+        "releaseDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "secretRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "releaseDigest",
+        "connectorInstanceId",
+        "generation",
+        "configurationRevision",
+        "secretRevision"
+      ]
+    },
+    "ConnectorReadyKindV3": { "type": "string", "enum": ["ready"] }
+  }
+}

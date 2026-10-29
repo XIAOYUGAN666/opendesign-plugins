@@ -4,10 +4,10 @@
     <LangVersion>12.0</LangVersion>
     <AssemblyName>RhinoMcpBridge</AssemblyName>
     <RootNamespace>RhinoMcpBridge</RootNamespace>
-    <Version>0.1.18</Version>
-    <AssemblyVersion>0.1.18.0</AssemblyVersion>
-    <FileVersion>0.1.18.0</FileVersion>
-    <InformationalVersion>0.1.18</InformationalVersion>
+    <Version>0.1.19</Version>
+    <AssemblyVersion>0.1.19.0</AssemblyVersion>
+    <FileVersion>0.1.19.0</FileVersion>
+    <InformationalVersion>0.1.19</InformationalVersion>
     <Platforms>AnyCPU;x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -19,7 +19,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RhinoCommonVersion>8.17.25066.7001</RhinoCommonVersion>
-    <RhinoProviderBuildId Condition="'$(RhinoProviderBuildId)' == ''">sha256:0000000000000000000000000000000000000000000000000000000000000000</RhinoProviderBuildId>
+    <RhinoConnectorBuildId Condition="'$(RhinoConnectorBuildId)' == ''">sha256:0000000000000000000000000000000000000000000000000000000000000000</RhinoConnectorBuildId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -34,18 +34,18 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
   </ItemGroup>
 
-  <Target Name="GenerateRhinoProviderBuildMetadata" BeforeTargets="CoreCompile">
+  <Target Name="GenerateRhinoConnectorBuildMetadata" BeforeTargets="CoreCompile">
     <ItemGroup>
       <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
-        <_Parameter1>RhinoProviderBuildId</_Parameter1>
-        <_Parameter2>$(RhinoProviderBuildId)</_Parameter2>
+        <_Parameter1>RhinoConnectorBuildId</_Parameter1>
+        <_Parameter2>$(RhinoConnectorBuildId)</_Parameter2>
       </AssemblyAttribute>
     </ItemGroup>
     <WriteCodeFragment
       AssemblyAttributes="@(AssemblyAttribute)"
       Language="C#"
       OutputDirectory="$(IntermediateOutputPath)"
-      OutputFile="RhinoProviderBuildMetadata.g.cs">
+      OutputFile="RhinoConnectorBuildMetadata.g.cs">
       <Output TaskParameter="OutputFile" ItemName="Compile" />
       <Output TaskParameter="OutputFile" ItemName="FileWrites" />
     </WriteCodeFragment>

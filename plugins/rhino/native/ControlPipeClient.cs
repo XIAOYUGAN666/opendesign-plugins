@@ -18,7 +18,7 @@ internal sealed record BridgeRegistration(
     string BridgeVersion,
     uint BridgeContractVersion,
     uint RhinoMajor,
-    string ProviderBuildId,
+    string ConnectorBuildId,
     string ContractDigest,
     string CapabilityDigest
 );
@@ -26,7 +26,7 @@ internal sealed record BridgeRegistration(
 internal sealed record BridgeLease(
     ulong Generation,
     string Token,
-    string ProviderBuildId,
+    string ConnectorBuildId,
     string ContractDigest
 );
 
@@ -234,7 +234,7 @@ internal sealed class ControlPipeClient
             "kind",
             "generation",
             "token",
-            "providerBuildId",
+            "connectorBuildId",
             "contractDigest"
         );
 
@@ -250,11 +250,11 @@ internal sealed class ControlPipeClient
         }
 
         var token = root.GetProperty("token").GetString();
-        var providerBuildId = root.GetProperty("providerBuildId").GetString();
+        var connectorBuildId = root.GetProperty("connectorBuildId").GetString();
         var contractDigest = root.GetProperty("contractDigest").GetString();
         if (
             !BridgeWire.IsOpaqueToken(token)
-            || !BridgeWire.IsSha256(providerBuildId)
+            || !BridgeWire.IsSha256(connectorBuildId)
             || !BridgeWire.IsSha256(contractDigest)
             || !string.Equals(contractDigest, expectedContractDigest, StringComparison.Ordinal)
         )
@@ -262,7 +262,7 @@ internal sealed class ControlPipeClient
             throw new InvalidDataException("Control lease identity is invalid.");
         }
 
-        return new BridgeLease(generation, token!, providerBuildId!, contractDigest!);
+        return new BridgeLease(generation, token!, connectorBuildId!, contractDigest!);
     }
 
     private static void ValidateRegistration(
@@ -278,10 +278,10 @@ internal sealed class ControlPipeClient
             || registration.PluginId != "74a1e8f4-1134-4686-a3e5-ee8bf393dec9"
             || registration.BridgeContractVersion != 1
             || registration.RhinoMajor != 8
-            || !BridgeWire.IsSha256(registration.ProviderBuildId)
+            || !BridgeWire.IsSha256(registration.ConnectorBuildId)
             || !string.Equals(
-                registration.ProviderBuildId,
-                BridgeIdentity.ReadProviderBuildId(),
+                registration.ConnectorBuildId,
+                BridgeIdentity.ReadConnectorBuildId(),
                 StringComparison.Ordinal
             )
             || !BridgeWire.IsSha256(registration.ContractDigest)

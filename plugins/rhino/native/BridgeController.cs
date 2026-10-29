@@ -45,23 +45,23 @@ internal static class BridgeIdentity
             BridgeVersion: version.ToString(3),
             BridgeContractVersion: 1,
             RhinoMajor: rhinoMajor,
-            ProviderBuildId: ReadProviderBuildId(),
+            ConnectorBuildId: ReadConnectorBuildId(),
             ContractDigest: ComputeContractDigest(),
             CapabilityDigest: ComputeCapabilityDigest()
         );
     }
 
-    internal static string ReadProviderBuildId()
+    internal static string ReadConnectorBuildId()
     {
         var identities = typeof(BridgeIdentity)
             .Assembly
             .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .Where(attribute => attribute.Key == "RhinoProviderBuildId")
+            .Where(attribute => attribute.Key == "RhinoConnectorBuildId")
             .Select(attribute => attribute.Value)
             .ToArray();
         if (identities.Length != 1 || !BridgeWire.IsSha256(identities[0]))
         {
-            throw new InvalidDataException("Bridge Provider build identity is unavailable.");
+            throw new InvalidDataException("Bridge Connector build identity is unavailable.");
         }
 
         return identities[0]!;

@@ -7,6 +7,6 @@ Engineering tools require the compatible Windows Host, the supported Rhino build
 
 Inspect the document and relevant objects before preparing changes. Use explicit object identities, document units and bounded operations. Follow the client's tool permissions and approval flow. General Rhino commands and Python or C# scripts retain their stronger safety restrictions; this guidance grants no execution permission.
 
-A lost response after command dispatch can leave the engineering result unknown. Do not repeat the operation, reconnect to clear the uncertainty, or report success from a transport reconnect. Preserve the unknown state for operator inspection of the isolated test model or affected document. Stopping the Provider does not prove that Rhino stopped an already dispatched action.
+A lost response after command dispatch can leave the engineering result unknown. Do not repeat the operation, reconnect to clear the uncertainty, or report success from a transport reconnect. Preserve the unknown state for operator inspection of the isolated test model or affected document. Stopping the Connector does not prove that Rhino stopped an already dispatched action.
 
 Use test documents for acceptance checks and inspect actual geometry or document changes after each operation. Do not overwrite everyday engineering files. This static workflow does not replace the Host, Agent approval system or independently imported Skills.

@@ -17,6 +17,9 @@ def import_contracts(
     configuration_schema: Path | None = None,
     official_schema: Path | None = None,
     bridge_control_schema: Path | None = None,
+    connector_control_schema: Path | None = None,
+    connector_bootstrap_schema: Path | None = None,
+    connector_ready_schema: Path | None = None,
     publisher_policy: Path | None = None,
 ) -> dict[str, str]:
     """Copy schema bytes and generate an owner/version/hash-only inventory.
@@ -28,6 +31,9 @@ def import_contracts(
     inputs = [
         ("host-native.schema.json", host_schema, "host", host_root + "native-extension-v1.schema.json"),
         ("bridge-control-v2.schema.json", bridge_control_schema, "host", host_root + "bridge-control-v2.schema.json"),
+        ("connector-control-v1.schema.json", connector_control_schema, "host", host_root + "connector-control-v1.schema.json"),
+        ("connector-bootstrap-v3.schema.json", connector_bootstrap_schema, "host", host_root + "connector-bootstrap-v3.schema.json"),
+        ("connector-ready-v3.schema.json", connector_ready_schema, "host", host_root + "connector-ready-v3.schema.json"),
         ("agent-control.schema.json", agent_schema, "agent", "apps/backend/agent-server/schema/plugin-runtime.schema.json"),
         ("host-contract.v3.schema.json", host_contract_schema, "host", host_root + "host-contract.v3.schema.json"),
         ("plugin-configuration.schema.json", configuration_schema, "host", host_root + "plugin-configuration.schema.json"),
@@ -85,6 +91,9 @@ def main() -> None:
     parser.add_argument("--configuration-schema", type=Path)
     parser.add_argument("--official-schema", type=Path)
     parser.add_argument("--bridge-control-schema", type=Path)
+    parser.add_argument("--connector-control-schema", type=Path)
+    parser.add_argument("--connector-bootstrap-schema", type=Path)
+    parser.add_argument("--connector-ready-schema", type=Path)
     parser.add_argument("--publisher-policy", type=Path)
     args = parser.parse_args()
     hashes = import_contracts(
@@ -93,6 +102,9 @@ def main() -> None:
         configuration_schema=args.configuration_schema,
         official_schema=args.official_schema,
         bridge_control_schema=args.bridge_control_schema,
+        connector_control_schema=args.connector_control_schema,
+        connector_bootstrap_schema=args.connector_bootstrap_schema,
+        connector_ready_schema=args.connector_ready_schema,
         publisher_policy=args.publisher_policy,
     )
     print(json.dumps(hashes, sort_keys=True))

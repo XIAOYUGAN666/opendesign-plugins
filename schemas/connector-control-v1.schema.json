@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConnectorWireContractV1",
+  "anyOf": [
+    { "$ref": "#/$defs/ConnectorControlCommandV1" },
+    { "$ref": "#/$defs/ConnectorEventV1" }
+  ],
+  "$defs": {
+    "ConnectionBindingV1": {
+      "type": "object",
+      "properties": {
+        "configurationRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "connectorInstanceId": {
+          "type": "string",
+          "pattern": "^ci_[a-f0-9]{32}$"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^(?!.*\\.\\.)[a-z](?:[a-z0-9_.-]*[a-z0-9])?$"
+        },
+        "releaseDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "secretRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "releaseDigest",
+        "connectorInstanceId",
+        "generation",
+        "configurationRevision",
+        "secretRevision"
+      ]
+    },
+    "ConnectionCauseV1": {
+      "type": "string",
+      "enum": ["startup", "manual", "periodic", "recovery"]
+    },
+    "ConnectionOutcomeV1": {
+      "type": "string",
+      "enum": ["confirmed", "blocked", "transient", "deferred", "unconfirmed"]
+    },
+    "ConnectionReasonV1": {
+      "type": "string",
+      "enum": [
+        "none",
+        "softwareNotRunning",
+        "credentialMissing",
+        "credentialInvalid",
+        "nativeComponentUnavailable",
+        "unsupportedVersion",
+        "trustFailure",
+        "softwareStarting",
+        "transportUnavailable",
+        "softwareBusy",
+        "timeout",
+        "unknown"
+      ]
+    },
+    "ConnectorBootstrapNativePeerV3": {
+      "type": "object",
+      "properties": {
+        "connectorBuildId": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "contractDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "host": { "type": "string", "pattern": "^127\\.0\\.0\\.1$" },
+        "port": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1024
+        },
+        "softwareInstanceId": {
+          "type": "string",
+          "pattern": "^si_[a-zA-Z0-9_-]{1,128}$"
+        },
+        "token": { "type": "string", "maxLength": 512, "minLength": 32 }
+      },
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port",
+        "token",
+        "generation",
+        "connectorBuildId",
+        "contractDigest",
+        "softwareInstanceId"
+      ]
+    },
+    "ConnectorControlCommandV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+            "cause": { "$ref": "#/$defs/ConnectionCauseV1" },
+            "deadlineMs": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 15000,
+              "minimum": 1
+            },
+            "kind": { "type": "string", "const": "ensureSoftwareConnection" },
+            "operationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            "schemaVersion": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 1,
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schemaVersion",
+            "operationId",
+            "cause",
+            "binding",
+            "deadlineMs"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+            "kind": { "type": "string", "const": "cancelConnectionCheck" },
+            "operationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+            },
+            "schemaVersion": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 1,
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind", "schemaVersion", "operationId", "binding"]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+            "kind": { "type": "string", "const": "nativePeerChanged" },
+            "peer": {
+              "anyOf": [
+                { "$ref": "#/$defs/ConnectorBootstrapNativePeerV3" },
+                { "type": "null" }
+              ]
+            },
+            "peerRevision": {
+              "type": "integer",
+              "format": "uint64",
+              "maximum": 9007199254740991,
+              "minimum": 1
+            },
+            "schemaVersion": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 1,
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false,
+          "required": ["kind", "schemaVersion", "binding", "peerRevision"]
+        }
+      ]
+    },
+    "ConnectorEventV1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+            "kind": { "type": "string", "const": "connectionCheckCompleted" },
+            "operationId": { "type": "string", "format": "uuid" },
+            "outcome": { "$ref": "#/$defs/ConnectionOutcomeV1" },
+            "reason": { "$ref": "#/$defs/ConnectionReasonV1" },
+            "schemaVersion": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 1,
+              "minimum": 1
+            },
+            "sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "maximum": 9007199254740991,
+              "minimum": 1
+            },
+            "softwareInstanceId": {
+              "type": ["string", "null"],
+              "pattern": "^si_[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schemaVersion",
+            "operationId",
+            "binding",
+            "sequence",
+            "outcome",
+            "reason"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+            "kind": { "type": "string", "const": "softwareConnectionChanged" },
+            "outcome": { "$ref": "#/$defs/ConnectionOutcomeV1" },
+            "reason": { "$ref": "#/$defs/ConnectionReasonV1" },
+            "schemaVersion": {
+              "type": "integer",
+              "format": "uint32",
+              "maximum": 1,
+              "minimum": 1
+            },
+            "sequence": {
+              "type": "integer",
+              "format": "uint64",
+              "maximum": 9007199254740991,
+              "minimum": 1
+            },
+            "softwareInstanceId": {
+              "type": ["string", "null"],
+              "pattern": "^si_[a-zA-Z0-9_-]{1,128}$"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "schemaVersion",
+            "binding",
+            "sequence",
+            "outcome",
+            "reason"
+          ]
+        }
+      ]
+    }
+  }
+}

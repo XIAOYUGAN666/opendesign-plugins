@@ -12,6 +12,10 @@
           "type": "string",
           "writeOnly": true
         },
+        "connectorBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "connectorInstanceId": {
           "pattern": "^ci_[0-9a-f]{32}$",
           "type": "string"
@@ -29,14 +33,6 @@
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
           "type": "string"
         },
-        "providerBuildId": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
-        "softwareIdentity": {
-          "pattern": "^si_[0-9a-f]{32}$",
-          "type": "string"
-        },
         "toolCatalogDigest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
@@ -50,12 +46,11 @@
         "packageId",
         "pluginVersion",
         "artifactVariantId",
-        "providerBuildId",
+        "connectorBuildId",
         "generation",
         "url",
         "bearerToken",
-        "toolCatalogDigest",
-        "softwareIdentity"
+        "toolCatalogDigest"
       ],
       "title": "ConnectorDescriptorV1",
       "type": "object"
@@ -77,20 +72,8 @@
           "minimum": 1,
           "type": "integer"
         },
-        "connectionState": {
-          "enum": [
-            "unverified",
-            "missingSecret",
-            "storedUnverified",
-            "softwareUnavailable",
-            "unsupportedSoftwareVersion",
-            "verifying",
-            "authenticationFailed",
-            "authorizationRestricted",
-            "quotaRestricted",
-            "apiAccessRestricted",
-            "connected"
-          ],
+        "connectorBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "connectorInstanceId": {
@@ -113,10 +96,6 @@
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
           "type": "string"
         },
-        "providerBuildId": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
-          "type": "string"
-        },
         "resourceRevision": {
           "maximum": 9007199254740991,
           "minimum": 1,
@@ -126,10 +105,6 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
-        },
-        "softwareIdentity": {
-          "pattern": "^si_[0-9a-f]{32}$",
-          "type": "string"
         },
         "toolCatalogDigest": {
           "pattern": "^sha256:[0-9a-f]{64}$",
@@ -143,7 +118,7 @@
         "identity",
         "pluginVersion",
         "artifactVariantId",
-        "providerBuildId",
+        "connectorBuildId",
         "toolCatalogDigest",
         "configurationRevision",
         "resourceRevision",
@@ -151,9 +126,7 @@
         "connectorInstanceId",
         "generation",
         "url",
-        "bearerToken",
-        "softwareIdentity",
-        "connectionState"
+        "bearerToken"
       ],
       "title": "ConnectorDescriptorV2",
       "type": "object"
@@ -186,141 +159,6 @@
         "inFlight"
       ],
       "title": "ConnectorStatusV1",
-      "type": "object"
-    },
-    "DiagnosticResponseV1": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "enum": [
-            "mcp",
-            "health",
-            "applicationInfo"
-          ],
-          "type": "string"
-        },
-        "schemaVersion": {
-          "default": 1,
-          "enum": [
-            1
-          ],
-          "type": "integer"
-        },
-        "status": {
-          "enum": [
-            "ready",
-            "connected"
-          ],
-          "type": "string"
-        },
-        "toolCatalogDigest": {
-          "anyOf": [
-            {
-              "pattern": "^sha256:[0-9a-f]{64}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "required": [
-        "kind",
-        "status"
-      ],
-      "title": "DiagnosticResponseV1",
-      "type": "object"
-    },
-    "DiagnosticResponseV2": {
-      "additionalProperties": false,
-      "properties": {
-        "failureCategory": {
-          "anyOf": [
-            {
-              "enum": [
-                "authenticationFailed",
-                "authorizationRestricted",
-                "quotaRestricted",
-                "apiAccessRestricted",
-                "softwareUnavailable",
-                "unsupportedSoftwareVersion",
-                "transportUnavailable",
-                "resultUnknown"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "generation": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "applicationInfo"
-          ],
-          "type": "string"
-        },
-        "operationId": {
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "type": "string"
-        },
-        "resourceRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "revision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "schemaVersion": {
-          "default": 2,
-          "enum": [
-            2
-          ],
-          "type": "integer"
-        },
-        "secretRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "status": {
-          "enum": [
-            "unverified",
-            "missingSecret",
-            "storedUnverified",
-            "softwareUnavailable",
-            "unsupportedSoftwareVersion",
-            "verifying",
-            "authenticationFailed",
-            "authorizationRestricted",
-            "quotaRestricted",
-            "apiAccessRestricted",
-            "connected"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "operationId",
-        "generation",
-        "revision",
-        "secretRevision",
-        "resourceRevision",
-        "kind",
-        "status"
-      ],
-      "title": "DiagnosticResponseV2",
       "type": "object"
     },
     "DrainResponseV1": {
@@ -475,7 +313,7 @@
     },
     "HostExecutionObservationV1": {
       "additionalProperties": false,
-      "description": "Host safety projection, not the Provider's lifecycle wire protocol.",
+      "description": "Host safety projection, not the Connector's lifecycle wire protocol.",
       "properties": {
         "ageMilliseconds": {
           "maximum": 5000,
@@ -733,15 +571,15 @@
           "minimum": 0,
           "type": "integer"
         },
+        "connectorBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "identity": {
           "$ref": "#/$defs/PluginIdentityV2"
         },
         "pluginVersion": {
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
-          "type": "string"
-        },
-        "providerBuildId": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "resourceRevision": {
@@ -776,7 +614,7 @@
         "identity",
         "pluginVersion",
         "artifactVariantId",
-        "providerBuildId",
+        "connectorBuildId",
         "toolCatalogDigest",
         "configurationRevision",
         "resourceRevision",
@@ -805,15 +643,15 @@
           "minimum": 0,
           "type": "integer"
         },
+        "connectorBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "identity": {
           "$ref": "#/$defs/PluginIdentityV2"
         },
         "pluginVersion": {
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
-          "type": "string"
-        },
-        "providerBuildId": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "resourceRevision": {
@@ -848,7 +686,7 @@
         "identity",
         "pluginVersion",
         "artifactVariantId",
-        "providerBuildId",
+        "connectorBuildId",
         "toolCatalogDigest",
         "configurationRevision",
         "resourceRevision",
@@ -870,7 +708,6 @@
             "uninstall",
             "purge",
             "configure",
-            "verify",
             "activate"
           ],
           "type": "string"
@@ -958,7 +795,6 @@
             "uninstall",
             "purge",
             "configure",
-            "verify",
             "activate"
           ],
           "type": "string"
@@ -1171,15 +1007,15 @@
           "minimum": 0,
           "type": "integer"
         },
+        "connectorBuildId": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
         "identity": {
           "$ref": "#/$defs/PluginIdentityV2"
         },
         "pluginVersion": {
           "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
-          "type": "string"
-        },
-        "providerBuildId": {
-          "pattern": "^sha256:[0-9a-f]{64}$",
           "type": "string"
         },
         "resourceRevision": {
@@ -1201,7 +1037,7 @@
         "identity",
         "pluginVersion",
         "artifactVariantId",
-        "providerBuildId",
+        "connectorBuildId",
         "toolCatalogDigest",
         "configurationRevision",
         "resourceRevision",
@@ -1508,80 +1344,6 @@
       "title": "PreferenceResponseV2",
       "type": "object"
     },
-    "RFEMDiagnosticV1": {
-      "additionalProperties": false,
-      "properties": {
-        "expectedGeneration": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "expectedRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "health",
-            "applicationInfo"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "expectedGeneration",
-        "expectedRevision",
-        "kind"
-      ],
-      "title": "RFEMDiagnosticV1",
-      "type": "object"
-    },
-    "RFEMDiagnosticV2": {
-      "additionalProperties": false,
-      "properties": {
-        "expectedGeneration": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "expectedResourceRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "expectedRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "expectedSecretRevision": {
-          "maximum": 9007199254740991,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "kind": {
-          "enum": [
-            "applicationInfo"
-          ],
-          "type": "string"
-        },
-        "operationId": {
-          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
-          "type": "string"
-        }
-      },
-      "required": [
-        "expectedGeneration",
-        "expectedRevision",
-        "operationId",
-        "expectedSecretRevision",
-        "expectedResourceRevision",
-        "kind"
-      ],
-      "title": "RFEMDiagnosticV2",
-      "type": "object"
-    },
     "RegistryStatusV1": {
       "additionalProperties": false,
       "properties": {
@@ -1644,22 +1406,6 @@
           "maximum": 9007199254740991,
           "minimum": 0,
           "type": "integer"
-        },
-        "status": {
-          "enum": [
-            "unverified",
-            "missingSecret",
-            "storedUnverified",
-            "softwareUnavailable",
-            "unsupportedSoftwareVersion",
-            "verifying",
-            "authenticationFailed",
-            "authorizationRestricted",
-            "quotaRestricted",
-            "apiAccessRestricted",
-            "connected"
-          ],
-          "type": "string"
         }
       },
       "required": [
@@ -1667,8 +1413,7 @@
         "configured",
         "fieldId",
         "requiredForEngineering",
-        "revision",
-        "status"
+        "revision"
       ],
       "title": "SecretSlotStatusV1",
       "type": "object"
@@ -1981,12 +1726,6 @@
     "ConnectorStatusV1": {
       "$ref": "#/$defs/ConnectorStatusV1"
     },
-    "DiagnosticResponseV1": {
-      "$ref": "#/$defs/DiagnosticResponseV1"
-    },
-    "DiagnosticResponseV2": {
-      "$ref": "#/$defs/DiagnosticResponseV2"
-    },
     "DrainResponseV1": {
       "$ref": "#/$defs/DrainResponseV1"
     },
@@ -2061,12 +1800,6 @@
     },
     "PreferenceResponseV2": {
       "$ref": "#/$defs/PreferenceResponseV2"
-    },
-    "RFEMDiagnosticV1": {
-      "$ref": "#/$defs/RFEMDiagnosticV1"
-    },
-    "RFEMDiagnosticV2": {
-      "$ref": "#/$defs/RFEMDiagnosticV2"
     },
     "RegistryStatusV1": {
       "$ref": "#/$defs/RegistryStatusV1"

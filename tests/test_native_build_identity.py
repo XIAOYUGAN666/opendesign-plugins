@@ -20,13 +20,13 @@ class NativeBuildIdentityTests(unittest.TestCase):
         self.base = self.root / "runtime/python/Lib/site-packages"
         self.write("plugin.json", canonical({"name": "synthetic-native", "version": "1.0.0"}))
         self.sources = {"native_provider/__init__.py": b"", "native_provider/guides/workflow.md": b"inspect first\n",
-                        "native_provider/build_identity.py": b'PROVIDER_BUILD_ID = "<provider-build-id>"\n'}
+                        "native_provider/build_identity.py": b'CONNECTOR_BUILD_ID = "<connector-build-id>"\n'}
         for name, data in self.sources.items():
             self.write("runtime/python/Lib/site-packages/" + name, data)
         contracts = {"contracts/protocol.json": b'{"version":1}'}
-        inputs = {"provider/pyproject.toml": b'[project]\nname="native-provider"\nversion="1.0.0"\n',
-                  "provider/uv.lock": b'version = 1\n[[package]]\nname="native-provider"\nversion="1.0.0"\nsource={editable="."}\n', "global.json": b"{}",
-                  "provider/packaging/runtime-lock.json": canonical({"python": {"version": "3.12.10", "architecture": "amd64", "byteLength": 1, "sha256": digest(b"python")}}),
+        inputs = {"connector/pyproject.toml": b'[project]\nname="native-connector"\nversion="1.0.0"\n',
+                  "connector/uv.lock": b'version = 1\n[[package]]\nname="native-connector"\nversion="1.0.0"\nsource={editable="."}\n', "global.json": b"{}",
+                  "connector/packaging/runtime-lock.json": canonical({"python": {"version": "3.12.10", "architecture": "amd64", "byteLength": 1, "sha256": digest(b"python")}}),
                   "native/Bridge.csproj": b"<Project />", "native/packages.lock.json": b"{}", "native/package/manifest.yml": b"version: 1.0.0\n"}
         native = {key: value for key, value in inputs.items() if key.startswith("native/")}
         native["native/Bridge.cs"] = b"class Bridge {}"
@@ -35,9 +35,9 @@ class NativeBuildIdentityTests(unittest.TestCase):
         for name, data in (inputs | native).items():
             self.write("source-inputs/" + name, data)
         for name in ("pyproject.toml", "uv.lock"):
-            self.write(name, inputs["provider/" + name])
-            self.write("runtime/python/Lib/site-packages/" + name, inputs["provider/" + name])
-        self.write("runtime/python/Lib/site-packages/packaging/runtime-lock.json", inputs["provider/packaging/runtime-lock.json"])
+            self.write(name, inputs["connector/" + name])
+            self.write("runtime/python/Lib/site-packages/" + name, inputs["connector/" + name])
+        self.write("runtime/python/Lib/site-packages/packaging/runtime-lock.json", inputs["connector/packaging/runtime-lock.json"])
         self.runtime_lock = {"schemaVersion": 1, "python": {"version": "3.12.10", "architecture": "amd64", "byteLength": 1, "sha256": digest(b"python")}, "platform": "windows-x86_64-cp312", "wheels": [], "native": []}
         self.write("runtime-lock.json", canonical(self.runtime_lock))
         records = lambda files: [{"path": key, "sha256": digest(data)} for key, data in sorted(files.items())]
@@ -46,11 +46,11 @@ class NativeBuildIdentityTests(unittest.TestCase):
                        "buildInputs": records(inputs), "pythonRuntime": {"version": "3.12.10", "architecture": "amd64", "byteLength": 1, "sha256": digest(b"python")},
                        "native": {"targetFrameworks": ["net48", "net8.0"], "pluginId": "11111111-1111-1111-1111-111111111111", "inputs": records(native)}}
         self.expected = digest(canonical(self.record))
-        self.write("contracts/provider-build.json", canonical(self.record))
-        self.assignment = 'PROVIDER_BUILD_ID = "' + self.expected + '"\n'
+        self.write("contracts/connector-build.json", canonical(self.record))
+        self.assignment = 'CONNECTOR_BUILD_ID = "' + self.expected + '"\n'
         self.write("runtime/python/Lib/site-packages/native_provider/build_identity.py", self.assignment.encode())
-        self.identity = {"profile": "native-build-record-v1", "recordPath": "contracts/provider-build.json"}
-        self.write("runtime/python/Lib/site-packages/native_provider-1.0.0.dist-info/METADATA", b"Name: native-provider\nVersion: 1.0.0\n")
+        self.identity = {"profile": "native-build-record-v1", "recordPath": "contracts/connector-build.json"}
+        self.write("runtime/python/Lib/site-packages/native_provider-1.0.0.dist-info/METADATA", b"Name: native-connector\nVersion: 1.0.0\n")
         self.write("runtime/python/Lib/site-packages/native_provider-1.0.0.dist-info/WHEEL", b"Wheel-Version: 1.0\nTag: py3-none-any\n")
 
     def write(self, name, data):
@@ -61,9 +61,9 @@ class NativeBuildIdentityTests(unittest.TestCase):
     def verify(self):
         # Root tooling stays stdlib-only. Public wheel parsing runs in the
         # existing independently frozen fixture tool environment, never a
-        # global install, shared backend project or extracted Provider.
+        # global install, shared backend project or extracted Connector.
         repository = Path(__file__).resolve().parents[1]
-        tool = repository / "tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe"
+        tool = repository / "tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe"
         script = """
 import json, sys
 from pathlib import Path
@@ -98,7 +98,7 @@ else:
                 if kind == "missing":
                     path.unlink()
                 elif kind == "version":
-                    path.write_bytes(b"Name: native-provider\nVersion: 9.0\n")
+                    path.write_bytes(b"Name: native-connector\nVersion: 9.0\n")
                 elif kind == "privateUrl":
                     extra = path.parent / "direct_url.json"
                     extra.write_bytes(b'{"url":"file:///private/build"}')
@@ -153,7 +153,7 @@ else:
     def test_record_cannot_add_circular_or_unknown_fields(self):
         record = copy.deepcopy(self.record)
         record["rootSha256"] = digest(b"root")
-        self.write("contracts/provider-build.json", canonical(record))
+        self.write("contracts/connector-build.json", canonical(record))
         with self.assertRaisesRegex(ValueError, "buildIdentityMismatch"):
             self.verify()
 
@@ -228,17 +228,17 @@ else:
         for platform in ("win_amd64", "manylinux_2_17_aarch64"):
             filename = "example-1.0-cp312-cp312-" + platform + ".whl"
             wheels.append({"url": "https://example.invalid/" + filename, "hash": digest(platform.encode()), "size": 1})
-        text = 'version = 1\n[[package]]\nname="native-provider"\nversion="1.0.0"\nsource={editable="."}\n[[package]]\nname = "example"\nversion = "1.0"\n'
+        text = 'version = 1\n[[package]]\nname="native-connector"\nversion="1.0.0"\nsource={editable="."}\n[[package]]\nname = "example"\nversion = "1.0"\n'
         text += 'wheels = [' + ','.join('{url="' + wheel["url"] + '",hash="' + wheel["hash"] + '",size=1}' for wheel in wheels) + ']\n'
         data = text.encode()
-        for path in ("source-inputs/provider/uv.lock", "uv.lock", "runtime/python/Lib/site-packages/uv.lock"):
+        for path in ("source-inputs/connector/uv.lock", "uv.lock", "runtime/python/Lib/site-packages/uv.lock"):
             self.write(path, data)
         for item in self.record["buildInputs"]:
-            if item["path"] == "provider/uv.lock":
+            if item["path"] == "connector/uv.lock":
                 item["sha256"] = digest(data)
         self.expected = digest(canonical(self.record))
-        self.write("contracts/provider-build.json", canonical(self.record))
-        self.write("runtime/python/Lib/site-packages/native_provider/build_identity.py", ('PROVIDER_BUILD_ID = "' + self.expected + '"\n').encode())
+        self.write("contracts/connector-build.json", canonical(self.record))
+        self.write("runtime/python/Lib/site-packages/native_provider/build_identity.py", ('CONNECTOR_BUILD_ID = "' + self.expected + '"\n').encode())
         self.write("runtime/python/Lib/site-packages/example-1.0.dist-info/METADATA", b"Name: example\nVersion: 1.0\n")
         self.write("runtime/python/Lib/site-packages/example-1.0.dist-info/WHEEL", b"Wheel-Version: 1.0\nTag: cp312-cp312-win_amd64\n")
         for index, wheel in enumerate(wheels):

@@ -8,12 +8,13 @@ namespace RhinoMcpBridge;
 
 internal sealed class BridgeServer : IDisposable
 {
+    private static readonly HashSet<string> ProbeFields = new(StringComparer.Ordinal) { "type", "nonce" };
     private static readonly HashSet<string> AuthenticationFields = new(StringComparer.Ordinal)
     {
         "type",
         "generation",
         "token",
-        "providerBuildId",
+        "connectorBuildId",
         "contractDigest",
     };
 
@@ -45,7 +46,7 @@ internal sealed class BridgeServer : IDisposable
         if (
             lease.Generation == 0
             || !BridgeWire.IsOpaqueToken(lease.Token)
-            || !BridgeWire.IsSha256(lease.ProviderBuildId)
+            || !BridgeWire.IsSha256(lease.ConnectorBuildId)
             || !BridgeWire.IsSha256(lease.ContractDigest)
         )
         {
@@ -113,7 +114,7 @@ internal sealed class BridgeServer : IDisposable
         }
         catch (SocketException)
         {
-            // Closing an already disconnected Provider socket is safe.
+            // Closing an already disconnected Connector socket is safe.
         }
 
         _shutdown.Dispose();
@@ -159,11 +160,11 @@ internal sealed class BridgeServer : IDisposable
                 _activeClient = client;
             }
 
-            _ = Task.Run(() => HandleProviderAsync(client, cancellationToken));
+            _ = Task.Run(() => HandleConnectorAsync(client, cancellationToken));
         }
     }
 
-    private async Task HandleProviderAsync(TcpClient client, CancellationToken cancellationToken)
+    private async Task HandleConnectorAsync(TcpClient client, CancellationToken cancellationToken)
     {
         try
         {
@@ -188,7 +189,7 @@ internal sealed class BridgeServer : IDisposable
                     {
                         type = "authenticated",
                         generation = lease.Generation,
-                        providerBuildId = lease.ProviderBuildId,
+                        connectorBuildId = lease.ConnectorBuildId,
                         contractDigest = lease.ContractDigest,
                     },
                     BridgeWire.MaxBridgeFrameSize,
@@ -208,7 +209,20 @@ internal sealed class BridgeServer : IDisposable
                         return;
                     }
 
-                    if (!TryParseCommand(payload, out var commandType, out var parametersJson, out var includeDelta, out var includeHealth))
+                    using var document = BridgeWire.ParseStrictJson(payload);
+                    var root = document.RootElement;
+                    if (TryParseConnectionProbe(root, out var nonce))
+                    {
+                        await BridgeWire.WriteJsonFrameAsync(
+                            stream,
+                            new { type = "connectionProbeAck", nonce },
+                            BridgeWire.MaxBridgeFrameSize,
+                            cancellationToken
+                        ).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    if (!TryParseCommand(root, out var commandType, out var parametersJson, out var includeDelta, out var includeHealth))
                     {
                         await BridgeWire.WriteJsonFrameAsync(
                             stream,
@@ -306,11 +320,11 @@ internal sealed class BridgeServer : IDisposable
         }
 
         var token = root.GetProperty("token").GetString();
-        var providerBuildId = root.GetProperty("providerBuildId").GetString();
+        var connectorBuildId = root.GetProperty("connectorBuildId").GetString();
         var contractDigest = root.GetProperty("contractDigest").GetString();
         if (
             !FixedTimeEquals(token, currentLease.Token)
-            || !string.Equals(providerBuildId, currentLease.ProviderBuildId, StringComparison.Ordinal)
+            || !string.Equals(connectorBuildId, currentLease.ConnectorBuildId, StringComparison.Ordinal)
             || !string.Equals(contractDigest, currentLease.ContractDigest, StringComparison.Ordinal)
         )
         {
@@ -321,8 +335,27 @@ internal sealed class BridgeServer : IDisposable
         return true;
     }
 
+    private static bool TryParseConnectionProbe(JsonElement root, out string nonce)
+    {
+        nonce = string.Empty;
+        if (!HasExactFields(root, ProbeFields)
+            || root.GetProperty("type").ValueKind != JsonValueKind.String
+            || root.GetProperty("type").GetString() != "connectionProbe"
+            || root.GetProperty("nonce").ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+        var value = root.GetProperty("nonce").GetString();
+        if (value is null || value.Length != 32 || value.Any(c => !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))))
+        {
+            return false;
+        }
+        nonce = value;
+        return true;
+    }
+
     private static bool TryParseCommand(
-        byte[] payload,
+        JsonElement root,
         out string commandType,
         out string parametersJson,
         out bool includeDelta,
@@ -334,8 +367,6 @@ internal sealed class BridgeServer : IDisposable
         includeDelta = false;
         includeHealth = false;
 
-        using var document = BridgeWire.ParseStrictJson(payload);
-        var root = document.RootElement;
         if (root.ValueKind != JsonValueKind.Object)
         {
             return false;
@@ -426,7 +457,7 @@ internal sealed class BridgeServer : IDisposable
             }
             catch (Exception)
             {
-                // Refusing another active Provider never affects the current session.
+                // Refusing another active Connector never affects the current session.
             }
         }
     }

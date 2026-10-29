@@ -95,7 +95,7 @@ public sealed class BridgeProtocolTests
     [Theory]
     [InlineData("generation")]
     [InlineData("token")]
-    [InlineData("providerBuildId")]
+    [InlineData("connectorBuildId")]
     [InlineData("contractDigest")]
     public async Task Stale_or_mismatched_bridge_authentication_is_rejected_without_details(string field)
     {
@@ -107,7 +107,7 @@ public sealed class BridgeProtocolTests
         {
             "generation" => BridgeTestSupport.AuthenticationJson(generation: 2),
             "token" => BridgeTestSupport.AuthenticationJson(token: "wrong-bridge-token-0123456789"),
-            "providerBuildId" => BridgeTestSupport.AuthenticationJson(providerBuildId: "sha256:1111111111111111111111111111111111111111111111111111111111111111"),
+            "connectorBuildId" => BridgeTestSupport.AuthenticationJson(connectorBuildId: "sha256:1111111111111111111111111111111111111111111111111111111111111111"),
             _ => BridgeTestSupport.AuthenticationJson(contractDigest: "sha256:1111111111111111111111111111111111111111111111111111111111111111"),
         };
         await BridgeTestSupport.WriteFrameAsync(client.GetStream(), auth);
@@ -117,6 +117,25 @@ public sealed class BridgeProtocolTests
         Assert.NotNull(response);
         Assert.Equal(new[] { "type" }, response!.RootElement.EnumerateObject().Select(property => property.Name));
         Assert.Equal("authenticationRejected", response.RootElement.GetProperty("type").GetString());
+    }
+
+    [Fact]
+    public async Task Authenticated_connection_probe_returns_without_dispatching_a_command()
+    {
+        using var native = NativeTestAssembly.Load();
+        var dispatchCount = 0;
+        using var server = (IDisposable)CreateServer(native, () => Interlocked.Increment(ref dispatchCount));
+        BridgeTestSupport.Invoke(server, "Start");
+        using var client = await BridgeTestSupport.ConnectLoopbackAsync(Port(server));
+        var stream = client.GetStream();
+        await BridgeTestSupport.WriteFrameAsync(stream, BridgeTestSupport.AuthenticationJson());
+        using var auth = await BridgeTestSupport.ReadFrameAsync(stream);
+        Assert.Equal("authenticated", auth!.RootElement.GetProperty("type").GetString());
+        await BridgeTestSupport.WriteFrameAsync(stream, """{"type":"connectionProbe","nonce":"0123456789abcdef0123456789abcdef"}""");
+        using var reply = await BridgeTestSupport.ReadFrameAsync(stream);
+        Assert.Equal("connectionProbeAck", reply!.RootElement.GetProperty("type").GetString());
+        Assert.Equal("0123456789abcdef0123456789abcdef", reply.RootElement.GetProperty("nonce").GetString());
+        Assert.Equal(0, Volatile.Read(ref dispatchCount));
     }
 
     [Fact]

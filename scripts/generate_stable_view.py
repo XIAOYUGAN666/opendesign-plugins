@@ -31,7 +31,11 @@ def authorize(receipt, policy, *, allow_revoked=False):
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     if not policy or policy.get("repositoryIdentity") != REPOSITORY:
         raise ValueError("missingPublicationAuthorization")
-    contract(receipt, "SignedReleaseV1" if "providerBuildId" in receipt.get("release", {}) else "SignedSkillReleaseV1")
+    release = receipt.get("release", {})
+    # Historical signed connector receipts retain providerBuildId verbatim;
+    # only skill-only release identities have neither build field.
+    is_connector = "connectorBuildId" in release or "providerBuildId" in release
+    contract(receipt, "SignedReleaseV1" if is_connector else "SignedSkillReleaseV1")
     release = receipt["release"]
     package = release["packageId"]
     if not re.fullmatch(r"[a-z0-9]+(?:[.-][a-z0-9]+)*", package) or not STABLE_VERSION.fullmatch(release["pluginVersion"]):
@@ -155,7 +159,7 @@ def inventory_for(package, files):
 
 def approved_portable_files(artifact_root, receipt, trust_policy, verified_context):
     release = authorize(receipt, trust_policy)
-    if "providerBuildId" not in release:
+    if "connectorBuildId" not in release:
         try:
             from .build_skill_artifact import validate_files
         except ImportError:

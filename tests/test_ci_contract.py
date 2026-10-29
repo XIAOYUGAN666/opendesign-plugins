@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class CiContractTests(unittest.TestCase):
     def test_native_provider_ci_builds_its_owned_test_host_before_python_tests(self):
         workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
-        provider_job = workflow.split("\n  provider:\n", 1)[1]
+        provider_job = workflow.split("\n  connector:\n", 1)[1]
         build = "dotnet test native/tests/RhinoMcpBridge.Tests.csproj -c Release -p:RestoreLockedMode=true"
         self.assertIn(build, provider_job, "Real process interoperability requires the native host to be built, not skipped")
         both_targets = "dotnet build native/RhinoMcpBridge.csproj -c Release -p:RestoreLockedMode=true"
@@ -22,10 +22,10 @@ class CiContractTests(unittest.TestCase):
         self.assertRegex(provider_job, r"actions/setup-dotnet@[a-f0-9]{40}")
 
     def test_verify_sync_requests_only_extras_owned_by_each_project(self):
-        # Catches reusing fixture-only extras for a migrated real Provider.
+        # Catches reusing fixture-only extras for a migrated real Connector.
         workflow = (ROOT / ".github/workflows/verify.yml").read_text(encoding="utf-8")
         plugins = re.search(r"^        plugin: \[([^\]]+)\]$", workflow, re.MULTILINE)
-        self.assertIsNotNone(plugins, "Provider matrix must be checked")
+        self.assertIsNotNone(plugins, "Connector matrix must be checked")
         plugin_ids = [value.strip() for value in plugins.group(1).split(",")]
         steps = re.findall(
             r"^        working-directory: (.+)\n"
@@ -59,7 +59,7 @@ class CiContractTests(unittest.TestCase):
                             extras - declared.keys(),
                             f"{project_directory}: CI requests undefined extras {sorted(extras - declared.keys())}",
                         )
-                        if project_directory == "tests/fixtures/fixture-engineering/provider":
+                        if project_directory == "tests/fixtures/fixture-engineering/connector":
                             self.assertIn("build", extras, "Fixture artifact tooling requires its build extra")
         self.assertEqual(sync_count, len(re.findall(r"\buv sync\b", workflow)))
         self.assertGreater(sync_count, 0, "No CI project sync was checked")
@@ -72,7 +72,7 @@ class CiContractTests(unittest.TestCase):
         self.assertIn("--unsigned", workflow)
         self.assertIn("only synthetic fixture artifacts are uploaded", workflow)
         self.assertIn("if: success() && inputs.plugin == 'fixture-engineering'", workflow)
-        self.assertNotIn("Real Provider release builder has not migrated", workflow)
+        self.assertNotIn("Real Connector release builder has not migrated", workflow)
         self.assertNotIn("gh release create", workflow)
         candidate_job = workflow.split("\n  candidate:\n", 1)[1].split("\n  signing:\n", 1)[0]
         self.assertNotIn("${{ secrets.", candidate_job)

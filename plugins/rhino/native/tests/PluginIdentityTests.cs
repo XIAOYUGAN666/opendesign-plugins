@@ -35,10 +35,10 @@ public sealed class PluginIdentityTests
             Assert.Equal(ExpectedGuid, identity.Guid);
             Assert.Equal(ExpectedLoadTime, identity.LoadTime);
             Assert.Matches("^sha256:[0-9a-f]{64}$", identity.CapabilityDigest);
-            var expectedBuildId = Environment.GetEnvironmentVariable("RHINO_EXPECTED_PROVIDER_BUILD_ID");
+            var expectedBuildId = Environment.GetEnvironmentVariable("RHINO_EXPECTED_CONNECTOR_BUILD_ID");
             if (!string.IsNullOrWhiteSpace(expectedBuildId))
             {
-                Assert.Equal(expectedBuildId, identity.ProviderBuildId);
+                Assert.Equal(expectedBuildId, identity.ConnectorBuildId);
             }
         }
 
@@ -154,7 +154,7 @@ public sealed class PluginIdentityTests
                 loadTime,
                 capabilityDigest,
                 assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
-                    .Single(attribute => attribute.Key == "RhinoProviderBuildId").Value
+                    .Single(attribute => attribute.Key == "RhinoConnectorBuildId").Value
             );
         }
         finally
@@ -169,6 +169,6 @@ public sealed class PluginIdentityTests
         string? Guid,
         string? LoadTime,
         string CapabilityDigest,
-        string? ProviderBuildId
+        string? ConnectorBuildId
     );
 }

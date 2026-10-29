@@ -14,10 +14,19 @@ from scripts import verify_artifact as verifier
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "tests/fixtures/fixture-engineering"
-PYTHON = PLUGIN / "provider/.venv/Scripts/python.exe"
+PYTHON = PLUGIN / "connector/.venv/Scripts/python.exe"
 
 
 class ReleaseInputTests(unittest.TestCase):
+    def test_connector_source_without_skills_is_valid(self):
+        with tempfile.TemporaryDirectory(prefix="connector-source-") as folder:
+            root = Path(folder) / "plugin"
+            (root / "connector/fixture_engineering").mkdir(parents=True)
+            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+            for name in ("pyproject.toml", "uv.lock"):
+                (root / "connector" / name).write_bytes(b"fixture")
+            check_source_closure(root)
+
     def test_child_build_diagnostic_accepts_only_a_fixed_category(self):
         error = subprocess.CalledProcessError(
             1, ["private-command"], stderr=b"artifactBuildFailed:nativeBuildFailed\n"
@@ -75,24 +84,24 @@ class ReleaseInputTests(unittest.TestCase):
     def test_generator_updates_both_derived_inputs_from_one_root(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "provider").mkdir()
-            (root / "provider/packaging").mkdir()
-            (root / "provider/packaging/release-input.json").write_bytes(b"stale generated input")
+            (root / "connector").mkdir()
+            (root / "connector/packaging").mkdir()
+            (root / "connector/packaging/release-input.json").write_bytes(b"stale generated input")
             (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
             result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(root), "--generate-release-input", "--release-sequence", "2"], capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
             expected = verifier.canonical(generated_input(root, release_sequence=2))
-            for target in (root / "packaging/release-input.json", root / "provider/packaging/release-input.json"):
+            for target in (root / "packaging/release-input.json", root / "connector/packaging/release-input.json"):
                 self.assertEqual(target.read_bytes(), expected)
 
     def test_generator_does_not_create_an_unused_provider_input(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "provider").mkdir()
+            (root / "connector").mkdir()
             (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
             result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(root), "--generate-release-input", "--release-sequence", "2"], capture_output=True)
             self.assertEqual(result.returncode, 0, result.stderr.decode())
-            self.assertFalse((root / "provider/packaging/release-input.json").exists())
+            self.assertFalse((root / "connector/packaging/release-input.json").exists())
 
 
 class ArtifactBindingTests(unittest.TestCase):
@@ -159,7 +168,7 @@ print('PASS signed fixture, four closed draft negatives and isolated signed mark
         else:
             # RED baseline is the real T09 builder, not an import/path failure.
             command = [str(PYTHON), "-B", "-m", "scripts.build_fixture", "--output", str(cls.folder / "first")]
-        built = subprocess.run(command, cwd=PLUGIN / "provider", check=False, capture_output=True)
+        built = subprocess.run(command, cwd=PLUGIN / "connector", check=False, capture_output=True)
         if built.returncode:
             detail = built.stderr.decode("utf-8", errors="replace").strip()
             prefix = "artifactBuildFailed:"
@@ -216,10 +225,10 @@ print('PASS signed fixture, four closed draft negatives and isolated signed mark
         self.assertEqual(self.release.get("releaseSequence"), 2)
         self.assertEqual(self.release.get("packageId"), root["name"])
         self.assertEqual(self.release.get("pluginVersion"), root["version"])
-        self.assertEqual(self.release.get("startupEnvelopeVersion"), 2)
+        self.assertEqual(self.release.get("startupEnvelopeVersion"), 3)
         self.assertEqual(self.receipt.get("release"), self.release)
 
-    def test_tool_preview_is_exported_from_staged_provider(self):
+    def test_tool_preview_is_exported_from_staged_connector(self):
         preview = (self.staged / "tool-preview.json").read_bytes()
         self.assertEqual(self.release.get("toolCatalogDigest"), "sha256:" + hashlib.sha256(preview).hexdigest())
         tools = json.loads(preview)["tools"]
@@ -322,7 +331,7 @@ print('signed round trip and six zero-runtime trust negatives passed')
         generated = json.loads((plugin / "packaging/release-input.json").read_text())
         self.assertEqual(generated["releaseIdentity"]["pluginVersion"], "0.1.42")
         self.assertEqual(generated["rootSha256"], "sha256:" + hashlib.sha256((plugin / "plugin.json").read_bytes()).hexdigest())
-        self.assertTrue({"archive", "providerBuildId", "filesDigest", "sbomDigest", "toolCatalogDigest"}.isdisjoint(generated["releaseIdentity"]))
+        self.assertTrue({"archive", "connectorBuildId", "filesDigest", "sbomDigest", "toolCatalogDigest"}.isdisjoint(generated["releaseIdentity"]))
         for name in ("dlubal-rfem", "rhino"):
             root = ROOT / "plugins" / name
             identity = json.loads((root / "plugin.json").read_text())
@@ -456,10 +465,10 @@ assert accepted,'valid required-secret declaration was treated as empty user con
             base = Path(folder)
             root = base / "plugin"
             (root / "skills").mkdir(parents=True)
-            (root / "provider/fixture_engineering").mkdir(parents=True)
+            (root / "connector/fixture_engineering").mkdir(parents=True)
             (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
             for name in ("pyproject.toml", "uv.lock"):
-                (root / "provider" / name).write_bytes(b"synthetic owned source")
+                (root / "connector" / name).write_bytes(b"synthetic owned source")
             target = base / "outside"
             target.mkdir()
             (target / "synthetic.txt").write_bytes(b"outside the copied source closure")

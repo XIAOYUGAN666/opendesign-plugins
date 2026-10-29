@@ -1,4 +1,4 @@
-"""Skill-only artifacts require a manifest and a bounded signed inventory, not a Provider."""
+"""Skill-only artifacts require a manifest and a bounded signed inventory, not a Connector."""
 import json
 from pathlib import Path
 import subprocess
@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / "tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe"
+PYTHON = ROOT / "tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe"
 
 
 class SkillArtifactTests(unittest.TestCase):
@@ -36,7 +36,7 @@ class SkillArtifactTests(unittest.TestCase):
             self.assertEqual(archives[0], archives[1])
             receipt = json.loads((outputs[0] / "unsigned-receipt.json").read_text(encoding="utf-8"))
             self.assertEqual(receipt["release"]["packageId"], "example-pack")
-            self.assertNotIn("providerBuildId", receipt["release"])
+            self.assertNotIn("connectorBuildId", receipt["release"])
             verifier = ROOT / "scripts/verify_skill_artifact.py"
             verified = subprocess.run([str(PYTHON), "-B", str(verifier), str(next(outputs[0].glob("*.zip"))), str(outputs[0] / "unsigned-receipt.json"), "--unsigned"], capture_output=True, timeout=60)
             self.assertEqual(verified.returncode, 0, verified.stderr.decode("utf-8", errors="replace"))

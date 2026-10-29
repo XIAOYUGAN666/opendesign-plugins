@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ConnectorBootstrapV3",
+  "type": "object",
+  "properties": {
+    "bearerToken": { "type": "string", "maxLength": 512, "minLength": 32 },
+    "bind": { "$ref": "#/$defs/ConnectorBindV3" },
+    "binding": { "$ref": "#/$defs/ConnectionBindingV1" },
+    "configuration": true,
+    "connectorBuildId": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "dataDirectory": { "type": ["string", "null"] },
+    "mode": { "$ref": "#/$defs/ConnectorBootstrapModeV3" },
+    "nativePeer": {
+      "anyOf": [
+        { "$ref": "#/$defs/ConnectorBootstrapNativePeerV3" },
+        { "type": "null" }
+      ]
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 3,
+      "minimum": 3
+    },
+    "secrets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ConnectorBootstrapSecretV3" }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "binding",
+    "mode",
+    "bind",
+    "bearerToken",
+    "connectorBuildId",
+    "configuration",
+    "secrets"
+  ],
+  "$defs": {
+    "ConnectionBindingV1": {
+      "type": "object",
+      "properties": {
+        "configurationRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "connectorInstanceId": {
+          "type": "string",
+          "pattern": "^ci_[a-f0-9]{32}$"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "packageId": {
+          "type": "string",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^(?!.*\\.\\.)[a-z](?:[a-z0-9_.-]*[a-z0-9])?$"
+        },
+        "releaseDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "secretRevision": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "releaseDigest",
+        "connectorInstanceId",
+        "generation",
+        "configurationRevision",
+        "secretRevision"
+      ]
+    },
+    "ConnectorBindV3": {
+      "type": "object",
+      "properties": {
+        "host": { "type": "string", "pattern": "^127\\.0\\.0\\.1$" },
+        "path": { "type": "string", "pattern": "^/mcp$" },
+        "port": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1024
+        }
+      },
+      "additionalProperties": false,
+      "required": ["host", "port", "path"]
+    },
+    "ConnectorBootstrapModeV3": {
+      "type": "string",
+      "enum": ["metadata", "runtime"]
+    },
+    "ConnectorBootstrapNativePeerV3": {
+      "type": "object",
+      "properties": {
+        "connectorBuildId": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "contractDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "generation": {
+          "type": "integer",
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 1
+        },
+        "host": { "type": "string", "pattern": "^127\\.0\\.0\\.1$" },
+        "port": {
+          "type": "integer",
+          "format": "uint16",
+          "maximum": 65535,
+          "minimum": 1024
+        },
+        "softwareInstanceId": {
+          "type": "string",
+          "pattern": "^si_[a-zA-Z0-9_-]{1,128}$"
+        },
+        "token": { "type": "string", "maxLength": 512, "minLength": 32 }
+      },
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port",
+        "token",
+        "generation",
+        "connectorBuildId",
+        "contractDigest",
+        "softwareInstanceId"
+      ]
+    },
+    "ConnectorBootstrapSecretV3": {
+      "type": "object",
+      "properties": {
+        "fieldId": { "type": "string" },
+        "value": { "type": "string", "maxLength": 4096, "minLength": 1 }
+      },
+      "additionalProperties": false,
+      "required": ["fieldId", "value"]
+    }
+  }
+}

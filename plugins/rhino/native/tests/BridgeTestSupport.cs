@@ -11,13 +11,13 @@ namespace RhinoMcpBridge.Tests;
 internal static class BridgeTestSupport
 {
     internal const string Token = "test-bridge-token-0123456789abcdef";
-    internal const string ProviderBuildId = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+    internal const string ConnectorBuildId = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
     internal const string ContractDigest = "sha256:2222222222222222222222222222222222222222222222222222222222222222";
 
     internal static object CreateRegistration(
         NativeTestAssembly native,
         string contractDigest = ContractDigest,
-        string providerBuildId = ProviderBuildId
+        string connectorBuildId = ConnectorBuildId
     )
     {
         var type = RequireType(native, "RhinoMcpBridge.BridgeRegistration");
@@ -33,7 +33,7 @@ internal static class BridgeTestSupport
                 "0.1.2",
                 (uint)1,
                 (uint)8,
-                providerBuildId,
+                connectorBuildId,
                 contractDigest,
                 ContractDigest,
             ]
@@ -44,7 +44,7 @@ internal static class BridgeTestSupport
         NativeTestAssembly native,
         ulong generation = 1,
         string token = Token,
-        string providerBuildId = ProviderBuildId,
+        string connectorBuildId = ConnectorBuildId,
         string contractDigest = ContractDigest
     )
     {
@@ -52,7 +52,7 @@ internal static class BridgeTestSupport
         var constructor = type
             .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
             .Single(candidate => candidate.GetParameters().Length == 4);
-        return constructor.Invoke([generation, token, providerBuildId, contractDigest]);
+        return constructor.Invoke([generation, token, connectorBuildId, contractDigest]);
     }
 
     internal static object CreateBridgeServer(
@@ -206,7 +206,7 @@ internal static class BridgeTestSupport
     internal static string AuthenticationJson(
         ulong generation = 1,
         string token = Token,
-        string providerBuildId = ProviderBuildId,
+        string connectorBuildId = ConnectorBuildId,
         string contractDigest = ContractDigest
     ) =>
         JsonSerializer.Serialize(
@@ -215,7 +215,7 @@ internal static class BridgeTestSupport
                 type = "authenticate",
                 generation,
                 token,
-                providerBuildId,
+                connectorBuildId,
                 contractDigest,
             }
         );

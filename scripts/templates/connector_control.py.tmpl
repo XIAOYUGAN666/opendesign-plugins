@@ -1,0 +1,84 @@
+"""Generated connector wire codec; do not edit."""
+import json
+from dataclasses import dataclass
+
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
+owner_schema_sha256 = __SCHEMA_DIGEST__
+owner_bootstrap_sha256 = __BOOTSTRAP_DIGEST__
+owner_ready_sha256 = __READY_DIGEST__
+_schema = json.loads(__SCHEMA_JSON__)
+_validator = Draft202012Validator(_schema)
+_bootstrap_validator = Draft202012Validator(json.loads(__BOOTSTRAP_JSON__))
+_limit = 16 * 1024
+
+
+def bootstrap_schema():
+    return json.loads(__BOOTSTRAP_JSON__)
+
+
+def lifecycle_schema(execution_schema):
+    ready = json.loads(__READY_JSON__)
+    definitions = ready.pop("$defs", {})
+    ready.pop("$schema", None)
+    definitions["ConnectorReadyV3"] = ready
+    definitions["ExecutionStatusV1"] = execution_schema
+    return {"$schema": "https://json-schema.org/draft/2020-12/schema", "$defs": definitions, "oneOf": [{"$ref": "#/$defs/ConnectorReadyV3"}, {"$ref": "#/$defs/ExecutionStatusV1"}]}
+
+
+@dataclass(frozen=True)
+class AdapterConnectionResult:
+    outcome: str
+    reason: str
+    software_instance_id: str | None = None
+
+
+def _unique_pairs(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicateKey")
+        result[key] = value
+    return result
+
+
+def _reject_constant(_value):
+    raise ValueError("invalidNumber")
+
+
+def decode_control(frame):
+    if not frame or len(frame) > _limit:
+        raise ValueError("invalidFrame")
+    try:
+        value = json.loads(frame.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_reject_constant)
+        _validator.validate(value)
+        if not isinstance(value, dict) or value.get("kind") not in {"ensureSoftwareConnection", "cancelConnectionCheck", "nativePeerChanged"}:
+            raise ValueError("invalidKind")
+    except (ValueError, UnicodeError, ValidationError):
+        raise ValueError("invalidFrame") from None
+    return value
+
+
+def decode_bootstrap(frame):
+    if not frame or len(frame) > 64 * 1024:
+        raise ValueError("invalidBootstrap")
+    try:
+        value = json.loads(frame.decode("utf-8"), object_pairs_hook=_unique_pairs, parse_constant=_reject_constant)
+        _bootstrap_validator.validate(value)
+    except (ValueError, UnicodeError, ValidationError):
+        raise ValueError("invalidBootstrap") from None
+    return value
+
+
+def validate_event(value):
+    try:
+        _validator.validate(value)
+        if not isinstance(value, dict) or value.get("kind") not in {"connectionCheckCompleted", "softwareConnectionChanged"}:
+            raise ValueError("invalidKind")
+        encoded = json.dumps(value, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        if len(encoded) > _limit:
+            raise ValueError("invalidSize")
+    except (ValueError, TypeError, ValidationError):
+        raise ValueError("invalidFrame") from None
+    return value

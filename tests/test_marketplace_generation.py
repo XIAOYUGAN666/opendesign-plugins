@@ -6,7 +6,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / "tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe"
+PYTHON = ROOT / "tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe"
 
 # Deliberately small synthetic extracted artifacts. These are generator tests,
 # not a substitute for T07's real archive/runtime verification or Stable approval.
@@ -30,7 +30,7 @@ def artifact(package,version):
  identity['name']=package; identity['version']=version; native=identity['extensions'][NAMESPACE]; native['adapter']['version']=version; native['components'][0]['id']=package
  files={'plugin.json':canonical(identity),'README.md':b'Synthetic generator test. Native entrypoint resolves only in signed Windows ZIP.\n','configuration.schema.json':b'{"type":"object"}','tool-preview.json':canonical({'normalizationVersion':1,'tools':[]}),'sbom.spdx.json':b'{}','runtime/python/python.exe':b'synthetic-only','skills/workflow/SKILL.md':b'---\nname: workflow\ndescription: Synthetic generator test.\n---\nRead [reference](resources/reference.md).\n','skills/workflow/resources/reference.md':b'Synthetic resource\n'}
  inventory=canonical({'schemaVersion':1,'files':[{'path':name,'byteLength':len(raw),'sha256':digest(raw)} for name,raw in sorted(files.items())]})
- release=release_identity(identity,release_sequence=2); release.update(providerBuildId=digest(b'synthetic-source'),filesDigest=digest(inventory),toolCatalogDigest=digest(files['tool-preview.json']),sbomDigest=digest(files['sbom.spdx.json']))
+ release=release_identity(identity,release_sequence=2); release.update(connectorBuildId=digest(b'synthetic-source'),filesDigest=digest(inventory),toolCatalogDigest=digest(files['tool-preview.json']),sbomDigest=digest(files['sbom.spdx.json']))
  files.update({'files.json':inventory,'release.json':canonical(release)})
  for name,raw in files.items():
   path=root/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_bytes(raw)

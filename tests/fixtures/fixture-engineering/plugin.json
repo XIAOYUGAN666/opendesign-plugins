@@ -24,7 +24,7 @@
       "module": "fixture_engineering.managed_bootstrap",
       "components": [
         {
-          "kind": "provider",
+          "kind": "connector",
           "id": "fixture-engineering"
         }
       ],
@@ -45,9 +45,9 @@
       },
       "configurationSchemaVersion": 1,
       "protocolVersion": 1,
-      "startupEnvelopeVersion": 2,
+      "startupEnvelopeVersion": 3,
       "routine": {
-        "kind": "managed-provider",
+        "kind": "managed-connector",
         "version": 1
       },
       "configurationSchemaPath": "configuration.schema.json",

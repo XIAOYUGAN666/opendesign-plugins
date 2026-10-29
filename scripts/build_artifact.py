@@ -31,14 +31,17 @@ def check_source_closure(plugin_root):
             raise ValueError("reparseSource")
         if not path.exists():
             raise ValueError("missingSource")
-    for path in (plugin_root, plugin_root / "plugin.json", plugin_root / "provider"):
+    for path in (plugin_root, plugin_root / "plugin.json", plugin_root / "connector"):
         check(path)
     identity = read_json((plugin_root / "plugin.json").read_bytes())
     validate_assets(plugin_root, identity)
     module = identity["extensions"]["io.github.xiaoyugan666.native"]["module"].split(".")
     if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in module):
         raise ValueError("unsafeProviderModule")
-    copied = [plugin_root / "skills", plugin_root / "provider" / module[0], plugin_root / "provider/pyproject.toml", plugin_root / "provider/uv.lock"]
+    copied = [plugin_root / "connector" / module[0], plugin_root / "connector/pyproject.toml", plugin_root / "connector/uv.lock"]
+    skills = plugin_root / "skills"
+    if skills.exists() or skills.is_symlink() or skills.is_junction():
+        copied.append(skills)
     if (plugin_root / "assets").exists():
         copied.append(plugin_root / "assets")
     for source in copied:
@@ -52,7 +55,7 @@ def check_release_inputs(plugin_root: Path, *, release_sequence: int):
     expected_input = canonical(generated_input(plugin_root, release_sequence=release_sequence))
     if plugin_root != FIXTURE.resolve():
         targets = [plugin_root / "packaging/release-input.json"]
-        provider_input = plugin_root / "provider/packaging/release-input.json"
+        provider_input = plugin_root / "connector/packaging/release-input.json"
         if provider_input.exists():
             targets.append(provider_input)
         for target in targets:
@@ -67,11 +70,11 @@ def build_artifact(plugin_root: Path, output_dir: Path, *, release_sequence: int
         raise ValueError("outputMustBeFreshAndOutsideRepository")
     check_source_closure(plugin_root)
     check_release_inputs(plugin_root, release_sequence=release_sequence)
-    tool_python = plugin_root / "provider/.venv/Scripts/python.exe"
+    tool_python = plugin_root / "connector/.venv/Scripts/python.exe"
     environment = {k: os.environ[k] for k in ("SystemRoot", "WINDIR", "TEMP", "TMP", "PATH", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "ProgramFiles(x86)") if k in os.environ}
     fixture = plugin_root == FIXTURE.resolve()
-    command = [str(tool_python), "-B", "-m", "scripts.build_fixture", "--output", str(output_dir)] if fixture else [str(tool_python), "-B", "-m", "scripts.build_plugin", "--plugin-root", str(plugin_root), "--stage-only", "--output", str(output_dir), "--cache", str(cache_dir or plugin_root / "provider/cache/downloads")]
-    subprocess.run(command, cwd=plugin_root / "provider", env=environment, check=True, capture_output=True, timeout=600)
+    command = [str(tool_python), "-B", "-m", "scripts.build_fixture", "--output", str(output_dir)] if fixture else [str(tool_python), "-B", "-m", "scripts.build_plugin", "--plugin-root", str(plugin_root), "--stage-only", "--output", str(output_dir), "--cache", str(cache_dir or plugin_root / "connector/cache/downloads")]
+    subprocess.run(command, cwd=plugin_root / "connector", env=environment, check=True, capture_output=True, timeout=600)
     return _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, fixture, release_sequence=release_sequence)
 
 
@@ -82,7 +85,7 @@ def _finish_staged_artifact(plugin_root, output_dir, tool_python, environment, f
     if (staged / "plugin.json").read_bytes() != (plugin_root / "plugin.json").read_bytes():
         raise ValueError("rootChangedDuringBuild")
     release = release_identity(identity, release_sequence=release_sequence)
-    release["providerBuildId"] = read_json((staged / ("fixture-build.json" if fixture else "provider-build.json")).read_bytes())["providerBuildId"]
+    release["connectorBuildId"] = read_json((staged / ("fixture-build.json" if fixture else "connector-build.json")).read_bytes())["connectorBuildId"]
     # The public startup/MCP probe needs only this provisional release identity.
     (staged / "release.json").write_bytes(canonical(release))
     observed = discover(staged)
@@ -130,8 +133,8 @@ def main():
         if args.generate_release_input:
             data = canonical(generated_input(args.plugin_root, release_sequence=args.release_sequence))
             targets = [args.plugin_root / "packaging/release-input.json"]
-            if (args.plugin_root / "provider/packaging/release-input.json").exists():
-                targets.append(args.plugin_root / "provider/packaging/release-input.json")
+            if (args.plugin_root / "connector/packaging/release-input.json").exists():
+                targets.append(args.plugin_root / "connector/packaging/release-input.json")
             for target in targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(data)

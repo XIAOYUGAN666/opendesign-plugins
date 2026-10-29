@@ -4,7 +4,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / "tests/fixtures/fixture-engineering/provider/.venv/Scripts/python.exe"
+PYTHON = ROOT / "tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe"
 
 CHECK = r'''
 import base64,hashlib,json,os,subprocess,sys,tempfile
@@ -34,6 +34,11 @@ with tempfile.TemporaryDirectory() as folder:
   assert len(signers)==2 and reports[0]['candidateKeyId']=='rfem-publisher-v1'
   assert reports[0]['hostPolicyKeyId']=='rfem-publisher-v1'
   assert reports[1]['hostPolicyKeyId']=='rhino-publisher-v1'
+ elif scenario=='deleted-tracked-file':
+  from scripts import publisher_signing as boundary
+  signers,_=load_signers(schema,encoded);repo=Path(folder)/'deleted-source';(repo/'scripts').mkdir(parents=True)
+  with patch.object(boundary,'__file__',str(repo/'scripts/publisher_signing.py')),patch.object(boundary.subprocess,'check_output',return_value=b'deleted.py\0'):
+   boundary.reject_tracked_private_material(encoded,signers)
  elif scenario=='sanitized':
   with patch.dict(os.environ,{fields[1]:encoded[p] for p,fields in TARGETS.items()}):
    captured=take_secrets();assert captured==encoded
@@ -68,7 +73,7 @@ with tempfile.TemporaryDirectory() as folder:
   else: raise AssertionError('invalid signer accepted')
  # Exercise the actual CLI: no secret values or raw exceptions may reach output.
  env={**os.environ,**{fields[1]:encoded[p] for p,fields in TARGETS.items()}}
- if scenario not in ('sanitized','leak-check'):
+ if scenario not in ('sanitized','leak-check','deleted-tracked-file'):
   result=subprocess.run([sys.executable,'-B','scripts/publisher_signing.py','--schemas',str(schema)],env=env,capture_output=True)
   assert result.returncode==(0 if scenario in ('match','multi-scope') else 1)
   assert all(not v or v.encode() not in result.stdout+result.stderr for v in encoded.values())
@@ -79,7 +84,7 @@ print('PASS '+scenario)
 
 class PublisherSigningTests(unittest.TestCase):
     def test_matching_independent_keys_and_safe_failure_modes(self):
-        for scenario in ("match", "multi-scope", "sanitized", "leak-check", "swapped", "missing", "malformed", "wrong-length", "tampered-export", "shared", "historical-id", "wrong-public-key"):
+        for scenario in ("match", "multi-scope", "deleted-tracked-file", "sanitized", "leak-check", "swapped", "missing", "malformed", "wrong-length", "tampered-export", "shared", "historical-id", "wrong-public-key"):
             with self.subTest(scenario=scenario):
                 result = subprocess.run([str(PYTHON), "-B", "-c", CHECK, scenario], cwd=ROOT, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr.decode())
