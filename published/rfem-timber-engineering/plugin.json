@@ -1,7 +1,0 @@
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "rfem-timber-engineering",
-  "version": "1.0.0",
-  "description": "RFEM timber engineering guidance and workflows.",
-  "author": { "name": "OpenDesign team" }
-}
