@@ -118,7 +118,9 @@ def _stop_process(process: subprocess.Popen[bytes]) -> tuple[bytes, bytes, bool]
         else:
             process.send_signal(signal.SIGINT)
     try:
-        stdout, stderr = process.communicate(timeout=5)
+        # The bootstrap itself permits up to ten seconds for its server cleanup.
+        # Observe that owned graceful path before classifying it as force-killed.
+        stdout, stderr = process.communicate(timeout=15)
         return stdout, stderr, True
     except subprocess.TimeoutExpired:
         process.kill()
