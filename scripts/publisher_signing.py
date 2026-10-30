@@ -210,8 +210,15 @@ def verify_previous_market(repository, schema_bundle, host_policy, expected_dige
         raise ValueError("invalidPreviousMarket") from None
 
 
-def require_market_progression(previous, bindings, *, previous_receipts=None):
+def require_market_progression(previous, bindings, *, previous_receipts=None, retired_package=None):
     package_ids = {r["release"]["packageId"] for r in bindings}
+    if retired_package is not None:
+        if (previous_receipts is None or retired_package not in previous
+                or package_ids != set(previous) - {retired_package}
+                or len(bindings) != len(package_ids)
+                or any(previous_receipts.get(r["release"]["packageId"]) != r for r in bindings)):
+            raise ValueError("invalidPreviousMarket")
+        return
     if not set(previous) <= package_ids or len(bindings) != len(package_ids):
         raise ValueError("invalidPreviousMarket")
     for receipt in bindings:
@@ -247,7 +254,7 @@ def validate_market_entry_context(receipt, context, archive_name, source_commit,
         raise ValueError("invalidDraftContext")
 
 
-def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None):
+def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None, retired_package=None):
     """Prepare an isolated initial or authenticated subsequent market review.
 
     This is release tooling, not Host authority. Full artifact verification and
@@ -268,6 +275,8 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
     output = regular_directory(output.absolute())
     repository = Path(__file__).resolve().parents[1]
     if output.exists() or (output.is_relative_to(repository) and not output.is_relative_to(repository / "dist")):
+        raise ValueError("invalidDraftContext")
+    if retired_package is not None and (retired_package != "rfem-timber-engineering" or previous_market_digest is None):
         raise ValueError("invalidDraftContext")
     formal = read_json((repository / ".agents/plugins/marketplace.json").read_bytes())
     previous_sequence, previous = 0, None
@@ -301,7 +310,7 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         bindings.append(receipt)
         approved[receipt["archive"]["sha256"]] = receipt["archive"]["url"]
     if previous is not None:
-        require_market_progression(previous, bindings, previous_receipts=previous_receipts)
+        require_market_progression(previous, bindings, previous_receipts=previous_receipts, retired_package=retired_package)
     market_owner = publishers.get(market_key_id)
     if (not market_owner or market_owner["scope"]["repositoryIdentity"] != REPOSITORY
             or not packages <= set(market_owner["scope"]["marketplacePackages"])
@@ -364,6 +373,7 @@ def main():
     parser.add_argument("--schemas", type=Path, required=True)
     parser.add_argument("--market-inputs", type=Path)
     parser.add_argument("--previous-market-digest")
+    parser.add_argument("--retire-package", choices=["rfem-timber-engineering"])
     parser.add_argument("--source-commit")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--candidate", type=Path)
@@ -374,7 +384,7 @@ def main():
         signers, reports = load_signers(args.schemas, encoded)
         reject_tracked_private_material(encoded, signers)
         encoded.clear()
-        if args.previous_market_digest and not args.market_inputs:
+        if (args.previous_market_digest or args.retire_package) and not args.market_inputs:
             raise ValueError("invalidDraftContext")
         result = {"keyVerification": reports, "hostTrustModified": False, "trackedPrivateMaterial": False, "stablePublication": False}
         if args.market_inputs:
@@ -383,7 +393,7 @@ def main():
             entries = read_json(args.market_inputs.read_bytes())
             result["marketCandidate"] = sign_market_candidate(entries, args.schemas,
                 read_json((args.schemas / "host-publisher-policy.json").read_bytes()),
-                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output, previous_market_digest=args.previous_market_digest)
+                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output, previous_market_digest=args.previous_market_digest, retired_package=args.retire_package)
         elif any((args.archive, args.candidate, args.context, args.output)):
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")

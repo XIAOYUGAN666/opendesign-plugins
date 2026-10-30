@@ -1,0 +1,96 @@
+name: Sign retired skill market review
+on:
+  workflow_dispatch:
+    inputs:
+      previous_market_sha256:
+        description: Exact current signed marketplace SHA256
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  signing:
+    if: github.ref == 'refs/heads/main'
+    environment: plugin-signing
+    permissions:
+      contents: read
+    runs-on: windows-2025
+    timeout-minutes: 45
+    concurrency:
+      group: plugin-signing
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12.10'
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4
+        with:
+          version: '0.9.21'
+          enable-cache: false
+      - name: Prepare independent signing dependencies
+        working-directory: tests/fixtures/fixture-engineering/connector
+        shell: pwsh
+        run: |
+          uv sync --frozen --extra test --extra build --python (Get-Command python).Source
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Download retained public archives
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
+        run: |
+          if ($env:PREVIOUS_SHA -cnotmatch '^[a-f0-9]{64}$' -or (Get-FileHash '.agents/plugins/marketplace.snapshot.json' -Algorithm SHA256).Hash.ToLowerInvariant() -cne $env:PREVIOUS_SHA) { throw 'Previous market mismatch' }
+          $snapshot = Get-Content -Raw '.agents/plugins/marketplace.snapshot.json' | ConvertFrom-Json
+          $retired = @(@($snapshot.skillReleases) | Where-Object { $_.release.packageId -ceq 'rfem-timber-engineering' -and -not $_.revoked })
+          if ($retired.Count -ne 1) { throw 'Expected active skill missing' }
+          $candidate = Join-Path $env:RUNNER_TEMP 'retirement-review'
+          New-Item -ItemType Directory -Path $candidate -ErrorAction Stop | Out-Null
+          $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $releases = $raw | ConvertFrom-Json
+          $entries = @()
+          foreach ($receipt in @($snapshot.releases) + @($snapshot.skillReleases)) {
+            if ($null -eq $receipt -or $receipt.revoked) { throw 'Unsupported receipt in previous market' }
+            $old = $receipt.release
+            if ($old.packageId -ceq 'rfem-timber-engineering') { continue }
+            $oldTag = "plugin-$($old.packageId)-v$($old.pluginVersion)"
+            $public = @($releases | Where-Object { $_.tag_name -ceq $oldTag -and $_.draft -eq $false -and $_.prerelease -eq $false })
+            if ($public.Count -ne 1) { throw 'Previously published release missing' }
+            $name = [IO.Path]::GetFileName(([uri]$receipt.archive.url).AbsolutePath)
+            if ($name -cnotmatch '^[A-Za-z0-9._-]+\.zip$' -or @($public[0].assets | Where-Object { $_.name -ceq $name -and $_.size -eq $receipt.archive.byteLength }).Count -ne 1) { throw 'Previous asset mismatch' }
+            $directory = Join-Path $candidate $old.packageId
+            New-Item -ItemType Directory -Path $directory -ErrorAction Stop | Out-Null
+            gh release download $oldTag --repo XIAOYUGAN666/opendesign-plugins --pattern $name --dir $directory
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $archive = Join-Path $directory $name
+            if ("sha256:$((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant())" -cne $receipt.archive.sha256) { throw 'Previous archive digest mismatch' }
+            $receiptPath = Join-Path $directory 'signed-receipt.json'
+            ConvertTo-Json -InputObject $receipt -Depth 100 -Compress | Set-Content -Encoding utf8NoBOM $receiptPath
+            $context = @{published=$true; packageId=$old.packageId; version=$old.pluginVersion; tag=$oldTag; assetUrl=$receipt.archive.url; archiveDigest=$receipt.archive.sha256}
+            $entries += @{archive=$archive; receipt=$receiptPath; context=$context}
+          }
+          ConvertTo-Json -InputObject @($entries) -Depth 100 | Set-Content -Encoding utf8NoBOM (Join-Path $candidate 'market-inputs.json')
+      - name: Sign isolated market review
+        shell: pwsh
+        env:
+          RFEM_PUBLISHER_V1_KEY_B64: ${{ secrets.RFEM_PUBLISHER_V1_KEY_B64 }}
+          RHINO_PUBLISHER_V1_KEY_B64: ${{ secrets.RHINO_PUBLISHER_V1_KEY_B64 }}
+          PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $python = 'tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe'
+          $candidate = Join-Path $env:RUNNER_TEMP 'retirement-review'
+          & $python -B scripts/publisher_signing.py --schemas schemas --market-inputs (Join-Path $candidate 'market-inputs.json') --previous-market-digest "sha256:$env:PREVIOUS_SHA" --retire-package rfem-timber-engineering --source-commit $env:SOURCE_COMMIT --output (Join-Path $candidate 'market-review')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Retain isolated signed review
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: retirement-market-review-${{ github.sha }}
+          path: ${{ runner.temp }}/retirement-review/market-review
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3

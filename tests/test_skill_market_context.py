@@ -9,14 +9,14 @@ from scripts.publisher_signing import validate_market_entry_context
 class SkillMarketContextTests(unittest.TestCase):
     def test_workflow_selects_bounded_skill_package(self):
         text = (Path(__file__).resolve().parents[1] / '.github/workflows/release-skill.yml').read_text(encoding='utf-8')
-        self.assertIn('options: [rfem-timber-engineering, dlubal-rhino]', text)
+        self.assertIn('options: [dlubal-rhino]', text)
         self.assertIn("PLUGIN_ID: ${{ inputs.plugin }}", text)
         self.assertIn("if ($root.name -cne $env:PLUGIN_ID)", text)
         self.assertIn("if ($old.packageId -ceq $root.name) { continue }", text)
     def test_market_discovery_order_is_canonical_for_three_packages(self):
         from scripts.generate_marketplace import marketplace_document
-        result = marketplace_document([{'name': 'dlubal-rfem'}, {'name': 'rhino'}, {'name': 'rfem-timber-engineering'}])
-        self.assertEqual([item['name'] for item in result['plugins']], ['dlubal-rfem', 'rfem-timber-engineering', 'rhino'])
+        result = marketplace_document([{'name': 'dlubal-rfem'}, {'name': 'rhino'}, {'name': 'fixture-skill'}])
+        self.assertEqual([item['name'] for item in result['plugins']], ['dlubal-rfem', 'fixture-skill', 'rhino'])
 
     def test_workflow_signs_only_bound_drafts_and_keeps_market_isolated(self):
         text = (Path(__file__).resolve().parents[1] / '.github/workflows/release-skill.yml').read_text(encoding='utf-8')
@@ -26,6 +26,20 @@ class SkillMarketContextTests(unittest.TestCase):
             self.assertIn(required, text)
         for forbidden in ('gh release create', 'gh release edit', 'gh release upload', 'git push', 'path: published'):
             self.assertNotIn(forbidden, text)
+
+    def test_retirement_requires_exact_remaining_receipts(self):
+        from scripts.publisher_signing import require_market_progression
+        def receipt(name):
+            return {"release": {"packageId": name, "pluginVersion": "1.0.0", "releaseSequence": 1}, "signature": name}
+        old = [receipt("keep"), receipt("retired")]
+        previous = {r["release"]["packageId"]: r["release"] for r in old}
+        receipts = {r["release"]["packageId"]: r for r in old}
+        require_market_progression(previous, [old[0]], previous_receipts=receipts, retired_package="retired")
+        for bindings, target in [([old[0]], "missing"), ([], "retired"), (old, "retired"), ([{**old[0], "signature": "changed"}], "retired")]:
+            with self.assertRaises(ValueError):
+                require_market_progression(previous, bindings, previous_receipts=receipts, retired_package=target)
+        with self.assertRaises(ValueError):
+            require_market_progression(previous, [old[0]], previous_receipts=receipts)
 
     def test_retained_release_requires_exact_receipt_and_public_archive(self):
         receipt = {"release": {"packageId": "dlubal-rfem", "pluginVersion": "0.1.2"},

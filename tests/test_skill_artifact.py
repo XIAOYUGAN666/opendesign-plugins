@@ -13,10 +13,10 @@ class SkillArtifactTests(unittest.TestCase):
     def test_real_skill_package_source_builds_without_provider(self):
         with tempfile.TemporaryDirectory(prefix="skill-source-") as folder:
             output = Path(folder) / "out"
-            result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_skill_artifact.py"), str(ROOT / "plugins/rfem-timber-engineering"), "--release-sequence", "1", "--output", str(output)], capture_output=True, timeout=60)
+            result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_skill_artifact.py"), str(ROOT / "plugins/dlubal-rhino"), "--release-sequence", "1", "--output", str(output)], capture_output=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
             receipt = json.loads((output / "unsigned-receipt.json").read_text(encoding="utf-8"))
-            self.assertEqual(receipt["release"]["packageId"], "rfem-timber-engineering")
+            self.assertEqual(receipt["release"]["packageId"], "dlubal-rhino")
 
     def test_skill_only_artifact_and_manifest_are_reproducible_without_provider(self):
         with tempfile.TemporaryDirectory(prefix="skill-artifact-") as folder:

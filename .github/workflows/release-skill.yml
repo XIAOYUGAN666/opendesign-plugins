@@ -5,8 +5,8 @@ on:
       plugin:
         type: choice
         required: true
-        default: rfem-timber-engineering
-        options: [rfem-timber-engineering, dlubal-rhino]
+        default: dlubal-rhino
+        options: [dlubal-rhino]
       operation:
         type: choice
         required: true
@@ -65,7 +65,7 @@ jobs:
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $releases = $raw | ConvertFrom-Json
-          if ($env:PLUGIN_ID -cnotin @('rfem-timber-engineering', 'dlubal-rhino')) { throw 'Invalid skill package' }
+          if ($env:PLUGIN_ID -cnotin @('dlubal-rhino')) { throw 'Invalid skill package' }
           $root = Get-Content -Raw (Join-Path 'plugins' "$env:PLUGIN_ID/plugin.json") | ConvertFrom-Json
           if ($root.name -cne $env:PLUGIN_ID) { throw 'Skill identity mismatch' }
           $tag = "plugin-$($root.name)-v$($root.version)"
@@ -141,7 +141,7 @@ jobs:
           SOURCE_COMMIT: ${{ github.sha }}
           PLUGIN_ID: ${{ inputs.plugin }}
         run: |
-          if ($env:PLUGIN_ID -cnotin @('rfem-timber-engineering', 'dlubal-rhino')) { throw 'Invalid skill package' }
+          if ($env:PLUGIN_ID -cnotin @('dlubal-rhino')) { throw 'Invalid skill package' }
           $root = Get-Content -Raw (Join-Path 'plugins' "$env:PLUGIN_ID/plugin.json") | ConvertFrom-Json
           if ($root.name -cne $env:PLUGIN_ID) { throw 'Skill identity mismatch' }
           $tag = "plugin-$($root.name)-v$($root.version)"

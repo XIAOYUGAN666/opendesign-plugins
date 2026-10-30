@@ -173,7 +173,7 @@ class ContractImportTests(unittest.TestCase):
     def test_plugin_identity_has_one_human_source(self):
         # Catches missing roots, identity catalogs and generation that overrides roots.
         roots = list((ROOT / "plugins").glob("*/plugin.json"))
-        self.assertTrue({"rhino", "dlubal-rfem", "rfem-timber-engineering"} <= {path.parent.name for path in roots}, "Development identities are missing")
+        self.assertTrue({"rhino", "dlubal-rfem", "dlubal-rhino"} <= {path.parent.name for path in roots}, "Development identities are missing")
         for path in roots:
             root_identity = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(path.parent.name, root_identity["name"])

@@ -20,7 +20,7 @@ encoded={}
 for (package,(target,secret)),key in zip(TARGETS.items(),keys):
  policy['publishers'][target]={'publicKey':key.public_key().public_bytes_raw().hex(),'scope':{'repositoryIdentity':'github:XIAOYUGAN666/opendesign-plugins','releasePackages':[package],'marketplacePackages':[]}}
  encoded[package]=base64.b64encode(key.private_bytes_raw()).decode()
-if sys.argv[1]=='multi-scope': policy['publishers']['rfem-publisher-v1']['scope']['releasePackages'].append('rfem-timber-engineering')
+if sys.argv[1]=='multi-scope': policy['publishers']['rfem-publisher-v1']['scope']['releasePackages'].append('fixture-skill')
 with tempfile.TemporaryDirectory() as folder:
  schema=Path(folder);raw=canonical(policy);(schema/'host-publisher-policy.json').write_bytes(raw)
  inventory={'contracts':{'host-publisher-policy.json':{'owner':'host','source':'apps/desktop/src-tauri/resources/plugins/publisher-trust.v1.json','version':'1','sha256':hashlib.sha256(raw).hexdigest()}}}
