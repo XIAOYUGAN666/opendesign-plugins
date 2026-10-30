@@ -12,7 +12,28 @@
 
 **交付范围补充:** 用户另行要求在本计划中覆盖“本地开发 → 远端发布 → 市场上架 → OpenDesign 远端安装验收”。这是交付流程扩展，不改变 spec 中纯技能、通用完整杆系和人工确认的工程边界，也不将规划视作实际发布授权。
 
-**Status:** 实施中。2026-10-30 已完成本地开发、受控决策/发现评估与发布入口适配，进入远端交付关口；下文原计划中的“本轮只修改计划”描述保留为计划编写时的历史边界，实际执行以会话中的后续授权及本节证据为准。
+**Status:** Task 1–7 的开发、验证、发布、市场上架与客户端安装/加载交付闭环已完成。临时发布目录的删除被自动审批策略拒绝，目录保留；其余交付关口已具有下列实际证据。下文“本轮只修改计划”等表述是原计划编写时的历史边界，执行以本节记录及后续授权为准。
+
+## 最终交付记录（2026-10-30）
+
+| 任务 | 实际结果 |
+| --- | --- |
+| Task 1 | 纯技能包 `dlubal-rhino` 0.1.0，入口及五份参考完整；从冻结 Git blob 导出的源包通过往返、可重复构建与引用检查。 |
+| Task 2 | 16 个发现请求各 3 次，最终 48/48 符合标签，含留出样本；B01–B10 完成无技能/有技能的独立上下文决策演练。根据误触发与多余确认的实际输出修订并重测。 |
+| Task 3 | 插件根 unittest 116 通过；工程验收清单已写入包 README。真实工程转换未执行。 |
+| Task 4 | workflow 有界选包及公开 scope/export 已接通；Host owner `f0eb1155`。Rust 42 suites 共 567 passed、33 ignored、0 failed；fmt、Clippy、check 和构建通过。既有合成制品 URL、退役 receipt 错误分类及定时等待测试已修复。 |
+| Task 5 | 源提交 `166c76c2a921102eae4e15941a20603dff1ef965`；源码 CI `41026262803` 成功；真实签名 run `41027472769` 成功，独立 verifier 与生产 Host receipt 测试通过。 |
+| Task 6 | [Stable 0.1.0](https://github.com/XIAOYUGAN666/opendesign-plugins/releases/tag/plugin-dlubal-rhino-v0.1.0) 已发布并匿名下载复验；市场 review run `41027997593`。原子市场提交 `a0911651406b4a1582004da980140c0a2b30c52c`，snapshot sequence 7；原有三个包的 receipt 和视图保持原样。 |
+| Task 7 | Tauri MCP 操作真实 OpenDesign：官方远端刷新、UI 安装并启用、同步成功、重载会话后仍为 official/enabled/revision 7；新 Run 实际读取入口和五份 references。生产 Host 的真实远端安装 ignored 测试在原市场提交及最终验收树均显式通过。 |
+
+最终验收树为 `6a1ea1ec96a8cb52e841c086e9fac79c8daab5a2`，[CI 41031078104](https://github.com/XIAOYUGAN666/opendesign-plugins/actions/runs/41031078104) 的四个适用 job 全部成功。原市场提交的 Rhino 合成进程测试将其五秒测试等待误当成包含十秒 server cleanup 的完整退出窗口，初次及一次重跑失败；仅将测试的有界观察窗口改为十五秒，保留 graceful/认证/脱敏断言及生产行为，再以最终树完整 CI 验证。该修复没有改变任何正式资产、签名、版本、市场或视图字节。本地 Rhino Python full suite 454 passed / 20 skipped；本地 native 测试中固定 control pipe 因正在运行的 Host 被占用，未为通过测试而终止 Host；同源 native full job 在隔离 CI 中通过。
+
+正式 ZIP 为 8037 bytes，SHA-256 `72633c622c787d579a52c5583f2da70d664200e31a30db243d5e69e721c5d2d7`；files digest `706b215bf8f87b80ca0be890c7a8d76d5d3a2bbda1aef71234d73aef8315bb51`；signed receipt SHA-256 `369b748c345a4aafaaf716d5dfff31844279d807c2330c5d09f104bd8869b521`。snapshot SHA-256 `7da5d0d4c390851c8c65f01c49126ffe9e3774156b82d8ace4eaffa422067302`，先前 sequence 6 的摘要为 `af5b0dc7bf7aeeb3729a33d86e3160e03f18ffa6c56c1722f6b4c918722333bd`。
+
+验收使用包含新 scope 的正常 OpenDesign 构建；旧客户端不会因市场更新自动获得新 trust scope。实际新 Run 没有 RFEM MCP 声明，Rhino 的只读盘点出现未知执行状态；技能正确报告连接缺口，未创建/修改工程对象，未计算，也未通过重启清除未知状态。重开验收采用会话重载，保留 Host 与 connector 所有权。发现/决策演练不是任意模型转换正确性的证明；`skills-ref` 未安装，格式验证使用现有 artifact verifier。
+
+实施调整：无技能决策基线在受控对照阶段补测，未声称在最初编写正文前已观察到行为失败；提交按职责合并，原清单的逐步时序不作为执行流水账。用户授权当前会话、原分支、全部交付动作；开发未委派子智能体。最终页面与 IPC/Agent HTTP 观察使用 Tauri MCP。仅临时目录清理遭自动审批拒绝（`blocked by policy`），未尝试绕过删除策略。
+
 
 **执行证据（远端前）:** 插件根完整 unittest 116/116；Host 完整 Rust 42 个 suite、567 passed / 33 ignored / 0 failed，ignored 外部输入验收另行显式运行；fmt、Clippy、cargo check、文档和 diff 检查通过。官方 Deep Agents 现有测试入口使用配置的 DeepSeek Flash 模型对 16 个触发请求各运行 3 次，最终 48/48 符合正反标签；B01–B10 为独立上下文的纯文字决策演练，未挂载工程软件工具，不代表 MCP 或工程转换实测。根据误触发和重复确认问题修订后重测开发与留出场景。Host owner commit 为 `f0eb1155`；公开 policy SHA-256 为 `8e0dd30933639a54ce1aedf1c1d43dc0713a550021b601e1842b954c68f91e2b`。本次按用户指示在原分支和当前会话执行，未使用子智能体或隔离分支；桌面验收使用 Tauri MCP。正式发布及安装仍须下述关口的实际证据。
 
