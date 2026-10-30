@@ -1,0 +1,9 @@
+# Dlubal Rhino
+
+Portable guidance for converting Rhino geometry to RFEM structural member models. Engineering operations require the separately managed Rhino and RFEM MCP connectors, compatible software and their existing permissions. This development source is not a published market release; real-software acceptance remains separate.
+
+The scope is a complete member system across structural forms and materials, including secondary members. The guidance requires an engineering review of the proposed axes, attributes and connections before RFEM writes. Tool permission is not engineering approval.
+
+Development checks cover reproducible skill-only packaging and portable references. On 2026-10-30, the existing Deep Agents skill-loading harness with the configured DeepSeek Flash model ran 16 discovery requests three times each: 48/48 loads or non-loads matched their labels, including held-out cases. Ten workflow scenarios were exercised with and without the skill; these are textual decision rehearsals, with no engineering MCP operations. Review found overly broad discovery and unnecessary repeated confirmation, and the guidance was revised and rechecked. These observations establish neither universal model reliability nor real engineering conversion; official installation and real-software acceptance require their own evidence.
+
+For engineering acceptance, use varied curve, solid and transformed-instance models with different materials, sections and connections. Verify the software versions and connector permissions; inventory a small region and then the complete scope, review the source-to-target mapping and approve that particular proposal before any RFEM write. Read back axes, sections, local orientation, topology and object identities; record discrepancies and the absence of calculation or loading separately.

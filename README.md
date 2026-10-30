@@ -1,6 +1,8 @@
 # OpenDesign plugin sources
 
-This repository starts with two development roots in `plugins/`: Dlubal RFEM and Rhino. Each root Manifest is the only human source of plugin identity. Existing release-input versions are retained as development inputs; this skeleton does not announce a new Stable release or provide installable assets.
+[`dlubal-rhino`](plugins/dlubal-rhino/README.md) is a development-source pure skill package for guiding Rhino-to-RFEM structural modelling. It uses the separately managed Rhino and RFEM connectors; a development source is not an installed or published package.
+
+This repository contains Dlubal RFEM and Rhino connector development roots and pure skill package sources in `plugins/`. Each root Manifest is the only human source of plugin identity. Development versions do not themselves announce a new Stable release or provide installable assets.
 
 RFEM and Rhino now have independent Connector projects, locks, tests and static workflow Skills under their development roots. Rhino also owns its native Bridge and contracts. Root scripts and tests use the Python 3.12 standard library; dependency-sensitive verification runs in an explicitly selected, independently frozen project. There is no root Python project or environment.
 

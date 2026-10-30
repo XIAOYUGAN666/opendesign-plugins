@@ -7,6 +7,12 @@ from scripts.publisher_signing import validate_market_entry_context
 
 
 class SkillMarketContextTests(unittest.TestCase):
+    def test_workflow_selects_bounded_skill_package(self):
+        text = (Path(__file__).resolve().parents[1] / '.github/workflows/release-skill.yml').read_text(encoding='utf-8')
+        self.assertIn('options: [rfem-timber-engineering, dlubal-rhino]', text)
+        self.assertIn("PLUGIN_ID: ${{ inputs.plugin }}", text)
+        self.assertIn("if ($root.name -cne $env:PLUGIN_ID)", text)
+        self.assertIn("if ($old.packageId -ceq $root.name) { continue }", text)
     def test_market_discovery_order_is_canonical_for_three_packages(self):
         from scripts.generate_marketplace import marketplace_document
         result = marketplace_document([{'name': 'dlubal-rfem'}, {'name': 'rhino'}, {'name': 'rfem-timber-engineering'}])
@@ -46,3 +52,5 @@ class SkillMarketContextTests(unittest.TestCase):
         validate_market_entry_context(receipt, context, "a.zip", "f" * 40, {})
         with self.assertRaises(ValueError):
             validate_market_entry_context(receipt, {**context, "targetCommit": "e" * 40}, "a.zip", "f" * 40, {})
+        with self.assertRaises(ValueError):
+            validate_market_entry_context(receipt, {**context, "packageId": "dlubal-rhino"}, "a.zip", "f" * 40, {})

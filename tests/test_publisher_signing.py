@@ -83,6 +83,37 @@ print('PASS '+scenario)
 
 
 class PublisherSigningTests(unittest.TestCase):
+    def test_real_skill_candidate_requires_unique_authorized_owner(self):
+        script = r'''
+import json, subprocess, sys, tempfile
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from scripts.publisher_signing import sign_skill_draft_candidate
+with tempfile.TemporaryDirectory() as folder:
+ out=Path(folder)/'candidate'
+ subprocess.run([sys.executable,'-B','scripts/build_skill_artifact.py','plugins/dlubal-rhino','--release-sequence','1','--output',str(out)],check=True,capture_output=True)
+ archive=next(out.glob('*.zip')); candidate=out/'unsigned-receipt.json'; data=json.loads(candidate.read_text(encoding='utf-8'))
+ version=data['release']['pluginVersion']; commit='a'*40; tag='plugin-dlubal-rhino-v'+version
+ context={'draft':True,'sourceCommit':commit,'targetCommit':commit,'packageId':'dlubal-rhino','version':version,'tag':tag,'assetUrl':'https://github.com/XIAOYUGAN666/opendesign-plugins/releases/download/'+tag+'/'+archive.name,'archiveDigest':data['archive']['sha256']}
+ keys=[Ed25519PrivateKey.from_private_bytes(bytes([n])*32) for n in (7,8)]
+ def owner(key,allowed): return {'publicKey':key.public_key().public_bytes_raw().hex(),'scope':{'repositoryIdentity':'github:XIAOYUGAN666/opendesign-plugins','releasePackages':allowed,'marketplacePackages':[]}}
+ policy={'publishers':{'rfem-publisher-v1':owner(keys[0],['dlubal-rhino']),'rhino-publisher-v1':owner(keys[1],[])}}
+ signers={'dlubal-rfem':keys[0],'rhino':keys[1]}
+ signed,result=sign_skill_draft_candidate(archive,candidate,context,policy,signers)
+ assert signed['publisherKeyId']=='rfem-publisher-v1' and result['verification']=='signed-draft-candidate'
+ policy['publishers']['rfem-publisher-v1']['scope']['releasePackages']=[]
+ try: sign_skill_draft_candidate(archive,candidate,context,policy,signers)
+ except ValueError: pass
+ else: raise AssertionError('missing scope accepted')
+ policy['publishers']['rfem-publisher-v1']['scope']['releasePackages']=['dlubal-rhino']
+ policy['publishers']['rhino-publisher-v1']['scope']['releasePackages']=['dlubal-rhino']
+ try: sign_skill_draft_candidate(archive,candidate,context,policy,signers)
+ except ValueError: pass
+ else: raise AssertionError('ambiguous scope accepted')
+'''
+        result = subprocess.run([str(PYTHON), '-B', '-c', script], cwd=ROOT, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_matching_independent_keys_and_safe_failure_modes(self):
         for scenario in ("match", "multi-scope", "deleted-tracked-file", "sanitized", "leak-check", "swapped", "missing", "malformed", "wrong-length", "tampered-export", "shared", "historical-id", "wrong-public-key"):
             with self.subTest(scenario=scenario):

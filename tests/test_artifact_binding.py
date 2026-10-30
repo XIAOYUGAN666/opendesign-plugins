@@ -154,7 +154,9 @@ else:raise AssertionError('first-market helper overwrote an existing Stable mark
 assert not (folder/'existing-market').exists()
 print('PASS signed fixture, four closed draft negatives and isolated signed market')
 '''
-        result = subprocess.run([str(PYTHON), "-B", "-c", code, str(self.folder / "first")], cwd=ROOT, capture_output=True, timeout=180)
+        # Multiple complete Windows archive verifications and projections exceed
+        # three minutes under filesystem scanning; keep the boundary assertions intact.
+        result = subprocess.run([str(PYTHON), "-B", "-c", code, str(self.folder / "first")], cwd=ROOT, capture_output=True, timeout=600)
         self.assertEqual(result.returncode, 0, result.stderr.decode())
         self.assertEqual(result.stdout.strip(), b"PASS signed fixture, four closed draft negatives and isolated signed market")
 

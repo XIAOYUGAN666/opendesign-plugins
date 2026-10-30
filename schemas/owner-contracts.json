@@ -50,7 +50,7 @@
     },
     "host-publisher-policy.json": {
       "owner": "host",
-      "sha256": "9c2d1db4979e5416b91e397c8c7bfaf6757c3938e65f58073b0757be32bc0663",
+      "sha256": "8e0dd30933639a54ce1aedf1c1d43dc0713a550021b601e1842b954c68f91e2b",
       "source": "apps/desktop/src-tauri/resources/plugins/publisher-trust.v1.json",
       "version": "1"
     },

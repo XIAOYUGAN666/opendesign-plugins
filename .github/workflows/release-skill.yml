@@ -2,6 +2,11 @@ name: Sign pure skill candidate and market review
 on:
   workflow_dispatch:
     inputs:
+      plugin:
+        type: choice
+        required: true
+        default: rfem-timber-engineering
+        options: [rfem-timber-engineering, dlubal-rhino]
       operation:
         type: choice
         required: true
@@ -52,6 +57,7 @@ jobs:
           SKILL_SHA: ${{ inputs.archive_sha256 }}
           PREVIOUS_SHA: ${{ inputs.previous_market_sha256 }}
           SOURCE_COMMIT: ${{ github.sha }}
+          PLUGIN_ID: ${{ inputs.plugin }}
         run: |
           if ($env:SKILL_SHA -cnotmatch '^[a-f0-9]{64}$') { throw 'Invalid archive digest' }
           $candidate = Join-Path $env:RUNNER_TEMP 'skill-release-review'
@@ -59,7 +65,9 @@ jobs:
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $releases = $raw | ConvertFrom-Json
-          $root = Get-Content -Raw 'plugins/rfem-timber-engineering/plugin.json' | ConvertFrom-Json
+          if ($env:PLUGIN_ID -cnotin @('rfem-timber-engineering', 'dlubal-rhino')) { throw 'Invalid skill package' }
+          $root = Get-Content -Raw (Join-Path 'plugins' "$env:PLUGIN_ID/plugin.json") | ConvertFrom-Json
+          if ($root.name -cne $env:PLUGIN_ID) { throw 'Skill identity mismatch' }
           $tag = "plugin-$($root.name)-v$($root.version)"
           $drafts = @($releases | Where-Object { $_.tag_name -ceq $tag })
           if ($drafts.Count -ne 1 -or $drafts[0].draft -ne $true -or $drafts[0].target_commitish -cne $env:SOURCE_COMMIT) { throw 'Exact source-commit draft required' }
@@ -86,6 +94,7 @@ jobs:
             foreach ($receipt in @($snapshot.releases) + @($snapshot.skillReleases)) {
               if ($null -eq $receipt -or $receipt.revoked) { continue }
               $old = $receipt.release
+              if ($old.packageId -ceq $root.name) { continue }
               $oldTag = "plugin-$($old.packageId)-v$($old.pluginVersion)"
               $public = @($releases | Where-Object { $_.tag_name -ceq $oldTag -and $_.draft -eq $false -and $_.prerelease -eq $false })
               if ($public.Count -ne 1) { throw 'Previously published release missing' }
@@ -130,8 +139,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_COMMIT: ${{ github.sha }}
+          PLUGIN_ID: ${{ inputs.plugin }}
         run: |
-          $root = Get-Content -Raw 'plugins/rfem-timber-engineering/plugin.json' | ConvertFrom-Json
+          if ($env:PLUGIN_ID -cnotin @('rfem-timber-engineering', 'dlubal-rhino')) { throw 'Invalid skill package' }
+          $root = Get-Content -Raw (Join-Path 'plugins' "$env:PLUGIN_ID/plugin.json") | ConvertFrom-Json
+          if ($root.name -cne $env:PLUGIN_ID) { throw 'Skill identity mismatch' }
           $tag = "plugin-$($root.name)-v$($root.version)"
           $raw = gh api 'repos/XIAOYUGAN666/opendesign-plugins/releases?per_page=100'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
