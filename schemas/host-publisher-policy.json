@@ -17,14 +17,12 @@
         "repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins",
         "releasePackages": [
           "dlubal-rfem",
-          "dlubal-rhino",
-          "rfem-timber-engineering"
+          "dlubal-rhino"
         ],
         "marketplacePackages": [
           "dlubal-rfem",
           "dlubal-rhino",
-          "rhino",
-          "rfem-timber-engineering"
+          "rhino"
         ]
       }
     }
