@@ -8,7 +8,8 @@
   },
   "extensions": {
     "ai.opendesign.desktop": {
-      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "dlubal_rfem_mcp.setup"]}
+      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "dlubal_rfem_mcp.setup"]},
+      "credentialEnvironment": {"rfem": {"PLUGIN_RFEM_API_KEY": "dlubal-api-key"}}
     },
     "io.github.xiaoyugan666.native": {
       "platform": {
