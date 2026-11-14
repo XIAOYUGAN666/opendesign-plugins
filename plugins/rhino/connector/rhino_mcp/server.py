@@ -391,9 +391,9 @@ def _check_request_dispatch_state(ctx: Context | None):
         return
     if not isinstance(lifespan, ConnectorLifespanContext):
         return
-    if lifespan.bridge_client is None:
+    if lifespan.command_client is None:
         raise ToolError("Engineering calls are unavailable in metadata mode.")
-    if lifespan.bridge_client.lifecycle_snapshot()[0] == "unknown":
+    if lifespan.bridge_client is not None and lifespan.bridge_client.lifecycle_snapshot()[0] == "unknown":
         raise ToolError(
             "A previous Rhino result remains unknown; further dispatch is blocked. Do not retry automatically."
         )
@@ -601,6 +601,7 @@ class ConnectorLifespanContext:
     """Per-server-process dependencies made available to every MCP request."""
 
     bridge_slot: ConnectorBridgeSlot
+    stdio_bridge: Any = None
 
     @property
     def bridge_client(self) -> BridgeClient | None:
@@ -608,6 +609,8 @@ class ConnectorLifespanContext:
 
     @property
     def command_client(self):
+        if self.stdio_bridge is not None:
+            return self.stdio_bridge
         return self.bridge_slot if self.bridge_slot.bridge_client is not None else None
 
 
@@ -823,7 +826,7 @@ def _tool_annotations(name: str) -> ToolAnnotations:
     )
 
 
-def create_mcp_server(bridge_client: BridgeClient | None = None) -> RhinoConnectorServer:
+def create_mcp_server(bridge_client: BridgeClient | None = None, *, stdio_bridge=None) -> RhinoConnectorServer:
     """Build one Connector server whose Bridge dependency is owned by its lifespan."""
     if bridge_client is not None and not isinstance(bridge_client, BridgeClient):
         raise TypeError("create_mcp_server requires a validated BridgeClient.")
@@ -836,7 +839,7 @@ def create_mcp_server(bridge_client: BridgeClient | None = None) -> RhinoConnect
     ) -> AsyncIterator[ConnectorLifespanContext]:
         logger.info("Rhino MCP Connector starting up")
         try:
-            yield ConnectorLifespanContext(bridge_slot=bridge_slot)
+            yield ConnectorLifespanContext(bridge_slot=bridge_slot, stdio_bridge=stdio_bridge)
         finally:
             bridge_slot.close()
             logger.info("Rhino MCP Connector shut down")
@@ -865,10 +868,9 @@ def create_mcp_server(bridge_client: BridgeClient | None = None) -> RhinoConnect
 
 
 def run_stdio() -> None:
-    from rhino_mcp.stdio_bridge import await_bridge
+    from rhino_mcp.stdio_bridge import StdioBridgeSlot
 
-    with await_bridge() as bridge:
-        create_mcp_server(bridge).run(transport="stdio")
+    create_mcp_server(stdio_bridge=StdioBridgeSlot()).run(transport="stdio")
 
 
 # Source-level consumers and tests use this discovery-only instance. Managed

@@ -91,6 +91,35 @@ async def test_late_bridge_connection_preserves_frozen_contract():
 
 
 @pytest.mark.asyncio
+async def test_stdio_sessions_discover_independently_without_holding_the_bridge(monkeypatch):
+    from contextlib import contextmanager
+
+    from rhino_mcp import stdio_bridge
+    from rhino_mcp.bridge import BridgeUnavailable
+    from rhino_mcp.server import create_mcp_server
+    from tests.fixtures.mcp_client import connected_client
+
+    attempts = []
+
+    @contextmanager
+    def unavailable():
+        attempts.append("acquired")
+        raise BridgeUnavailable("Start Rhino and load the Bridge.")
+        yield
+
+    monkeypatch.setattr(stdio_bridge, "await_bridge", unavailable)
+    first = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
+    second = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
+    async with connected_client(first) as one, connected_client(second) as two:
+        assert len((await one.list_tools()).tools) == len((await two.list_tools()).tools) == 70
+        assert not attempts
+        result = await two.call_tool("get_document_summary", {})
+        assert result.is_error
+        assert "Start Rhino" in result.content[0].text
+        assert attempts == ["acquired"]
+
+
+@pytest.mark.asyncio
 async def test_managed_metadata_never_constructs_bridge(monkeypatch):
     from rhino_mcp import managed_bootstrap
     from tests.fixtures.mcp_client import connected_client

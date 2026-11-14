@@ -1,6 +1,8 @@
-from mcp.server.mcpserver import Context
 import json
-from rhino_mcp.server import get_rhino_connection, logger
+
+from mcp.server.mcpserver import Context
+
+from rhino_mcp.server import get_rhino_connection
 
 
 def get_document_summary(ctx: Context) -> str:
@@ -18,10 +20,6 @@ def get_document_summary(ctx: Context) -> str:
     Use this tool first to understand the model composition before querying specific objects.
     For detailed object information, use get_objects with filters.
     """
-    try:
-        rhino = get_rhino_connection(ctx)
-        result = rhino.send_command("get_document_summary")
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        logger.error(f"Error getting document summary from Rhino: {str(e)}")
-        return f"Error getting document summary: {str(e)}"
+    rhino = get_rhino_connection(ctx)
+    result = rhino.send_command("get_document_summary")
+    return json.dumps(result, indent=2)
