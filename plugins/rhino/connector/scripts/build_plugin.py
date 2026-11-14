@@ -153,7 +153,7 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
     (staging / "manifest.json").unlink()
     (staging / "file-manifest.json").unlink()
     (staging / "SBOM.spdx.json").unlink()
-    for name in ("plugin.json",):
+    for name in ("plugin.json", "mcp.json"):
         shutil.copyfile(plugin_root / name, staging / name)
     for name in ("pyproject.toml", "uv.lock", "README.md"):
         shutil.copyfile(plugin_root / "connector" / name, staging / name)

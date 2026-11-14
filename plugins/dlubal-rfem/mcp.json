@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "rfem": {
+      "type": "stdio",
+      "command": "./runtime/python/python.exe",
+      "args": ["-m", "dlubal_rfem_mcp", "--stdio"]
+    }
+  }
+}

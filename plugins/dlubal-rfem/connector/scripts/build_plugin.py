@@ -292,6 +292,7 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
     for name in ("pyproject.toml", "uv.lock", "ORIGIN.md"):
         shutil.copyfile(ROOT / name, staging / name)
     shutil.copyfile(plugin_root / "plugin.json", staging / "plugin.json")
+    shutil.copyfile(plugin_root / "mcp.json", staging / "mcp.json")
     if (plugin_root / "skills").exists():
         shutil.copytree(plugin_root / "skills", staging / "skills")
     if (plugin_root / "assets").exists():

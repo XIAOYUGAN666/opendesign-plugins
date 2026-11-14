@@ -17,6 +17,26 @@ from dlubal_rfem_mcp.rfem.session import RFEMSession
 _UNSET_SESSION = object()
 
 
+def run_stdio() -> None:
+    import os
+    from pathlib import Path
+
+    from dlubal_rfem_mcp.rfem.tools import register_tools
+    from dlubal_rfem_mcp.setup import prepared_build
+
+    key = os.environ.pop("PLUGIN_RFEM_API_KEY", "")
+    data = Path(os.environ["PLUGIN_DATA"])
+    data.mkdir(parents=True, exist_ok=True)
+    config = RFEMConfig(api_key=key, execution_state_file=str(data / "executions.sqlite3"))
+    build = prepared_build(data)
+    session = RFEMSession(key, config.url, config.api_port, expected_build=build) if key and build else None
+    control = OperationControl()
+    server = FastMCP("dlubal-rfem-mcp", mask_error_details=True)
+    server.add_middleware(StdioEngineeringGate(session, build))
+    register_tools(server, session, config, control=control)
+    server.run(transport="stdio", show_banner=False)
+
+
 class EngineeringGate(MCPMiddleware):
     def __init__(self, envelope, session):
         self.envelope = envelope
@@ -33,6 +53,21 @@ class EngineeringGate(MCPMiddleware):
                 and not self.session.verified
             ):
                 raise ToolError("connectionUnverified")
+        return await call_next(context)
+
+
+class StdioEngineeringGate(MCPMiddleware):
+    def __init__(self, session, build):
+        self.session = session
+        self.build = build
+
+    async def on_call_tool(self, context, call_next):
+        if self.session is None and context.message.name != "get_rfem_execution":
+            raise ToolError("credentialMissing" if self.build else "softwarePreparationRequired")
+        if self.session is not None and self.session.restriction and context.message.name not in {
+            "get_rfem_execution", "get_rfem_application_info",
+        }:
+            raise ToolError(self.session.restriction)
         return await call_next(context)
 
 

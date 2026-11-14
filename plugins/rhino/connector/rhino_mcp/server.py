@@ -864,6 +864,13 @@ def create_mcp_server(bridge_client: BridgeClient | None = None) -> RhinoConnect
     return server
 
 
+def run_stdio() -> None:
+    from rhino_mcp.stdio_bridge import await_bridge
+
+    with await_bridge() as bridge:
+        create_mcp_server(bridge).run(transport="stdio")
+
+
 # Source-level consumers and tests use this discovery-only instance. Managed
 # startup builds a fresh server with the validated process-owned BridgeClient.
 mcp = create_mcp_server()

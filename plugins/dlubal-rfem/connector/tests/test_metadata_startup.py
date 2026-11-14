@@ -234,11 +234,11 @@ async def test_read_only_verify_counts_real_sdk_rpcs_and_local_status_has_no_rpc
     async with Client(build_mcp(parsed)) as client:
         result = await client.call_tool("get_rfem_application_info", {})
         assert not result.is_error
-        assert [call[0] for call in calls] == ["appInfo", "appInfo", "close"]
+        assert [call[0] for call in calls] == ["appInfo", "close"]
         await client.call_tool(
             "get_rfem_execution", {"execution_id": "absent"}, raise_on_error=False
         )
-        assert [call[0] for call in calls] == ["appInfo", "appInfo", "close"]
+        assert [call[0] for call in calls] == ["appInfo", "close"]
 
 
 @pytest.mark.asyncio
@@ -302,7 +302,6 @@ async def test_verification_reports_safe_category_and_blocks_ordinary_retry(
         verified = await client.call_tool("get_rfem_application_info", {})
         assert not verified.is_error
         assert [call[0] for call in calls] == [
-            "appInfo",
             "appInfo",
             "appInfo",
             "close",

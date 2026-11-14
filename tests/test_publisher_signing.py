@@ -120,3 +120,34 @@ with tempfile.TemporaryDirectory() as folder:
                 result = subprocess.run([str(PYTHON), "-B", "-c", CHECK, scenario], cwd=ROOT, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stderr.decode())
                 self.assertEqual(result.stdout.strip(), ("PASS " + scenario).encode())
+
+    def test_agent_market_binds_versions_and_rejects_revoked_recommendation(self):
+        script = r'''
+import json, time
+from pathlib import Path
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from scripts.sign_envelope import sign_envelope
+from scripts.sign_marketplace import sign_portable_market
+
+signer = Ed25519PrivateKey.generate()
+now = int(time.time())
+schema = json.loads(Path('schemas/agent-plugin-runtime.schema.json').read_bytes())['market']
+key = {'publicKey': signer.public_key().public_bytes_raw().hex(), 'revoked': False,
+       'notBefore': now - 1, 'expiresAt': now + 60, 'packages': ['example']}
+policy = {'keys': {'test': key}, 'marketplaceKeyId': 'test', 'previousSequence': 6}
+versions = [sign_envelope({'packageId': 'example', 'pluginVersion': f'{sequence}.0.0',
+    'releaseSequence': sequence, 'archiveDigest': 'sha256:' + str(sequence) * 64,
+    'archiveUrl': f'https://example.com/{sequence}.zip', 'filesDigest': 'sha256:' + 'a' * 64,
+    'revoked': sequence == 3, 'publisherKeyId': 'test'}, signer) for sequence in (1, 2, 3)]
+snapshot = json.loads(sign_portable_market(versions, {'example': '2.0.0'}, 7,
+    'official', policy, signer, schema=schema))
+assert snapshot['releases'] == versions
+try:
+    sign_portable_market(versions, {'example': '3.0.0'}, 7, 'official', policy, signer, schema=schema)
+except ValueError as error:
+    assert str(error) == 'invalidRecommendedRelease'
+else:
+    raise AssertionError('revoked recommendation accepted')
+'''
+        result = subprocess.run([str(PYTHON), "-B", "-c", script], cwd=ROOT, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)

@@ -1,0 +1,267 @@
+{
+  "market": {
+    "$defs": {
+      "ReleaseBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "archiveDigest": {
+            "title": "Archivedigest",
+            "type": "string"
+          },
+          "archiveUrl": {
+            "title": "Archiveurl",
+            "type": "string"
+          },
+          "filesDigest": {
+            "title": "Filesdigest",
+            "type": "string"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "pluginVersion": {
+            "title": "Pluginversion",
+            "type": "string"
+          },
+          "publisherKeyId": {
+            "title": "Publisherkeyid",
+            "type": "string"
+          },
+          "releaseSequence": {
+            "exclusiveMaximum": 18446744073709551616,
+            "exclusiveMinimum": 0,
+            "title": "Releasesequence",
+            "type": "integer"
+          },
+          "revoked": {
+            "default": false,
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          }
+        },
+        "required": [
+          "packageId",
+          "pluginVersion",
+          "releaseSequence",
+          "archiveDigest",
+          "archiveUrl",
+          "filesDigest",
+          "publisherKeyId",
+          "signature"
+        ],
+        "title": "ReleaseBinding",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "expiresAt": {
+        "title": "Expiresat",
+        "type": "integer"
+      },
+      "marketplace": {
+        "title": "Marketplace",
+        "type": "string"
+      },
+      "marketplaceSchemaVersion": {
+        "const": 2,
+        "title": "Marketplaceschemaversion",
+        "type": "integer"
+      },
+      "notBefore": {
+        "title": "Notbefore",
+        "type": "integer"
+      },
+      "publisherKeyId": {
+        "title": "Publisherkeyid",
+        "type": "string"
+      },
+      "recommended": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "title": "Recommended",
+        "type": "object"
+      },
+      "releases": {
+        "items": {
+          "$ref": "#/$defs/ReleaseBinding"
+        },
+        "title": "Releases",
+        "type": "array"
+      },
+      "repositoryIdentity": {
+        "title": "Repositoryidentity",
+        "type": "string"
+      },
+      "sequence": {
+        "exclusiveMaximum": 18446744073709551616,
+        "exclusiveMinimum": 0,
+        "title": "Sequence",
+        "type": "integer"
+      },
+      "signature": {
+        "title": "Signature",
+        "type": "string"
+      }
+    },
+    "required": [
+      "marketplaceSchemaVersion",
+      "repositoryIdentity",
+      "marketplace",
+      "sequence",
+      "notBefore",
+      "expiresAt",
+      "recommended",
+      "releases",
+      "publisherKeyId",
+      "signature"
+    ],
+    "title": "MarketSnapshot",
+    "type": "object"
+  },
+  "publisherPolicy": {
+    "publishers": {
+      "rfem-publisher-v1": {
+        "publicKey": "d09da3799bb7a5964eb8e92938e13155ae766bc5ac95bdfc8840eeb0ed3a70fd",
+        "scope": {
+          "marketplacePackages": [
+            "dlubal-rfem",
+            "dlubal-rhino",
+            "rhino"
+          ],
+          "releasePackages": [
+            "dlubal-rfem",
+            "dlubal-rhino"
+          ],
+          "repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins"
+        }
+      },
+      "rhino-publisher-v1": {
+        "publicKey": "7b198744b9f46d9bccac877710f9fb39c265d2cc1edbddd0feb09973dfdbe4f8",
+        "scope": {
+          "marketplacePackages": [],
+          "releasePackages": [
+            "rhino"
+          ],
+          "repositoryIdentity": "github:XIAOYUGAN666/opendesign-plugins"
+        }
+      }
+    },
+    "schemaVersion": 1
+  },
+  "remoteAuth": {
+    "additionalProperties": false,
+    "properties": {
+      "clientId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Clientid"
+      },
+      "scopes": {
+        "anyOf": [
+          {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Scopes"
+      },
+      "type": {
+        "enum": [
+          "none",
+          "oauth"
+        ],
+        "title": "Type",
+        "type": "string"
+      }
+    },
+    "required": [
+      "type"
+    ],
+    "title": "RemoteAuth",
+    "type": "object"
+  },
+  "setupRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "executionId": {
+        "title": "Executionid",
+        "type": "string"
+      },
+      "operationId": {
+        "title": "Operationid",
+        "type": "string"
+      },
+      "optionId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Optionid"
+      },
+      "packageVersion": {
+        "title": "Packageversion",
+        "type": "string"
+      },
+      "protocolVersion": {
+        "const": 1,
+        "default": 1,
+        "title": "Protocolversion",
+        "type": "integer"
+      },
+      "reconcile": {
+        "default": false,
+        "title": "Reconcile",
+        "type": "boolean"
+      },
+      "selectionRequestId": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Selectionrequestid"
+      },
+      "stepId": {
+        "title": "Stepid",
+        "type": "string"
+      }
+    },
+    "required": [
+      "operationId",
+      "executionId",
+      "packageVersion",
+      "stepId"
+    ],
+    "title": "SetupRequestWire",
+    "type": "object"
+  }
+}

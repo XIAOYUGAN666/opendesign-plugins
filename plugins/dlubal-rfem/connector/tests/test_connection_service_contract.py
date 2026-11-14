@@ -155,7 +155,7 @@ class ConnectionServiceContractTests(unittest.IsolatedAsyncioTestCase):
         result, methods = await self._diagnostic("success")
         self.assertFalse(result.is_error)
         self.assertEqual(result.structured_content["status"], "ok")
-        self.assertEqual(methods.count("get_application_info"), 3)
+        self.assertEqual(methods.count("get_application_info"), 1)
         self.assertEqual(methods.count("close_connection"), 1)
 
     async def test_refusal_and_cleanup_paths_use_only_service_methods(self):

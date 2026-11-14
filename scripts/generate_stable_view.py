@@ -108,7 +108,7 @@ def portable_files(files, identity):
         from presentation_assets import validate_asset_files
     validate_asset_files(files, identity)
     configuration = identity["extensions"][NAMESPACE]["configurationSchemaPath"]
-    selected = {name: raw for name, raw in files.items() if name in {"plugin.json", "README.md", configuration, "tool-preview.json", "mcp.json", "hooks.json"} or ("/" not in name and name.endswith(".md")) or name.split("/")[0] in {"skills", "assets", "agents", "commands", "hooks"}}
+    selected = {name: raw for name, raw in files.items() if name in {"plugin.json", "README.md", configuration, "tool-preview.json", "hooks.json"} or ("/" not in name and name.endswith(".md")) or name.split("/")[0] in {"skills", "assets", "agents", "commands", "hooks"}}
     if not {"plugin.json", "README.md", configuration, "tool-preview.json"} <= selected.keys():
         raise ValueError("incompletePortableView")
     for name in selected:
@@ -116,9 +116,13 @@ def portable_files(files, identity):
             parts = name.split("/")
             if len(parts) < 3 or not parts[1] or f"skills/{parts[1]}/SKILL.md" not in selected:
                 raise ValueError("incompletePortableView")
-    if "mcp.json" in selected:
-        # No standard managed endpoint has been approved for the first plugins.
-        raise ValueError("unapprovedStandardMcp")
+    if "mcp.json" in files:
+        try:
+            from .verify_artifact import portable_stdio_commands
+        except ImportError:
+            from verify_artifact import portable_stdio_commands
+        if any(command not in files for command in portable_stdio_commands(files["mcp.json"])):
+            raise ValueError("missingPortableMcpCommand")
     native = identity["extensions"][NAMESPACE]
     installed_paths = [native["entrypoint"]]
     if native.get("native"):

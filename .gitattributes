@@ -28,4 +28,6 @@
 # Official branding bytes and provenance stay identical across Windows checkouts.
 /plugins/*/assets/** -text whitespace=cr-at-eol
 /schemas/host-publisher-policy.json -text
+/schemas/agent-plugin-runtime.schema.json -text
+/.agents/plugins/marketplace.agent.snapshot.json -text
 /schemas/host-publisher-policy.json whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

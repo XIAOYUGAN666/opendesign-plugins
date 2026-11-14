@@ -69,6 +69,36 @@ def read_json(data):
     return json.loads(data, object_pairs_hook=unique, parse_constant=reject)
 
 
+def portable_stdio_commands(data: bytes) -> tuple[str, ...]:
+    descriptor = read_json(data)
+    if descriptor.get("$schema") != "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json":
+        raise ValueError("invalidPortableMcpSchema")
+    commands = []
+    for server in descriptor["mcpServers"].values():
+        command = server.get("command")
+        args = server.get("args", [])
+        if (
+            set(server) - {"type", "command", "args"} or server.get("type") != "stdio"
+            or not isinstance(command, str) or not command.startswith("./")
+            or not isinstance(args, list) or any(not isinstance(item, str) for item in args)
+        ):
+            raise ValueError("invalidPortableMcpCommand")
+        commands.append("/".join(safe_path(command[2:])))
+    return tuple(commands)
+
+
+def validate_setup_declaration(identity: dict, files: set[str]) -> None:
+    extension = identity.get("extensions", {}).get("ai.opendesign.desktop", {})
+    setup = extension.get("setup")
+    if setup is None:
+        return
+    if set(setup) != {"command", "args"} or not isinstance(setup["args"], list):
+        raise ValueError("invalidPortableSetup")
+    command = "/".join(safe_path(setup["command"]))
+    if command not in files or any(not isinstance(arg, str) for arg in setup["args"]):
+        raise ValueError("missingPortableSetupCommand")
+
+
 def safe_path(name):
     parts = name.split("/")
     if not name or "\\" in name or ":" in name or any(p in {"", ".", ".."} for p in parts):
@@ -493,6 +523,16 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
     with tempfile.TemporaryDirectory(prefix="artifact-verify-") as folder:
         root = Path(folder)
         extract(io.BytesIO(data), root)
+        descriptor = root / "mcp.json"
+        if descriptor.is_file():
+            for command in portable_stdio_commands(descriptor.read_bytes()):
+                if not (root / command).is_file():
+                    raise ValueError("missingPortableMcpCommand")
+        if (root / "plugin.json").is_file():
+            validate_setup_declaration(
+                read_json((root / "plugin.json").read_bytes()),
+                {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()},
+            )
         release = read_json((root / "release.json").read_bytes())
         if release != signed["release"]:
             raise ValueError("releaseReceiptMismatch")

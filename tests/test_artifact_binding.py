@@ -105,6 +105,16 @@ class ReleaseInputTests(unittest.TestCase):
 
 
 class ArtifactBindingTests(unittest.TestCase):
+    def test_portable_entrypoints_must_stay_in_the_signed_archive(self):
+        from scripts.verify_artifact import portable_stdio_commands, validate_setup_declaration
+
+        with self.assertRaisesRegex(ValueError, "unsafeArchivePath"):
+            portable_stdio_commands(b'{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"bad":{"type":"stdio","command":"./../bad.exe"}}}')
+        with self.assertRaisesRegex(ValueError, "missingPortableSetupCommand"):
+            validate_setup_declaration(
+                {"extensions": {"ai.opendesign.desktop": {"setup": {"command": "bin/setup.exe", "args": []}}}},
+                {"plugin.json"},
+            )
     def test_environment_candidate_signer_round_trip_preserves_original_receipt_bytes(self):
         # Test-only fixture identity; production CLI still admits only the two approved packages.
         code = r'''

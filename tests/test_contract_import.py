@@ -279,8 +279,9 @@ class ContractImportTests(unittest.TestCase):
                 expected.add(path.relative_to(ROOT).as_posix())
         self.assertEqual(expected, {p.relative_to(ROOT).as_posix() for p in (ROOT / "published").rglob("*") if p.is_file()})
         self.assertIn("/published/** -text", text(ROOT / ".gitattributes").splitlines())
-        self.assertFalse((ROOT / "plugins/dlubal-rfem/mcp.json").exists())
-        self.assertFalse((ROOT / "plugins/rhino/mcp.json").exists())
+        for package in ("dlubal-rfem", "rhino"):
+            mcp = json.loads((ROOT / "plugins" / package / "mcp.json").read_bytes())
+            self.assertEqual({server["type"] for server in mcp["mcpServers"].values()}, {"stdio"})
 
 
 if __name__ == "__main__":

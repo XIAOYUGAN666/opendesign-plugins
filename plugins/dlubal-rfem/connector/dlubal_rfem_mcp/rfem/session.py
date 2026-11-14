@@ -98,7 +98,7 @@ class RFEMSession:
         self.verified = False
 
     @contextmanager
-    def connection(self, timeout: float = 0.0):
+    def connection(self, timeout: float = 0.0, *, service_query: bool = False):
         acquired = self._lock.acquire(timeout=timeout)
         if not acquired:
             raise RFEMBusy(
@@ -109,7 +109,18 @@ class RFEMSession:
             try:
                 from dlubal.api.rfem.application import Application
 
-                app = Application(
+                class ServiceApplication(Application):
+                    # The locked SDK calls this method during construction. Reuse
+                    # the response for the single explicit Service query.
+                    _application_info = None
+
+                    def get_application_info(self):
+                        if self._application_info is None:
+                            self._application_info = super().get_application_info()
+                        return self._application_info
+
+                application = ServiceApplication if service_query else Application
+                app = application(
                     api_key_value=self._api_key_value,
                     url=self._url,
                     port=self._port,
@@ -120,22 +131,13 @@ class RFEMSession:
                 raise RuntimeError(self.restriction) from error
             if app is None:
                 raise RuntimeError("rfemUnavailable")
-            if self._expected_build is not None:
+            if not service_query and self._expected_build is not None:
                 # Dlubal exposes the public product version separately from the
                 # exact build.  For example, version is ``6.14.0013`` while
                 # full_version starts with ``6.14.0013.249.`` and then carries
                 # the source revision.  Host compatibility is pinned to those
                 # first four full-version components.
-                full_version = str(
-                    getattr(app.get_application_info(), "full_version", "") or ""
-                )
-                if not (
-                    full_version == self._expected_build
-                    or full_version.startswith(self._expected_build + ".")
-                ):
-                    self.restriction = "unsupportedSoftwareVersion"
-                    self.verified = False
-                    raise ValueError("unsupportedSoftwareVersion")
+                self.validate_application_info(app.get_application_info())
             self.restriction = None
             self.verified = True
             yield app
@@ -151,3 +153,11 @@ class RFEMSession:
                 ) from exc
             finally:
                 self._lock.release()
+
+    def validate_application_info(self, info) -> None:
+        expected = self._expected_build
+        full_version = str(getattr(info, "full_version", "") or "")
+        if expected is not None and full_version != expected and not full_version.startswith(expected + "."):
+            self.restriction = "unsupportedSoftwareVersion"
+            self.verified = False
+            raise ValueError("unsupportedSoftwareVersion")

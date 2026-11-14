@@ -8,6 +8,19 @@ from pathlib import Path
 import re
 
 
+def import_agent_plugin_contract(source: Path, destination: Path) -> str:
+    """Copy the Agent export without rebuilding or hand-editing its schemas."""
+    raw = source.read_bytes()
+    contract = json.loads(raw)
+    if set(contract) != {"market", "remoteAuth", "setupRequest", "publisherPolicy"}:
+        raise ValueError("invalidAgentPluginContract")
+    if contract["market"]["properties"]["marketplaceSchemaVersion"]["const"] != 2:
+        raise ValueError("invalidMarketplaceSchema")
+    destination.mkdir(parents=True, exist_ok=True)
+    (destination / "agent-plugin-runtime.schema.json").write_bytes(raw)
+    return "sha256:" + hashlib.sha256(raw).hexdigest()
+
+
 def import_contracts(
     host_schema: Path,
     agent_schema: Path,

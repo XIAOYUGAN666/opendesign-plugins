@@ -127,6 +127,22 @@ def sign_draft_candidate(archive, candidate, schema_bundle, context, signer):
     return signed, {**verified, "verification": "signed-draft-candidate", "candidateKeyId": TARGETS[package][0], "assetUrlVerification": "pending-anonymous-publication-check", "stablePublication": False}
 
 
+def portable_release_binding(signed, signer):
+    """Derive the Agent binding only after verifying the archive and draft."""
+    release = signed["release"]
+    payload = {
+        "packageId": release["packageId"],
+        "pluginVersion": release["pluginVersion"],
+        "releaseSequence": release["releaseSequence"],
+        "archiveDigest": signed["archive"]["sha256"],
+        "archiveUrl": signed["archive"]["url"],
+        "filesDigest": release["filesDigest"],
+        "revoked": signed["revoked"],
+        "publisherKeyId": signed["publisherKeyId"],
+    }
+    return sign_envelope(payload, signer)
+
+
 def sign_skill_draft_candidate(archive, candidate, context, host_policy, signers):
     try:
         from .sign_skill_artifact import sign_draft
@@ -254,7 +270,7 @@ def validate_market_entry_context(receipt, context, archive_name, source_commit,
         raise ValueError("invalidDraftContext")
 
 
-def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None, retired_package=None):
+def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_key_id, source_commit, output, *, previous_market_digest=None, retired_package=None, release_signers=None):
     """Prepare an isolated initial or authenticated subsequent market review.
 
     This is release tooling, not Host authority. Full artifact verification and
@@ -264,12 +280,12 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
     try:
         from .generate_stable_view import generate_stable_view, regular_directory
         from .generate_marketplace import generate_marketplace, verified_views
-        from .sign_marketplace import sign_marketplace
+        from .sign_marketplace import sign_marketplace, sign_portable_market
         from .verify_artifact import extract, digest
     except ImportError:
         from generate_stable_view import generate_stable_view, regular_directory
         from generate_marketplace import generate_marketplace, verified_views
-        from sign_marketplace import sign_marketplace
+        from sign_marketplace import sign_marketplace, sign_portable_market
         from verify_artifact import extract, digest
 
     output = regular_directory(output.absolute())
@@ -360,6 +376,43 @@ def sign_market_candidate(entries, schema_bundle, host_policy, signer, market_ke
         report = {"sequence": sequence, "previousSnapshotSha256": previous_market_digest, "sourceCommit": source_commit, "marketplaceSha256": digest(market.read_bytes()),
                   "snapshotSha256": digest(snapshot), "views": views, "stablePublication": False,
                   "assetUrlVerification": "pending-anonymous-publication-check", "finalApprovalRequired": True}
+        if release_signers:
+            portable = {}
+            recommended = {}
+            previous_agent = repository / ".agents/plugins/marketplace.agent.snapshot.json"
+            if previous_agent.is_file():
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+                old = read_json(previous_agent.read_bytes())
+                signature = old.pop("signature")
+                if (old["repositoryIdentity"] != REPOSITORY or old["marketplace"] != "official"
+                        or old["sequence"] != previous_sequence or old["publisherKeyId"] != market_key_id):
+                    raise ValueError("invalidPreviousMarket")
+                Ed25519PublicKey.from_public_bytes(bytes.fromhex(market_owner["publicKey"])).verify(
+                    bytes.fromhex(signature), canonical({"signatureSchemaVersion": 1, **old}),
+                )
+                portable.update({(item["packageId"], item["pluginVersion"]): item for item in old["releases"]})
+            for receipt in bindings:
+                release = receipt["release"]
+                package = release["packageId"]
+                if not (roots[package] / "mcp.json").is_file() and is_connector_release(release):
+                    continue
+                owner = next(owner for owner, (key_id, _) in TARGETS.items() if key_id == receipt["publisherKeyId"])
+                identity = package, release["pluginVersion"]
+                binding = portable_release_binding(receipt, release_signers[owner])
+                if identity in portable and portable[identity] != binding:
+                    raise ValueError("invalidPreviousMarket")
+                portable[identity] = binding
+                recommended[package] = release["pluginVersion"]
+            if portable:
+                owner_schema = read_json((schema_bundle / "agent-plugin-runtime.schema.json").read_bytes())
+                if owner_schema["publisherPolicy"] != host_policy:
+                    raise ValueError("invalidHostPolicyExport")
+                agent_snapshot = sign_portable_market(
+                    list(portable.values()), recommended, sequence, "official", policy, signer, schema=owner_schema["market"],
+                )
+                (market.parent / "marketplace.agent.snapshot.json").write_bytes(agent_snapshot)
+                report["agentSnapshotSha256"] = digest(agent_snapshot)
         (staged / "review.json").write_bytes(canonical(report))
         if previous_market_digest is not None:
             verify_previous_market(repository, schema_bundle, host_policy, previous_market_digest)
@@ -393,7 +446,7 @@ def main():
             entries = read_json(args.market_inputs.read_bytes())
             result["marketCandidate"] = sign_market_candidate(entries, args.schemas,
                 read_json((args.schemas / "host-publisher-policy.json").read_bytes()),
-                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output, previous_market_digest=args.previous_market_digest, retired_package=args.retire_package)
+                signers["dlubal-rfem"], TARGETS["dlubal-rfem"][0], args.source_commit, args.output, previous_market_digest=args.previous_market_digest, retired_package=args.retire_package, release_signers=signers)
         elif any((args.archive, args.candidate, args.context, args.output)):
             if not all((args.archive, args.candidate, args.context, args.output)):
                 raise ValueError("invalidDraftContext")
@@ -408,6 +461,9 @@ def main():
                     read_json((args.schemas / "host-publisher-policy.json").read_bytes()), signers)
             with args.output.open("xb") as stream:
                 stream.write(canonical(signed))
+            if is_connector_release(payload.get("release", {})):
+                binding = portable_release_binding(signed, signers[context["packageId"]])
+                args.output.with_name("agent-release-binding.json").write_bytes(canonical(binding))
             result["candidate"] = verification
         print(json.dumps(result, sort_keys=True))
     except Exception as error:

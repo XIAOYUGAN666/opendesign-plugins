@@ -87,9 +87,10 @@ def register_model_operations(mcp, session, manager, control=None):
         try:
             with (
                 control.reading() if control else nullcontext(),
-                session.connection() as app,
+                session.connection(service_query=True) as app,
             ):
                 info = app.get_application_info()
+                session.validate_application_info(info)
                 result = ApplicationInfoSuccessV1(
                     status="ok", version=str(info.version)[:40]
                 )

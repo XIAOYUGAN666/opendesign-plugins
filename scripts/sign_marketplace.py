@@ -54,6 +54,58 @@ def sign_marketplace(raw: bytes, bindings: list[dict], sequence: int, signer: Ed
     return canonical(sign_envelope(payload, signer))
 
 
+def sign_portable_market(
+    bindings: list[dict], recommended: dict[str, str], sequence: int,
+    marketplace: str, trust_policy: dict, signer: Ed25519PrivateKey, *, schema: dict,
+) -> bytes:
+    """Bind currently authorized versions in the new Agent snapshot."""
+    if type(sequence) is not int or not trust_policy["previousSequence"] < sequence < 2**64:
+        raise ValueError("marketplaceSequenceRollback")
+    versions = {}
+    now = int(time.time())
+    keys = trust_policy["keys"]
+    key_id = trust_policy["marketplaceKeyId"]
+    market_key = keys[key_id]
+    if market_key["revoked"] or not market_key["notBefore"] <= now < market_key["expiresAt"]:
+        raise ValueError("marketplaceSignerDenied")
+    if signer.public_key().public_bytes_raw().hex() != market_key["publicKey"]:
+        raise ValueError("marketplaceSignerMismatch")
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    for binding in bindings:
+        identity = binding["packageId"], binding["pluginVersion"]
+        key = keys[binding["publisherKeyId"]]
+        if (
+            identity in versions or key["revoked"]
+            or identity[0] not in market_key["packages"] or identity[0] not in key["packages"]
+            or not key["notBefore"] <= now < key["expiresAt"]
+        ):
+            raise ValueError("invalidMarketRelease")
+        payload = {name: value for name, value in binding.items() if name != "signature"}
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(key["publicKey"])).verify(
+            bytes.fromhex(binding["signature"]), canonical({"signatureSchemaVersion": 1, **payload})
+        )
+        versions[identity] = binding
+    if any((package, version) not in versions or versions[package, version].get("revoked")
+           for package, version in recommended.items()):
+        raise ValueError("invalidRecommendedRelease")
+    payload = {
+        "marketplaceSchemaVersion": 2, "repositoryIdentity": REPOSITORY,
+        "marketplace": marketplace, "sequence": sequence,
+        "notBefore": now, "expiresAt": min(
+            market_key["expiresAt"], *(keys[binding["publisherKeyId"]]["expiresAt"] for binding in bindings)
+        ) if bindings else market_key["expiresAt"],
+        "recommended": recommended,
+        "releases": [versions[key] for key in sorted(versions)],
+        "publisherKeyId": key_id,
+    }
+    from jsonschema import Draft202012Validator
+
+    signed = sign_envelope(payload, signer)
+    Draft202012Validator(schema).validate(signed)
+    return canonical(signed)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("marketplace", "bindings", "views", "policy", "artifact-roots", "verified-contexts", "view-root", "output"):
