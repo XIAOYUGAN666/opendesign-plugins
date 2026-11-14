@@ -1,14 +1,19 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rfem",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "RFEM 6 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
   },
   "extensions": {
     "ai.opendesign.desktop": {
-      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "dlubal_rfem_mcp.setup"]},
+      "setup": {
+        "command": "runtime/python/python.exe",
+        "args": ["-m", "dlubal_rfem_mcp.setup"],
+        "diagnostics": true,
+        "credentialSlots": {"diagnose": "dlubal-api-key"}
+      },
       "credentialEnvironment": {"rfem": {"PLUGIN_RFEM_API_KEY": "dlubal-api-key"}}
     },
     "io.github.xiaoyugan666.native": {
