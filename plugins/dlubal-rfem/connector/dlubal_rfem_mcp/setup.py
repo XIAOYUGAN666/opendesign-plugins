@@ -100,11 +100,55 @@ def prepare(request: dict) -> dict:
     return {"type": "completed", "build": build, "sdkVersion": sdk}
 
 
+def diagnose(data: Path, key: str) -> dict:
+    from importlib.metadata import version
+
+    from dlubal_rfem_mcp.rfem.config import RFEMConfig
+    from dlubal_rfem_mcp.rfem.session import RFEMSession, restriction_category
+
+    build = prepared_build(data)
+    if build is None:
+        return {"type": "failed", "reason": "softwarePreparationRequired", "message": "RFEM 安装或 SDK 绑定已变化，请在插件页重新准备组件。"}
+    if not key:
+        return {"type": "failed", "reason": "credentialMissing", "message": "请在插件设置中填写 RFEM API Key。"}
+    config = RFEMConfig()
+    session = RFEMSession(key, config.url, config.api_port, expected_build=build)
+    try:
+        with session.connection(service_query=True) as app:
+            session.validate_application_info(app.get_application_info())
+    except Exception as error:
+        reason = session.restriction or restriction_category(error)
+        message = {
+            "authenticationFailed": "RFEM 拒绝了已保存的 API Key，请在插件设置中更新。",
+            "authorizationRestricted": "RFEM 未授权此 API Key 访问服务。",
+            "quotaRestricted": "RFEM API 配额受限，请检查 Dlubal 账户。",
+            "apiAccessRestricted": "RFEM API 服务拒绝访问，请检查 Dlubal 账户授权。",
+            "unsupportedSoftwareVersion": "当前运行的 RFEM 版本与已准备的版本不一致。",
+        }.get(reason, "无法连接 RFEM API。请确认 RFEM 已启动并启用 API 服务。")
+        return {"type": "failed", "reason": reason, "message": message}
+    return {"type": "completed", "message": f"已连接 RFEM {build}，dlubal.api {version('dlubal-api')}，Service 查询成功。"}
+
+
+def _read_credential() -> str:
+    import msvcrt
+
+    if len(sys.argv) != 3 or sys.argv[1] != "--credential-handle":
+        return ""
+    descriptor = msvcrt.open_osfhandle(int(sys.argv[2]), os.O_RDONLY | os.O_BINARY)
+    with os.fdopen(descriptor, "rb") as stream:
+        value = stream.read(65537)
+    if len(value) > 65536:
+        raise ValueError("credentialTooLarge")
+    return value.decode("utf-8")
+
+
 def main():
     request = json.loads(sys.stdin.readline())
     step = request["stepId"]
     if step == "prepare":
         result = prepare(request)
+    elif step == "diagnose":
+        result = diagnose(Path(os.environ["PLUGIN_DATA"]), _read_credential())
     elif step in {"uninstall-preview", "uninstall"}:
         result = {"type": "completed", "components": []}
     else:

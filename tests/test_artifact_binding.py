@@ -18,6 +18,20 @@ PYTHON = PLUGIN / "connector/.venv/Scripts/python.exe"
 
 
 class ReleaseInputTests(unittest.TestCase):
+    def test_diagnostic_credential_must_match_a_signed_slot(self):
+        setup = {"command": "setup.exe", "args": [], "diagnostics": True,
+                 "credentialSlots": {"diagnose": "api-key"}}
+        identity = {"extensions": {
+            "ai.opendesign.desktop": {"setup": setup},
+            "io.github.xiaoyugan666.native": {"secretSlots": [{"fieldId": "api-key"}]},
+        }}
+        verifier.validate_setup_declaration(identity, {"setup.exe"})
+        for binding in ({"diagnose": "other"}, {"uninstall": "api-key"}):
+            with self.subTest(binding=binding):
+                setup["credentialSlots"] = binding
+                with self.assertRaisesRegex(ValueError, "invalidPortableSetup"):
+                    verifier.validate_setup_declaration(identity, {"setup.exe"})
+
     def test_connector_source_without_skills_is_valid(self):
         with tempfile.TemporaryDirectory(prefix="connector-source-") as folder:
             root = Path(folder) / "plugin"

@@ -92,7 +92,21 @@ def validate_setup_declaration(identity: dict, files: set[str]) -> None:
     setup = extension.get("setup")
     if setup is None:
         return
-    if set(setup) != {"command", "args"} or not isinstance(setup["args"], list):
+    if (
+        not isinstance(setup, dict) or not {"command", "args"} <= setup.keys()
+        or setup.keys() - {"command", "args", "diagnostics", "credentialSlots"}
+        or not isinstance(setup["command"], str) or not isinstance(setup["args"], list)
+        or type(setup.get("diagnostics", False)) is not bool
+    ):
+        raise ValueError("invalidPortableSetup")
+    declared = identity.get("extensions", {}).get("io.github.xiaoyugan666.native", {}).get("secretSlots", [])
+    fields = {slot["fieldId"] for slot in declared}
+    slots = setup.get("credentialSlots", {})
+    if not isinstance(slots, dict) or any(
+        step not in {"prepare", "diagnose"} or not isinstance(field, str)
+        or field not in fields or (step == "diagnose" and setup.get("diagnostics") is not True)
+        for step, field in slots.items()
+    ):
         raise ValueError("invalidPortableSetup")
     command = "/".join(safe_path(setup["command"]))
     if command not in files or any(not isinstance(arg, str) for arg in setup["args"]):

@@ -1,6 +1,6 @@
 """Build identity embedded by the deterministic release builder."""
 
-RELEASE_VERSION = "0.1.20"
+RELEASE_VERSION = "0.1.21"
 
 # The release builder replaces this development sentinel in staged package input
 # after calculating the canonical Connector build identity.

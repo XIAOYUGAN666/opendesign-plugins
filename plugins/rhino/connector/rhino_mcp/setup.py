@@ -15,7 +15,31 @@ def diagnose_bridge(*, rhino_running: bool, bridge_ready: bool) -> dict:
         return {"type": "failed", "reason": "softwareNotRunning", "message": "请启动 Rhino"}
     if not bridge_ready:
         return {"type": "failed", "reason": "bridgeNotLoaded", "message": "Bridge 尚未加载"}
-    return {"type": "completed"}
+    return {"type": "completed", "message": "已连接 Rhino 8，Bridge 握手成功。"}
+
+
+def diagnose_connection() -> dict:
+    import pywintypes
+
+    from rhino_mcp._connector_process import running_instance
+    from rhino_mcp.bridge import BridgeResultUnknown, BridgeUnavailable
+    from rhino_mcp.stdio_bridge import await_bridge
+
+    if running_instance("Rhino.exe") is None:
+        return diagnose_bridge(rhino_running=False, bridge_ready=False)
+    try:
+        with await_bridge():
+            return diagnose_bridge(rhino_running=True, bridge_ready=True)
+    except BridgeUnavailable:
+        return diagnose_bridge(rhino_running=True, bridge_ready=False)
+    except BridgeResultUnknown:
+        return {"type": "failed", "reason": "bridgeResultUnknown", "message": "上一次 Rhino 操作的结果尚未确认，请先核实 Rhino 状态。"}
+    except pywintypes.error as error:
+        if error.winerror in (5, 231):
+            return {"type": "failed", "reason": "bridgeBusy", "message": "Bridge 正在处理另一个连接，请稍后重试。"}
+        return {"type": "failed", "reason": "bridgeConnectionFailed", "message": "无法建立 Rhino Bridge 连接。"}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {"type": "failed", "reason": "bridgeConnectionFailed", "message": "无法确认 Rhino Bridge 握手。请重新启动 Rhino 以加载当前版本的 Bridge。"}
 
 
 def installed_rhino() -> Path | None:
@@ -126,13 +150,10 @@ def main():
             result = {"type": "failed", "reason": "rhinoNotInstalled", "message": "未检测到兼容的 Rhino 8"}
         elif step == "prepare":
             result = prepare_bridge(request, executable, binding)
+        elif step == "diagnose":
+            result = diagnose_connection()
         else:
-            from rhino_mcp._connector_process import running_instance
-
-            result = diagnose_bridge(
-                rhino_running=running_instance("Rhino.exe") is not None,
-                bridge_ready=False,
-            )
+            result = {"type": "failed", "reason": "unsupportedSetupStep"}
     except (OSError, ValueError, subprocess.SubprocessError):
         result = {"type": "failed", "reason": "bridgeComponentUnconfirmed", "message": "Yak 未能确认 Bridge 操作结果，请检查 Rhino 安装后重试"}
     print(json.dumps({**{key: request[key] for key in (
