@@ -1,12 +1,15 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rhino",
-  "version": "0.1.19",
+  "version": "0.1.20",
   "description": "Rhino 8 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
   },
   "extensions": {
+    "ai.opendesign.desktop": {
+      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "rhino_mcp.setup"]}
+    },
     "io.github.xiaoyugan666.native": {
       "platform": {
         "os": "windows",
@@ -62,9 +65,9 @@
         "contractVersion": 1,
         "packageId": "rhino-mcp-bridge",
         "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
-        "relativePath": "native/rhino-mcp-bridge-0.1.19-rh8-win.yak",
-        "sha256": "sha256:2f8cc868bf7e60ae3ac3b25b6ef287f7a20542da6d1b702075e35954ce744360",
-        "version": "0.1.19"
+        "relativePath": "native/rhino-mcp-bridge-0.1.20-rh8-win.yak",
+        "sha256": "sha256:6c85cb909a4a48786bbb52b0aabf615d07df8f00b777a513dd153fd554d74dfd",
+        "version": "0.1.20"
       }
     },
     "com.openai": {
