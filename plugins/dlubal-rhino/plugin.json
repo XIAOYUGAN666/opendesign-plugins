@@ -1,7 +1,21 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rhino",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cross-software workflows for Rhino and Dlubal RFEM.",
-  "author": { "name": "OpenDesign team" }
+  "author": { "name": "OpenDesign team" },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "developerName": "OpenDesign team",
+        "category": "Engineering Design",
+        "capabilities": [
+          "Rhino geometry review",
+          "RFEM structural member workflow"
+        ],
+        "websiteURL": "https://github.com/XIAOYUGAN666/opendesign-plugins/tree/main/plugins/dlubal-rhino",
+        "supportURL": "https://github.com/XIAOYUGAN666/opendesign-plugins/issues"
+      }
+    }
+  }
 }
