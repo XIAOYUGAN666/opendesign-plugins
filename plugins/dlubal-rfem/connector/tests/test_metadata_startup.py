@@ -279,7 +279,7 @@ async def test_verification_reports_safe_category_and_blocks_ordinary_retry(
             return grpc.StatusCode.PERMISSION_DENIED
 
         def details(self):
-            return "Private vendor context: permission denied"
+            return "Permission denied\nAPI Key: fixture-manual"
 
     failure.append(Restriction())
     parsed = read_connector_envelope(io.BytesIO(json.dumps(envelope).encode()))
@@ -287,12 +287,13 @@ async def test_verification_reports_safe_category_and_blocks_ordinary_retry(
         result = await client.call_tool(
             "get_rfem_application_info", {}, raise_on_error=False
         )
-        assert result.is_error and "authorizationRestricted" in str(result.content)
+        assert result.is_error
+        assert result.content[0].text == "PERMISSION_DENIED\nPermission denied\nAPI Key: [REDACTED]"
         assert result.structured_content == {
             "status": "error",
             "failureCategory": "authorizationRestricted",
         }
-        assert "Private vendor" not in str(result.content)
+        assert "fixture-manual" not in result.content[0].text
         retry = await client.call_tool(
             "inspect_rfem_api", {"query": "Material"}, raise_on_error=False
         )
@@ -373,7 +374,7 @@ async def test_standard_client_receives_typed_safe_error(envelope, sdk_rpc):
             return grpc.StatusCode.RESOURCE_EXHAUSTED
 
         def details(self):
-            return "quota exceeded; private vendor details"
+            return "quota exceeded\nAuthorization: Bearer synthetic-test-secret"
 
     failure.append(Restriction())
     with socket.socket() as sock:
@@ -418,7 +419,8 @@ async def test_standard_client_receives_typed_safe_error(envelope, sdk_rpc):
                     "failureCategory": "quotaRestricted",
                 }
                 validate(result.structured_content, schema)
-                assert "private vendor" not in result.model_dump_json()
+                assert result.content[0].text == "RESOURCE_EXHAUSTED\nquota exceeded\nAuthorization: [REDACTED]"
+                assert "synthetic-test-secret" not in result.model_dump_json()
             assert [call[0] for call in calls] == ["appInfo"]
         finally:
             server.should_exit = True

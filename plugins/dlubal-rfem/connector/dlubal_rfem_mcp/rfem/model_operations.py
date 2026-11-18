@@ -103,7 +103,7 @@ def register_model_operations(mcp, session, manager, control=None):
                     status="error", failureCategory="resourceBusy"
                 )
                 return ToolResult(
-                    content="resourceBusy",
+                    content=str(error),
                     structured_content=failure.model_dump(mode="json"),
                     is_error=True,
                 )
@@ -113,7 +113,7 @@ def register_model_operations(mcp, session, manager, control=None):
                 {"status": "error", "failureCategory": category}
             )
             return ToolResult(
-                content=category,
+                content=session.describe_error(error, category),
                 structured_content=projection.model_dump(mode="json"),
                 is_error=True,
             )
@@ -184,7 +184,7 @@ def register_model_operations(mcp, session, manager, control=None):
                 )
             )
         except (ValueError, TypeError, ParseError) as exc:
-            return execution_response({"state": "rejected", "error": str(exc)[:1024]})
+            return execution_response({"state": "rejected", "error": session.describe_error(exc, str(exc))})
 
     @mcp.tool(
         description=(
@@ -223,6 +223,6 @@ def register_model_operations(mcp, session, manager, control=None):
                 )
             )
         except ValueError as exc:
-            return execution_response({"state": "rejected", "error": str(exc)[:1024]})
+            return execution_response({"state": "rejected", "error": session.describe_error(exc, str(exc))})
 
     return ["write_rfem_model", "calculate_rfem_model", "get_rfem_application_info"]

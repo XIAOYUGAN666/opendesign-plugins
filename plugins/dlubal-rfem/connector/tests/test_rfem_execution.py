@@ -115,6 +115,23 @@ def test_uncertain_completion_blocks_following_requests(tmp_path, error):
     assert manager.submit(str(uuid4()), "chat", "next", work)["state"] == "busy"
 
 
+def test_diagnostic_extractor_failure_cannot_settle_execution_as_success(tmp_path):
+    def broken_diagnostic(*_):
+        raise AttributeError("SDK error detail is unavailable")
+
+    manager = ExecutionManager(tmp_path / "state.db", describe_error=broken_diagnostic)
+    calls = []
+
+    def work(*_):
+        calls.append(1)
+        raise ExecutionUncertain("cleanup failed")
+
+    execution_id = str(uuid4())
+    assert manager.submit(execution_id, "chat", "code", work)["state"] == "unknown"
+    assert manager.submit(execution_id, "chat", "code", work)["state"] == "unknown"
+    assert calls == [1]
+
+
 def test_failure_retains_output_and_completed_model_identity(tmp_path):
     manager = ExecutionManager(tmp_path / "state.db")
     model_a, model_b = str(uuid4()), str(uuid4())

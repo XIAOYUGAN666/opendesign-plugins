@@ -123,7 +123,7 @@ def build_mcp(envelope, *, control=None, session=_UNSET_SESSION) -> FastMCP:
                 app.get_application_info()
             running = True
         except Exception as error:
-            raise ToolError(session.restriction or "softwareUnavailable") from error
+            raise ToolError(session.describe_error(error, session.restriction or "softwareUnavailable")) from None
         return json.dumps(
             {
                 "version": __version__,

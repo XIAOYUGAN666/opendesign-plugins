@@ -1,6 +1,7 @@
 """Persistent RFEM gRPC session with auto-reconnect."""
 
 import logging
+import re
 import threading
 from contextlib import contextmanager
 
@@ -73,11 +74,43 @@ def restriction_category(error: Exception) -> str:
     )
 
 
+def rpc_error(error: BaseException):
+    import grpc
+
+    seen = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, grpc.RpcError):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def public_error_text(text: str, credential: str = "") -> str:
+    if credential:
+        text = text.replace(credential, "[REDACTED]")
+    text = re.sub(r"(?im)^([ \t]*(?:set-)?cookie[ \t]*:[ \t]*)[^\r\n]+", r"\1[REDACTED]", text)
+    text = re.sub(r"(?i)\b(?:ak-|sk-)[a-z0-9_-]{12,}\b", "[REDACTED]", text)
+    text = re.sub(
+        r"""(?i)(["']?(?:[a-z0-9]+[_-])*(?:api[_ -]?key|token|password|passwd|secret|authorization|cookie|credential)["']?[ \t]*[:=][ \t]*)(?:(?:Basic|Bearer)[ \t]+)?(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s,;}]+)""",
+        r"\1[REDACTED]",
+        text,
+    )
+    text = re.sub(r"(?i)(\bBearer[ \t]+)[a-z0-9._~+/=-]+", r"\1[REDACTED]", text)
+    text = re.sub(r"(?i)(https?://)[^/@\s]+@", r"\1[REDACTED]@", text)
+    text = re.sub(r"""(?i)(?<![\w"'])(?:[a-z]:[\\/]|\\\\)[^\r\n"']+""", "[REDACTED]", text)
+    text = re.sub(
+        r"""(?i)(?:file://[^\s"']+|["'](?:[a-z]:[\\/]|\\\\)[^"'\r\n]*["']|(?<!\w)(?:[a-z]:[\\/]|\\\\)[^\s"'<>]+|(?<![\w/])/(?:home|users|tmp|var|etc|mnt|root|private|opt|run|proc|dev|media|data|usr|volumes|workspace)(?:/[^\s"'<>]*)?)""",
+        "[REDACTED]",
+        text,
+    )
+    text = re.sub(r"(?im)^[ \t]*(?:traceback \(most recent call last\):|(?:command|environment|env|headers|cookies)[ \t]*:|File\s+[\"']).*$", "[REDACTED]", text)
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u202a-\u202e\u2066-\u2069]", "", text)
+
+
 class RFEMSession:
-    """
-    Per-call RFEM connection with a serialising lock.
-    Each rfem_run_script() call opens a fresh connection and closes it on exit.
-    """
+    """Per-call RFEM connection with a serialising lock."""
 
     def __init__(
         self,
@@ -96,6 +129,17 @@ class RFEMSession:
         self._expected_build = expected_build
         self.restriction: str | None = None
         self.verified = False
+
+    def describe_error(self, error: BaseException, fallback: str) -> str:
+        cause = rpc_error(error)
+        if cause is not None:
+            try:
+                code = cause.code()
+                detail = public_error_text(cause.details() or "", self._api_key_value)
+                return "\n".join(part for part in (getattr(code, "name", ""), detail) if part)[:8192]
+            except (AttributeError, TypeError):
+                pass
+        return public_error_text(fallback, self._api_key_value)[:8192]
 
     @contextmanager
     def connection(self, timeout: float = 0.0, *, service_query: bool = False):

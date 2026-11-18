@@ -28,4 +28,6 @@ One OperationControl and execution journal own admission, background work and un
 
 An RFEM gRPC `UNAUTHENTICATED` status can also carry a Dlubal license-server network failure. Classification inspects the real RPC detail, distinguishing the known unexpected-connection-close/network-error response as service unavailability rather than invalid credentials or subscription restrictions. It does not change the machine's proxy/TUN configuration, retry paid authentication, or weaken credential readiness.
 
+RFEM tool failures carry the original gRPC status and diagnostic text when the SDK provides them. The connector redacts credentials and private machine information before emitting the text. Application-info failures retain their typed category in structured content. Mutation diagnostics continue to report their authoritative journal state, including unknown outcomes.
+
 Real software, native installation, signing trust and engineering acceptance are separate gates. The main application's T32 records the actual RFEM build and engineering write/calculate/read-back postconditions; T35 records approved public artifact, Host verification and installation. Deterministic checks alone do not establish those outcomes. The separately sourced timber-engineering skill remains independent.

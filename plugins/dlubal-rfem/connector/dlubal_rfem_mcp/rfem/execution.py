@@ -81,6 +81,7 @@ class ExecutionManager:
         product="rfem",
         *,
         readonly_existing: bool = False,
+        describe_error=None,
     ):
         self.readonly_existing = readonly_existing
         if not readonly_existing:
@@ -89,6 +90,7 @@ class ExecutionManager:
         self.path = path
         self.control = control
         self.product = product
+        self.describe_error = describe_error
         self.owner = str(uuid.uuid4())
         self._lock = threading.Lock()
         self._workers: dict[str, tuple[threading.Event, Capture]] = {}
@@ -253,6 +255,16 @@ class ExecutionManager:
                     )
         return result
 
+    def _error_text(self, error, fallback):
+        from dlubal_rfem_mcp.rfem.session import public_error_text
+
+        if self.describe_error is not None:
+            try:
+                return self.describe_error(error, fallback)
+            except Exception:
+                return type(error).__name__
+        return public_error_text(fallback)[:8192]
+
     def submit(self, execution_id, context, fingerprint, work, wait_seconds=120):
         if self.readonly_existing:
             raise PermissionError("observationIsReadonly")
@@ -327,7 +339,8 @@ class ExecutionManager:
                                 ),
                             )
                     except ExecutionUncertain as exc:
-                        state, error = "unknown", str(exc)[:8192]
+                        state = "unknown"
+                        error = self._error_text(exc, str(exc))
                     except Exception as exc:
                         logger.debug("RFEM script failed", exc_info=True)
                         # A gRPC deadline/disconnect can outlive the Python call
@@ -350,14 +363,15 @@ class ExecutionManager:
                             rpc_status = "UNAVAILABLE"
                         state = "unknown" if uncertain else "failed"
                         if rpc_status is not None:
-                            error = (
+                            fallback = (
                                 "RFEM transport ended before completion could be confirmed. "
                                 "Inspect RFEM before retrying."
                                 if uncertain
                                 else "RFEM rejected the operation. Inspect RFEM validation messages."
                             )
+                            error = self._error_text(exc, fallback)
                         else:
-                            error = str(exc)[:8192]
+                            error = self._error_text(exc, str(exc))
                     except BaseException:
                         logger.debug("RFEM worker interrupted", exc_info=True)
                         state, error = (

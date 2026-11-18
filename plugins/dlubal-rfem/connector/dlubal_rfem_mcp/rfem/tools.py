@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP
+from fastmcp.exceptions import ToolError
 from fastmcp.tools import ToolResult
+from fastmcp.utilities.json_schema import compress_schema
 from pydantic import Field
 
 from dlubal_rfem_mcp.core.product_execution import (
@@ -29,7 +31,7 @@ from dlubal_rfem_mcp.rfem.execution import (
 )
 from dlubal_rfem_mcp.rfem.model_binding import BoundApplication, canonical_guid
 from dlubal_rfem_mcp.rfem.results import RFEMResultResponse, read_results
-from dlubal_rfem_mcp.rfem.session import RFEMSession
+from dlubal_rfem_mcp.rfem.session import RFEMSession, public_error_text
 
 logger = logging.getLogger("dlubal_rfem_mcp.rfem")
 
@@ -72,6 +74,7 @@ def register_tools(
             else default_state_path(),
             endpoint=f"{getattr(config, 'url', '127.0.0.1')}:{getattr(config, 'api_port', 9000)}",
             control=control,
+            describe_error=getattr(session, "describe_error", None),
         )
         if config.execution_state_file
         else None
@@ -176,7 +179,7 @@ Example — populate a model you are authorized to modify. Inspect existing obje
             )
         except Exception as exc:
             logger.debug("RFEM tool failed", exc_info=True)
-            result = {"state": "rejected", "error": str(exc)}
+            result = {"state": "rejected", "error": session.describe_error(exc, str(exc))}
         log_tool_call(
             "run_rfem_script",
             "server",
@@ -220,9 +223,13 @@ Examples that prevent common mistakes:
             log_tool_call(
                 "inspect_rfem_api", "server", (time.monotonic() - start) * 1000, False
             )
-            return f"inspect_rfem_api error: {exc}"
+            raise ToolError(public_error_text(str(exc))[:8192] or "inspect_rfem_api_failed") from None
 
     @mcp.tool(
+        output_schema=compress_schema(
+            RFEMResultResponse.model_json_schema(mode="serialization", by_alias=False),
+            prune_titles=True,
+        ),
         description="""Reads a bounded, typed RFEM 6 result summary without executing caller-supplied Python and without changing or recalculating the model.
 
 Allowed result types only: calculation_status, member_internal_forces, node_deformations, stability_critical_load_factors, steel_member_design_ratios.
@@ -256,12 +263,16 @@ Use calculation_status first when you only need to know whether the bound model 
         ]
         | None = None,
         context_id: str = "",
-    ) -> RFEMResultResponse:
+    ) -> RFEMResultResponse | ToolResult:
         from dlubal_rfem_mcp.core.logging_config import log_tool_call
 
         start = time.monotonic()
 
         class ContextSession:
+            def describe_error(self, error, fallback):
+                assert session is not None
+                return session.describe_error(error, fallback)
+
             @contextmanager
             def connection(self):
                 from dlubal.api import common
@@ -295,6 +306,12 @@ Use calculation_status first when you only need to know whether the bound model 
             (time.monotonic() - start) * 1000,
             response.status in {"ok", "no_results"},
         )
+        if response.status == "unavailable":
+            return ToolResult(
+                content=response._error_detail or response.error_code or "rfem_result_query_failed",
+                structured_content=response.model_dump(mode="json"),
+                is_error=True,
+            )
         return response
 
     from dlubal_rfem_mcp.rfem.model_operations import register_model_operations

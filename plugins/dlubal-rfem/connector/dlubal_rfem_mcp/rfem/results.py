@@ -17,7 +17,7 @@ from contextlib import AbstractContextManager
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from dlubal_rfem_mcp.rfem.state_fingerprint import (
     RFEMStateFingerprint,
@@ -105,6 +105,7 @@ class RFEMResultResponse(BaseModel):
     """Bounded response safe to expose as MCP structured content."""
 
     model_config = ConfigDict(extra="forbid")
+    _error_detail: str | None = PrivateAttr(default=None)
 
     schema_version: Literal["1.1"] = "1.1"
     status: ResultStatus
@@ -567,8 +568,12 @@ def read_results(
             return response
     except Exception as exc:
         logger.debug("read_rfem_results failed", exc_info=True)
-        return RFEMResultResponse(
+        response = RFEMResultResponse(
             status="unavailable",
             error_code=_safe_error_code(exc),
             result_type=result_type,
         )
+        describe = getattr(session, "describe_error", None)
+        if describe is not None:
+            response._error_detail = describe(exc, response.error_code or "")
+        return response

@@ -20,8 +20,23 @@ from fastmcp import Client, FastMCP
 from google.protobuf.empty_pb2 import Empty
 
 from dlubal_rfem_mcp.rfem.model_operations import register_model_operations
-from dlubal_rfem_mcp.rfem.session import RFEMSession
+from dlubal_rfem_mcp.rfem.session import RFEMSession, public_error_text
 from dlubal_rfem_mcp.rfem.software_connection import RFEMSoftwareConnection
+
+
+def test_public_rpc_details_redact_quoted_tokens_and_windows_paths():
+    source = (
+        'Rejected upstream JSON: {"password":"fixture-password","access_token":"fixture-token"}\n'
+        'Authorization: Basic Zm9vOmJhcg==\n'
+        'Cookie: session=one; device=two\n'
+        'Cannot open C:/Users/Jane Doe/client model.rf6'
+    )
+    assert public_error_text(source) == (
+        'Rejected upstream JSON: {"password":[REDACTED],"access_token":[REDACTED]}\n'
+        'Authorization: [REDACTED]\n'
+        'Cookie: [REDACTED]\n'
+        'Cannot open [REDACTED]'
+    )
 
 
 class _MemoryConfig:
@@ -45,6 +60,11 @@ class _Application(application_pb2_grpc.ApplicationServicer):
     def get_application_info(self, request, context):
         if self.scenario == "authentication":
             context.abort(grpc.StatusCode.UNAUTHENTICATED, "invalid api key")
+        if self.scenario == "restricted":
+            context.abort(
+                grpc.StatusCode.UNAUTHENTICATED,
+                "API access has been restricted.\nYour company does not have permission or the subscription limits were exceeded.\nAPI Key: synthetic-key",
+            )
         if self.scenario == "unavailable":
             context.abort(grpc.StatusCode.UNAVAILABLE, "synthetic unavailable")
         if self.scenario == "timeout":
@@ -157,6 +177,15 @@ class ConnectionServiceContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.structured_content["status"], "ok")
         self.assertEqual(methods.count("get_application_info"), 1)
         self.assertEqual(methods.count("close_connection"), 1)
+
+    async def test_mcp_returns_the_rpc_detail_without_the_key(self):
+        result, _ = await self._diagnostic("restricted")
+        self.assertTrue(result.is_error)
+        self.assertEqual(result.structured_content["failureCategory"], "apiAccessRestricted")
+        self.assertEqual(
+            result.content[0].text,
+            "UNAUTHENTICATED\nAPI access has been restricted.\nYour company does not have permission or the subscription limits were exceeded.\nAPI Key: [REDACTED]",
+        )
 
     async def test_refusal_and_cleanup_paths_use_only_service_methods(self):
         for scenario in (
