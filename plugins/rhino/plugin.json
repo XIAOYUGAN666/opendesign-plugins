@@ -8,6 +8,14 @@
   },
   "extensions": {
     "ai.opendesign.desktop": {
+      "agents": {
+        "schemaVersion": 1,
+        "files": [
+          "agents/rhino-inspector.md",
+          "agents/rhino-modeler.md",
+          "agents/grasshopper-builder.md"
+        ]
+      },
       "setup": {
         "command": "runtime/python/python.exe",
         "args": [
