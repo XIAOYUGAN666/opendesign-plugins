@@ -45,9 +45,10 @@ def check_source_closure(plugin_root):
     else:
         source_root = connector
     copied = [source_root / module[0], connector / "pyproject.toml", connector / "uv.lock"]
-    skills = plugin_root / "skills"
-    if skills.exists() or skills.is_symlink() or skills.is_junction():
-        copied.append(skills)
+    for directory in ("skills", "agents"):
+        component = plugin_root / directory
+        if component.exists() or component.is_symlink() or component.is_junction():
+            copied.append(component)
     if (plugin_root / "assets").exists():
         copied.append(plugin_root / "assets")
     notice = plugin_root / "LICENSE.upstream"

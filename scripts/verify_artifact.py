@@ -555,6 +555,14 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         validate(release, contract, "ReleaseManifestV1")
         identity = read_json((root / "plugin.json").read_bytes())
         validate(identity, read_json((schema_bundle / "agent-plugins-1.0.0.schema.json").read_bytes()))
+        desktop_extension = identity.get("extensions", {}).get("ai.opendesign.desktop", {})
+        if "agents" in desktop_extension:
+            agents = desktop_extension["agents"]
+            agent_contract = read_json((schema_bundle / "agent-plugin-runtime.schema.json").read_bytes())
+            validate(agents, agent_contract["pluginAgents"])
+            paths = agents["files"]
+            if len(set(paths)) != len(paths) or any(not root.joinpath(*safe_path(path)).is_file() for path in paths):
+                raise ValueError("invalidPluginRoles")
         validate(identity["extensions"][NAMESPACE], read_json((schema_bundle / "host-native.schema.json").read_bytes()))
         for key, value in release_identity(identity, release_sequence=release["releaseSequence"]).items():
             if release.get(key) != value:

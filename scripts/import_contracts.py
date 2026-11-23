@@ -12,7 +12,9 @@ def import_agent_plugin_contract(source: Path, destination: Path) -> str:
     """Copy the Agent export without rebuilding or hand-editing its schemas."""
     raw = source.read_bytes()
     contract = json.loads(raw)
-    if set(contract) != {"market", "remoteAuth", "setupRequest", "publisherPolicy"}:
+    if set(contract) != {
+        "market", "remoteAuth", "setupRequest", "publisherPolicy", "pluginAgents", "pluginRoleMetadata",
+    }:
         raise ValueError("invalidAgentPluginContract")
     if contract["market"]["properties"]["marketplaceSchemaVersion"]["const"] != 2:
         raise ValueError("invalidMarketplaceSchema")

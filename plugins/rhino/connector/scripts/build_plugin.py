@@ -157,8 +157,10 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
         shutil.copyfile(plugin_root / name, staging / name)
     for name in ("pyproject.toml", "uv.lock", "README.md"):
         shutil.copyfile(plugin_root / "connector" / name, staging / name)
-    if (plugin_root / "skills").exists():
-        shutil.copytree(plugin_root / "skills", staging / "skills")
+    for directory in ("skills", "agents"):
+        component = plugin_root / directory
+        if component.exists():
+            shutil.copytree(component, staging / directory)
     notice = plugin_root / "LICENSE.upstream"
     if notice.is_file():
         shutil.copyfile(notice, staging / notice.name)

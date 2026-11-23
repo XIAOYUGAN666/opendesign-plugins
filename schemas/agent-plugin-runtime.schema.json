@@ -125,6 +125,81 @@
     "title": "MarketSnapshot",
     "type": "object"
   },
+  "pluginAgents": {
+    "additionalProperties": false,
+    "properties": {
+      "files": {
+        "items": {
+          "pattern": "^agents/[a-z][a-z0-9-]{0,63}\\.md$",
+          "type": "string"
+        },
+        "maxItems": 64,
+        "minItems": 1,
+        "title": "Files",
+        "type": "array"
+      },
+      "schemaVersion": {
+        "const": 1,
+        "title": "Schemaversion",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "files"
+    ],
+    "title": "PluginAgents",
+    "type": "object"
+  },
+  "pluginRoleMetadata": {
+    "additionalProperties": false,
+    "properties": {
+      "description": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "title": "Description",
+        "type": "string"
+      },
+      "model": {
+        "default": "inherit",
+        "maxLength": 120,
+        "minLength": 1,
+        "title": "Model",
+        "type": "string"
+      },
+      "name": {
+        "pattern": "^[a-z][a-z0-9-]{0,63}$",
+        "title": "Name",
+        "type": "string"
+      },
+      "reasoning_effort": {
+        "anyOf": [
+          {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reasoning Effort"
+      },
+      "tools": {
+        "maxLength": 12000,
+        "title": "Tools",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "description",
+      "tools"
+    ],
+    "title": "RoleMetadata",
+    "type": "object"
+  },
   "publisherPolicy": {
     "publishers": {
       "rfem-publisher-v1": {
@@ -203,6 +278,31 @@
   "setupRequest": {
     "additionalProperties": false,
     "properties": {
+      "arguments": {
+        "anyOf": [
+          {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Arguments"
+      },
       "executionId": {
         "title": "Executionid",
         "type": "string"
@@ -249,6 +349,18 @@
         ],
         "default": null,
         "title": "Selectionrequestid"
+      },
+      "settingsAction": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Settingsaction"
       },
       "stepId": {
         "title": "Stepid",
