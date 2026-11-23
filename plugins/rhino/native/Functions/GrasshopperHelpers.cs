@@ -269,7 +269,8 @@ internal static class GrasshopperHelpers
         };
     }
 
-    internal static object ObjectInfo(IGH_DocumentObject item, bool includeValues = false, int maxItems = 20)
+    internal static Dictionary<string, object?> ObjectInfo(
+        IGH_DocumentObject item, bool includeValues = false, int maxItems = 20)
     {
         var attributes = item.Attributes;
         if (attributes is null)
@@ -358,7 +359,8 @@ internal static class GrasshopperHelpers
             && !(declaring.IsGenericType && declaring.GetGenericTypeDefinition() == typeof(GH_Param<>));
     }
 
-    internal static object PortInfo(IGH_Param parameter, int index = -1, bool includeValues = false, int maxItems = 20)
+    internal static Dictionary<string, object?> PortInfo(
+        IGH_Param parameter, int index = -1, bool includeValues = false, int maxItems = 20)
     {
         var result = new Dictionary<string, object?>
         {

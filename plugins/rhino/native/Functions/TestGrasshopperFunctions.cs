@@ -730,8 +730,8 @@ internal sealed partial class NativeSelfTests
 
                 double? FirstValue(JObject value)
                 {
-                    var values = value["data"]?["branches"] as JArray;
-                    var items = values != null && values.Count > 0 ? values[0]?["values"] as JArray : null;
+                    var values = value["values"] as JArray;
+                    var items = values != null && values.Count > 0 ? values[0]?["items"] as JArray : null;
                     return items != null && items.Count > 0 ? items[0]?.ToObject<double>() : null;
                 }
 

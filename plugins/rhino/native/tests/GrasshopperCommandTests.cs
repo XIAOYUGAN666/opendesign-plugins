@@ -124,4 +124,24 @@ public sealed class GrasshopperCommandTests
         Assert.Equal("branch text", serializeBranchItem!.Invoke(null, new object?[] { "branch text" }));
         Assert.Null(serializeBranchItem.Invoke(null, new object?[] { null }));
     }
+
+    [Fact]
+    public void Grasshopper_circle_readback_preserves_center_and_radius()
+    {
+        using var native = NativeTestAssembly.Load();
+        var sdk = native.LoadDependency("RhinoCommon");
+        var pointType = sdk.GetType("Rhino.Geometry.Point3d", throwOnError: true)!;
+        var circleType = sdk.GetType("Rhino.Geometry.Circle", throwOnError: true)!;
+        var center = Activator.CreateInstance(pointType, 1.0, 2.0, 3.0)!;
+        var circle = Activator.CreateInstance(circleType, center, 6.0)!;
+        var gh = native.LoadDependency("Grasshopper");
+        var gooType = gh.GetType("Grasshopper.Kernel.Types.GH_Circle", throwOnError: true)!;
+        var item = Activator.CreateInstance(gooType, circle)!;
+        var readback = native.Assembly.GetType("RhinoMcpBridge.Functions.GrasshopperReadback");
+        Assert.NotNull(readback);
+        var serialize = readback.GetMethod("Value", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var actual = Assert.IsType<Dictionary<string, object?>>(serialize.Invoke(null, new[] { item }));
+        Assert.Equal(new[] { 1.0, 2.0, 3.0 }, Assert.IsType<double[]>(actual["center"]));
+        Assert.Equal(6.0, Assert.IsType<double>(actual["radius"]));
+    }
 }

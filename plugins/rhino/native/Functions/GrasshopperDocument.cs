@@ -144,65 +144,12 @@ internal static class GrasshopperDocumentCommands
         var includeConnections = NativeFunctions.Boolean(parameters, "include_connections", true);
         var includeValues = NativeFunctions.Boolean(parameters, "include_values");
         var maxItems = Math.Max(0, Math.Min(1000, NativeFunctions.Integer(parameters, "max_items", 20)));
-        var objects = document.Objects
-            .Where(item => item is not null)
-            .Select(item => GrasshopperHelpers.ObjectInfo(item, includeValues, maxItems))
-            .ToArray();
-
-        return new Dictionary<string, object?>
-        {
-            ["document"] = DocumentInfo(document),
-            ["objects"] = objects,
-            ["connections"] = includeConnections ? Connections(document) : Array.Empty<object>(),
-            ["canvas_open"] = context.GrasshopperCanvas is { IsDocument: true },
-            ["object_count"] = objects.Length,
-        };
-    }
-
-    internal static Dictionary<string, object?> DocumentInfo(GH_Document document) => new()
-    {
-        ["document_id"] = document.DocumentID.ToString("D"),
-        ["object_count"] = document.ObjectCount,
-        ["component_count"] = document.Objects.OfType<GH_Component>().Count(),
-        ["parameter_count"] = document.Objects.OfType<IGH_Param>().Count(),
-        ["group_count"] = document.Objects.OfType<GH_Group>().Count(),
-        ["is_modified"] = document.IsModified,
-        ["solutions_enabled"] = GH_Document.EnableSolutions,
-    };
-
-    internal static object[] Connections(GH_Document document)
-    {
-        var result = new List<object>();
-        foreach (var sourceOwner in document.Objects)
-        {
-            var outputs = GrasshopperHelpers.Outputs(sourceOwner);
-            for (var outputIndex = 0; outputIndex < outputs.Length; outputIndex++)
-            {
-                var output = outputs[outputIndex];
-                foreach (var recipient in output.Recipients)
-                {
-                    var targetOwner = FindOwner(document, recipient);
-                    if (targetOwner is null)
-                    {
-                        continue;
-                    }
-
-                    var inputs = GrasshopperHelpers.Inputs(targetOwner);
-                    var inputIndex = Array.FindIndex(inputs, input => ReferenceEquals(input, recipient));
-                    result.Add(new Dictionary<string, object?>
-                    {
-                        ["source_instance_id"] = sourceOwner.InstanceGuid.ToString("D"),
-                        ["source_output_index"] = outputIndex,
-                        ["source_output_name"] = output.NickName,
-                        ["target_instance_id"] = targetOwner.InstanceGuid.ToString("D"),
-                        ["target_input_index"] = inputIndex,
-                        ["target_input_name"] = recipient.NickName,
-                    });
-                }
-            }
-        }
-
-        return result.ToArray();
+        var result = GrasshopperReadback.CanvasObjects(
+            document.Objects, includeConnections, includeValues, maxItems);
+        result["file_path"] = DocumentFileName(document);
+        result["visibility"] = Visibility(context, document, context.GrasshopperCanvas);
+        result["object_count"] = document.ObjectCount;
+        return result;
     }
 
     internal static IGH_DocumentObject? FindOwner(GH_Document document, IGH_Param parameter)

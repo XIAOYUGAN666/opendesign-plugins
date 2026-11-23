@@ -14,29 +14,16 @@ internal static class GrasshopperGraph
         var includeValues = NativeFunctions.Boolean(parameters, "include_values");
         var maxItems = Math.Max(0, Math.Min(1000, NativeFunctions.Integer(parameters, "max_items", 20)));
         var aliases = GrasshopperHelpers.GraphAliases(document, graphId);
-        var objects = aliases
-            .OrderBy(entry => entry.Key, StringComparer.Ordinal)
-            .Select(entry => new Dictionary<string, object?>
-            {
-                ["alias"] = entry.Key,
-                ["object"] = GrasshopperHelpers.ObjectInfo(entry.Value, includeValues, maxItems),
-            })
-            .ToArray();
-        var groups = GrasshopperHelpers.FindGraphGroups(document, graphId);
-        return new Dictionary<string, object?>
-        {
-            ["graph_id"] = graphId,
-            ["objects"] = objects,
-            ["components"] = objects,
-            ["aliases"] = aliases.ToDictionary(
-                entry => entry.Key,
-                entry => entry.Value.InstanceGuid.ToString("D"),
-                StringComparer.Ordinal
-            ),
-            ["groups"] = groups.Select(group => GrasshopperHelpers.ObjectInfo(group)).ToArray(),
-            ["connections"] = ConnectionsForGraph(document, aliases.Values.ToArray()),
-            ["object_count"] = objects.Length,
-        };
+        var byId = aliases.GroupBy(entry => entry.Value.InstanceGuid)
+            .ToDictionary(group => group.Key, group => group.First().Key);
+        var objects = aliases.Values.Concat(GrasshopperHelpers.FindGraphGroups(document, graphId))
+            .Distinct().ToArray();
+        var result = GrasshopperReadback.CanvasObjects(
+            objects, includeConnections: true, includeValues, maxItems, byId, graphId);
+        result["graph_id"] = graphId;
+        result["object_count"] = objects.Length;
+        result["summary"] = GrasshopperReadback.GraphSummary(objects.Where(item => item is not GH_Group), graphId, byId);
+        return result;
     }
 
     [McpCommand("gh_clear_graph", ReadOnly = false, SupportsDryRun = false)]
@@ -76,21 +63,4 @@ internal static class GrasshopperGraph
         });
     }
 
-    private static object[] ConnectionsForGraph(
-        GH_Document document,
-        IReadOnlyCollection<IGH_DocumentObject> objects
-    )
-    {
-        var ids = objects.Select(item => item.InstanceGuid).ToHashSet();
-        return GrasshopperDocumentCommands.Connections(document)
-            .OfType<Dictionary<string, object?>>()
-            .Where(connection => connection.TryGetValue("source_instance_id", out var source)
-                && connection.TryGetValue("target_instance_id", out var target)
-                && Guid.TryParse(source as string, out var sourceId)
-                && Guid.TryParse(target as string, out var targetId)
-                && ids.Contains(sourceId)
-                && ids.Contains(targetId))
-            .Cast<object>()
-            .ToArray();
-    }
 }

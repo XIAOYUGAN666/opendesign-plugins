@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Grasshopper.Kernel;
 
@@ -9,9 +10,39 @@ internal static class GrasshopperSolution
     internal static object RunSolution(RequestContext context, JsonElement parameters)
     {
         var document = GrasshopperHelpers.RequireDocument(context);
+        var timer = Stopwatch.StartNew();
         GrasshopperOperations.Recompute(document, NativeFunctions.Boolean(parameters, "expire_all"));
-        return SolutionSummary(document);
+        var activeObjects = document.Objects.OfType<IGH_ActiveObject>().ToArray();
+        var errors = MessagesAtLevel(activeObjects, GH_RuntimeMessageLevel.Error);
+        var warnings = MessagesAtLevel(activeObjects, GH_RuntimeMessageLevel.Warning);
+        return new Dictionary<string, object?>
+        {
+            ["success"] = errors.Length == 0,
+            ["error_count"] = errors.Length,
+            ["warning_count"] = warnings.Length,
+            ["errors"] = errors,
+            ["warnings"] = warnings,
+            ["solution_state"] = document.SolutionState.ToString(),
+            ["duration_ms"] = timer.ElapsedMilliseconds,
+            ["message"] = errors.Length > 0
+                ? $"Solution has {errors.Length} error(s)"
+                : warnings.Length > 0
+                    ? $"Solution completed with {warnings.Length} warning(s)"
+                    : "Solution completed successfully",
+        };
     }
+
+    private static Dictionary<string, object?>[] MessagesAtLevel(
+        IEnumerable<IGH_ActiveObject> objects, GH_RuntimeMessageLevel level) =>
+        objects.Where(item => item.RuntimeMessageLevel == level)
+            .Select(item => new Dictionary<string, object?>
+            {
+                ["instance_id"] = item.InstanceGuid.ToString("D"),
+                ["name"] = item.Name,
+                ["nickname"] = item.NickName,
+                ["category"] = item.Category,
+                ["messages"] = item.RuntimeMessages(level).ToArray(),
+            }).ToArray();
 
     [McpCommand("gh_expire_solution", ReadOnly = false, SupportsDryRun = false)]
     internal static object ExpireSolution(RequestContext context, JsonElement parameters)

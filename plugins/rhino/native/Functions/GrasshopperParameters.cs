@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Special;
+using Grasshopper.Kernel.Types;
 
 namespace RhinoMcpBridge.Functions;
 
@@ -45,14 +48,36 @@ internal static class GrasshopperParameters
             "output_index",
             "output_name"
         );
-        var outputIndex = Array.FindIndex(GrasshopperHelpers.Outputs(item), candidate => ReferenceEquals(candidate, parameter));
-        var maxItems = Math.Max(0, Math.Min(1000, NativeFunctions.Integer(parameters, "max_items", 100)));
-        return new Dictionary<string, object?>
+        if (!GrasshopperReadback.HasData(parameter) && item is IGH_ActiveObject active)
         {
-            ["instance_id"] = item.InstanceGuid.ToString("D"),
-            ["output_index"] = outputIndex,
-            ["parameter"] = GrasshopperHelpers.PortInfo(parameter, outputIndex, includeValues: true, maxItems),
-            ["data"] = GrasshopperHelpers.DataTree(parameter, maxItems),
-        };
+            if (item is IGH_Component component)
+            {
+                foreach (var slider in component.Params.Input
+                    .SelectMany(port => port.Sources).OfType<GH_NumberSlider>())
+                {
+                    if (GrasshopperReadback.HasData(slider))
+                        continue;
+                    slider.ClearData();
+                    slider.AddVolatileData(new GH_Path(0), 0, new GH_Number((double)slider.CurrentValue));
+                }
+            }
+
+            active.ClearData();
+            active.CollectData();
+            active.ComputeData();
+            if (!GrasshopperReadback.HasData(parameter))
+            {
+                active.ExpireSolution(true);
+                GrasshopperOperations.Recompute(document, expireAll: false);
+            }
+        }
+
+        var maxItems = Math.Max(0, Math.Min(10000, NativeFunctions.Integer(parameters, "max_items", 100)));
+        var result = GrasshopperReadback.ParameterData(parameter, maxItems);
+        result["instance_id"] = item.InstanceGuid.ToString("D");
+        result["nickname"] = item.NickName;
+        result["param_name"] = parameter.Name;
+        result["type_name"] = GrasshopperHelpers.SafeParamTypeName(parameter);
+        return result;
     }
 }
