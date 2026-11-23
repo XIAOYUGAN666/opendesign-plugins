@@ -37,8 +37,6 @@ jobs:
           $tool = 'tests/fixtures/fixture-engineering/connector/.venv/Scripts/python.exe'
           & $tool -B -m unittest discover -s tests -v
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & $tool -B -m pytest tests/test_rfem_timber_skill.py -q
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -127,4 +125,12 @@ jobs:
           uv sync --frozen --extra test --python (Get-Command python).Source
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           uv run --frozen --extra test python -B -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test Rhino engineering evaluators offline
+        if: steps.project.outputs.present == 'true' && matrix.plugin == 'rhino'
+        working-directory: plugins/rhino/connector
+        shell: pwsh
+        run: |
+          $env:PYTHONPATH = (Resolve-Path '..').Path
+          uv run --frozen --extra test python -B -m pytest ../experiments/tests -q
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
