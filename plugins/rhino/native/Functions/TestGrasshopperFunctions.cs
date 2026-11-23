@@ -138,7 +138,7 @@ internal sealed partial class NativeSelfTests
             Record("gh_list_component_categories", () =>
             {
                 var categories = Invoke("gh_list_component_categories", new JObject());
-                if ((categories["count"]?.ToObject<int>() ?? 0) < 1)
+                if ((categories["category_count"]?.ToObject<int>() ?? 0) < 1)
                 {
                     throw new InvalidOperationException("No Grasshopper component categories were returned.");
                 }
@@ -663,7 +663,7 @@ internal sealed partial class NativeSelfTests
                     ["target_instance_id"] = addId,
                     ["target_input_index"] = 0
                 });
-                if (first["target_instance_id"]?.ToString() != addId)
+                if (first["target_id"]?.ToString() != addId)
                 {
                     throw new InvalidOperationException("First slider was not connected to the Addition input.");
                 }
@@ -674,7 +674,7 @@ internal sealed partial class NativeSelfTests
                     ["target_instance_id"] = addId,
                     ["target_input_index"] = 1
                 });
-                if (second["target_instance_id"]?.ToString() != addId)
+                if (second["target_id"]?.ToString() != addId)
                 {
                     throw new InvalidOperationException("Second slider was not connected to the Addition input.");
                 }
@@ -685,7 +685,7 @@ internal sealed partial class NativeSelfTests
                     ["source_output_index"] = 0,
                     ["target_instance_id"] = panelId
                 });
-                if (third["target_instance_id"]?.ToString() != panelId)
+                if (third["target_id"]?.ToString() != panelId)
                 {
                     throw new InvalidOperationException("Addition output was not connected to the Panel.");
                 }
