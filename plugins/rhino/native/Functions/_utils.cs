@@ -496,20 +496,13 @@ internal static class NativeFunctions
 
     internal static Dictionary<string, object?> LayerInfo(Layer layer)
     {
-        var info = new Dictionary<string, object?>
+        return new Dictionary<string, object?>
         {
             ["id"] = layer.Id.ToString("D"),
             ["name"] = layer.Name,
             ["color"] = RgbObject(layer.Color),
-            ["visible"] = layer.IsVisible,
-            ["locked"] = layer.IsLocked,
+            ["parent"] = layer.ParentLayerId.ToString("D"),
         };
-        if (layer.ParentLayerId != Guid.Empty)
-        {
-            info["parent"] = layer.ParentLayerId.ToString("D");
-        }
-
-        return info;
     }
 
     internal static double ParseAngleTolerance(RequestContext context) => context.AngleToleranceRadians;

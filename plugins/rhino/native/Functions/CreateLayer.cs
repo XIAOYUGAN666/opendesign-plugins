@@ -11,22 +11,7 @@ internal static class CreateLayer
         NativeFunctions.Mutate(context, "Create MCP layer", () =>
         {
             var name = NativeFunctions.Text(parameters, "name");
-            if (string.IsNullOrWhiteSpace(name))
-            {
-                var suffix = 1;
-                do
-                {
-                    name = $"Layer {suffix++}";
-                }
-                while (context.RhinoDocument.Layers.Any(layer => !layer.IsDeleted && string.Equals(layer.Name, name, StringComparison.OrdinalIgnoreCase)));
-            }
-
-            if (context.RhinoDocument.Layers.Any(layer => !layer.IsDeleted && string.Equals(layer.Name, name, StringComparison.OrdinalIgnoreCase)))
-            {
-                throw new NativeCommandException("layerAlreadyExists", "A Rhino layer with that name already exists.");
-            }
-
-            var layer = new Layer { Name = name };
+            var layer = new Layer();
             var color = NativeFunctions.Property(parameters, "color");
             if (color.ValueKind == JsonValueKind.Array)
             {
@@ -42,13 +27,15 @@ internal static class CreateLayer
             if (NativeFunctions.Has(parameters, "parent"))
             {
                 var parentName = NativeFunctions.Text(parameters, "parent");
-                if (string.IsNullOrWhiteSpace(parentName))
+                if (parentName is null || string.IsNullOrWhiteSpace(parentName))
                 {
                     throw new NativeCommandException("invalidParameters", "The parent layer name is invalid.");
                 }
 
+                var isFullPath = parentName.IndexOf("::", StringComparison.Ordinal) >= 0;
                 var parents = context.RhinoDocument.Layers
-                    .Where(item => !item.IsDeleted && (string.Equals(item.FullPath, parentName, StringComparison.OrdinalIgnoreCase) || string.Equals(item.Name, parentName, StringComparison.OrdinalIgnoreCase)))
+                    .Where(item => !item.IsDeleted && string.Equals(
+                        isFullPath ? item.FullPath : item.Name, parentName, StringComparison.OrdinalIgnoreCase))
                     .Take(2)
                     .ToArray();
                 if (parents.Length != 1)
@@ -57,6 +44,17 @@ internal static class CreateLayer
                 }
 
                 layer.ParentLayerId = parents[0].Id;
+            }
+
+            if (name is not null)
+            {
+                if (context.RhinoDocument.Layers.Any(candidate => !candidate.IsDeleted
+                    && candidate.ParentLayerId == layer.ParentLayerId
+                    && string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new NativeCommandException("layerAlreadyExists", "A sibling Rhino layer with that name already exists.");
+                }
+                layer.Name = name;
             }
 
             var index = context.RhinoDocument.Layers.Add(layer);

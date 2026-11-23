@@ -19,15 +19,7 @@
     },
     "parent": {
       "$ref": "../common/definitions.json#/$defs/guid",
-      "description": "Parent layer GUID"
-    },
-    "visible": {
-      "type": "boolean",
-      "description": "Layer visibility"
-    },
-    "locked": {
-      "type": "boolean",
-      "description": "Layer locked state"
+      "description": "Parent layer GUID (empty GUID for a root layer)"
     }
   },
   "required": ["id", "name", "color"]
