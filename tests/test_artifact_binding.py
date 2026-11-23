@@ -33,13 +33,20 @@ class ReleaseInputTests(unittest.TestCase):
                     verifier.validate_setup_declaration(identity, {"setup.exe"})
 
     def test_connector_source_without_skills_is_valid(self):
-        with tempfile.TemporaryDirectory(prefix="connector-source-") as folder:
-            root = Path(folder) / "plugin"
-            (root / "connector/fixture_engineering").mkdir(parents=True)
-            (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
-            for name in ("pyproject.toml", "uv.lock"):
-                (root / "connector" / name).write_bytes(b"fixture")
-            check_source_closure(root)
+        for layout in ("connector", "connector/src"):
+            with self.subTest(layout=layout), tempfile.TemporaryDirectory(
+                prefix="connector-source-"
+            ) as folder:
+                root = Path(folder) / "plugin"
+                (root / layout / "fixture_engineering").mkdir(parents=True)
+                (root / "plugin.json").write_bytes((PLUGIN / "plugin.json").read_bytes())
+                for name in ("pyproject.toml", "uv.lock"):
+                    (root / "connector" / name).write_bytes(b"fixture")
+                check_source_closure(root)
+                if layout == "connector/src":
+                    (root / "connector/fixture_engineering").mkdir()
+                    with self.assertRaisesRegex(ValueError, "ambiguousProviderSource"):
+                        check_source_closure(root)
 
     def test_child_build_diagnostic_accepts_only_a_fixed_category(self):
         error = subprocess.CalledProcessError(

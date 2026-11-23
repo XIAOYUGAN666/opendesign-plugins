@@ -1808,7 +1808,7 @@ def check_contract_synchronization_across_tiers():
     import ast
 
     py_cmds: set[str] = set()
-    tools_dir = repo_root / "connector" / "rhino_mcp" / "tools"
+    tools_dir = repo_root / "connector" / "src" / "rhino_mcp" / "tools"
     for p in tools_dir.glob("*.py"):
         for node in ast.walk(ast.parse(p.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):

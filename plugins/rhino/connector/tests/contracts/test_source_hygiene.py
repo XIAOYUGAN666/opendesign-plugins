@@ -93,8 +93,8 @@ def test_source_tree_contains_no_upstream_or_legacy_runtime_metadata() -> None:
 
 def test_managed_provider_has_no_legacy_launcher_or_update_guidance() -> None:
     managed_modules = (
-        PROJECT_ROOT / "rhino_mcp" / "__init__.py",
-        PROJECT_ROOT / "rhino_mcp" / "server.py",
+        PROJECT_ROOT / "src" / "rhino_mcp" / "__init__.py",
+        PROJECT_ROOT / "src" / "rhino_mcp" / "server.py",
     )
     legacy_commands = tuple("mcp" + suffix for suffix in ("start", "stop", "version"))
     forbidden = (

@@ -8,8 +8,10 @@ import time
 import zipfile
 
 try:
+    from .presentation_assets import validate_assets
     from .verify_artifact import canonical, digest, discover, read_json, release_identity, safe_error_category
 except ImportError:
+    from presentation_assets import validate_assets
     from verify_artifact import canonical, digest, discover, read_json, release_identity, safe_error_category
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,10 +24,6 @@ def generated_input(plugin_root, *, release_sequence):
 
 
 def check_source_closure(plugin_root):
-    try:
-        from .presentation_assets import validate_assets
-    except ImportError:
-        from presentation_assets import validate_assets
     def check(path):
         if path.is_symlink() or path.is_junction():
             raise ValueError("reparseSource")
@@ -38,7 +36,15 @@ def check_source_closure(plugin_root):
     module = identity["extensions"]["io.github.xiaoyugan666.native"]["module"].split(".")
     if any(not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", part) for part in module):
         raise ValueError("unsafeProviderModule")
-    copied = [plugin_root / "connector" / module[0], plugin_root / "connector/pyproject.toml", plugin_root / "connector/uv.lock"]
+    connector = plugin_root / "connector"
+    source_root = connector / "src"
+    if source_root.exists() or source_root.is_symlink() or source_root.is_junction():
+        check(source_root)
+        if (connector / module[0]).exists():
+            raise ValueError("ambiguousProviderSource")
+    else:
+        source_root = connector
+    copied = [source_root / module[0], connector / "pyproject.toml", connector / "uv.lock"]
     skills = plugin_root / "skills"
     if skills.exists() or skills.is_symlink() or skills.is_junction():
         copied.append(skills)

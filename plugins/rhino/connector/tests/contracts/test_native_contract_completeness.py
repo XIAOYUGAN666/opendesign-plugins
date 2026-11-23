@@ -12,7 +12,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = PROJECT_ROOT.parent
 CONTRACTS_ROOT = PLUGIN_ROOT / "contracts"
-PROVIDER_ROOT = PROJECT_ROOT / "rhino_mcp"
+PROVIDER_ROOT = PROJECT_ROOT / "src" / "rhino_mcp"
 FUNCTIONS_ROOT = PLUGIN_ROOT / "native" / "Functions"
 SERVER_PATH = PROVIDER_ROOT / "server.py"
 MCP_COMMAND_ATTRIBUTE = re.compile(
@@ -41,7 +41,7 @@ def _provider_tool_functions() -> list[tuple[str, ast.FunctionDef]]:
     )
     functions: list[tuple[str, ast.FunctionDef]] = []
     for tool_name, module_name in registrations:
-        module_path = PROJECT_ROOT.joinpath(*module_name.split(".")).with_suffix(".py")
+        module_path = PROVIDER_ROOT.parent.joinpath(*module_name.split(".")).with_suffix(".py")
         module_tree = ast.parse(module_path.read_text(encoding="utf-8"))
         function = next(
             (

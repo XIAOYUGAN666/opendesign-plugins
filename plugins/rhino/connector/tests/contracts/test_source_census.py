@@ -12,22 +12,22 @@ def _names(directory: Path, suffix: str) -> set[str]:
     return {path.name for path in directory.glob(f"*{suffix}") if path.is_file()}
 
 
-def test_package_root_is_flat() -> None:
-    assert (PROJECT_ROOT / "rhino_mcp" / "__init__.py").is_file()
+def test_package_source_uses_src_layout() -> None:
+    assert not (PROJECT_ROOT / "rhino_mcp").exists()
+    assert (PROJECT_ROOT / "src" / "rhino_mcp" / "__init__.py").is_file()
     assert not (PROJECT_ROOT / "connector").exists()
-    assert not (PROJECT_ROOT / "src").exists()
 
 
 def test_exact_python_tool_module_allowlist() -> None:
     expected = json.loads(EXPECTED_CENSUS.read_text(encoding="utf-8"))
-    actual = _names(PROJECT_ROOT / "rhino_mcp" / "tools", ".py") - {"__init__.py"}
+    actual = _names(PROJECT_ROOT / "src" / "rhino_mcp" / "tools", ".py") - {"__init__.py"}
     assert actual == set(expected["pythonToolModules"])
 
 
 def test_exact_guidance_and_rhinoscript_documentation_inventory() -> None:
     expected = json.loads(EXPECTED_CENSUS.read_text(encoding="utf-8"))
-    guides = _names(PROJECT_ROOT / "rhino_mcp" / "guides", ".md")
-    static_docs = _names(PROJECT_ROOT / "rhino_mcp" / "static" / "source", ".py")
+    guides = _names(PROJECT_ROOT / "src" / "rhino_mcp" / "guides", ".md")
+    static_docs = _names(PROJECT_ROOT / "src" / "rhino_mcp" / "static" / "source", ".py")
     assert guides == set(expected["guides"])
     assert static_docs == set(expected["rhinoScriptSourceModules"])
 

@@ -1,6 +1,6 @@
 # Rhino Connector
 
-Rhino 8 engineering tools and workflow skills for OpenDesign. The root `plugin.json` owns plugin identity; generated Connector and Yak version copies are checked before building.
+Rhino 8 engineering tools and workflow skills for OpenDesign. The root `plugin.json` owns plugin identity; generated Connector and Yak version copies are checked before building. Python source lives in `src/rhino_mcp/` and the installed package is imported as `rhino_mcp`.
 
 This repository contains the current Rhino Connector and native Bridge source; the main application consumes a verified self-contained artifact. Stable versions, receipts and release history are maintained remotely by the plugin marketplace, not as local version directories.
 

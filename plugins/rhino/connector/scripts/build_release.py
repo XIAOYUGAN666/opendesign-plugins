@@ -556,7 +556,7 @@ def _install_provider_distribution(stage_root: Path, uv: str) -> None:
     project = stage_root.parent / "connector-wheel-project"
     project.mkdir()
     shutil.copyfile(PROJECT_ROOT / "pyproject.toml", project / "pyproject.toml")
-    shutil.copytree(site_packages / "rhino_mcp", project / "rhino_mcp")
+    shutil.copytree(site_packages / "rhino_mcp", project / "src" / "rhino_mcp")
     output = stage_root.parent / "connector-wheelhouse"
     requirements = stage_root.parent / "build-requirements.txt"
     _run(
@@ -763,7 +763,7 @@ def _native_capability_digest(
 
 
 def _copy_provider_source(stage_root: Path) -> set[str]:
-    source = PROJECT_ROOT / "rhino_mcp"
+    source = PROJECT_ROOT / "src" / "rhino_mcp"
     target = stage_root / "runtime/python/Lib/site-packages/rhino_mcp"
     shutil.copytree(
         source,
@@ -797,7 +797,7 @@ def _copy_contracts(stage_root: Path) -> set[str]:
 
 
 def _source_records() -> list[dict[str, str]]:
-    source_root = PROJECT_ROOT / "rhino_mcp"
+    source_root = PROJECT_ROOT / "src" / "rhino_mcp"
     records: list[dict[str, str]] = []
     for path in sorted(source_root.rglob("*")):
         if (
@@ -928,7 +928,7 @@ def validate_root_identity() -> dict[str, Any]:
         if node.tag
         in {"Version", "AssemblyVersion", "FileVersion", "InformationalVersion"}
     }
-    provider_identity = (PROJECT_ROOT / "rhino_mcp" / "build_identity.py").read_text(
+    provider_identity = (PROJECT_ROOT / "src" / "rhino_mcp" / "build_identity.py").read_text(
         encoding="utf-8"
     )
     assembly_identity = (NATIVE_ROOT / "Properties" / "AssemblyInfo.cs").read_text(

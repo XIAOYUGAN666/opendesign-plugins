@@ -16,8 +16,8 @@ from referencing.jsonschema import DRAFT202012
 
 # Only the two owned layouts are supported; never inspect a caller's cwd.
 _MODULE_PATH = Path(__file__).resolve()
-if _MODULE_PATH.parent.parent.name == "connector":
-    CONTRACTS_DIR = _MODULE_PATH.parents[2] / "contracts"
+if _MODULE_PATH.parents[1].name == "src" and _MODULE_PATH.parents[2].name == "connector":
+    CONTRACTS_DIR = _MODULE_PATH.parents[3] / "contracts"
 else:
     CONTRACTS_DIR = _MODULE_PATH.parents[5] / "contracts"
 
