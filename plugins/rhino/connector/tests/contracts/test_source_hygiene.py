@@ -85,7 +85,11 @@ def test_source_tree_contains_no_upstream_or_legacy_runtime_metadata() -> None:
             if path.suffix.lower() in {".py", ".toml", ".json", ".md", ".yml", ".yaml"}:
                 contents = path.read_text(encoding="utf-8").casefold()
                 contents = contents.replace(native_assembly, "")
+                native_actions = {"mcp" + name for name in ("start", "stop", "test", "version")}
+                is_settings_adapter = path.relative_to(PROJECT_ROOT).as_posix() == "src/rhino_mcp/instance_management.py"
                 for token in forbidden:
+                    if is_settings_adapter and token in native_actions:
+                        continue
                     assert token.casefold() not in contents, path.relative_to(
                         PROJECT_ROOT
                     )

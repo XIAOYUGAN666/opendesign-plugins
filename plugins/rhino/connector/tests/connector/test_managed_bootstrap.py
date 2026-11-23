@@ -40,14 +40,13 @@ def _payload():
     }
 
 
-def test_rhino_configuration_is_typed_and_has_no_user_fields():
-    assert ConfigurationV1.model_json_schema() == {
-        "additionalProperties": False,
-        "description": "Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。",
-        "properties": {},
-        "title": "Rhino",
-        "type": "object",
+def test_rhino_configuration_exposes_only_typed_ordinary_preferences():
+    assert ConfigurationV1().model_dump() == {
+        "targetPort": 0, "timeout": 15, "validation": "warn", "logLevel": "INFO", "perception": False,
     }
+    for invalid in [{"targetPort": "1999"}, {"timeout": -1}, {"validation": "ignore"}, {"perception": "true"}]:
+        with pytest.raises(ValueError):
+            ConfigurationV1.model_validate(invalid)
     with pytest.raises(ValueError):
         ConfigurationV1.model_validate({"apiKey": "not-accepted"})
 

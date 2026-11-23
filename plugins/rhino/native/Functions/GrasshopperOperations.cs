@@ -4,6 +4,7 @@ using System.Text.Json;
 using Grasshopper;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Parameters;
 using Grasshopper.Kernel.Special;
 using Rhino.Geometry;
 
@@ -413,7 +414,10 @@ internal static class GrasshopperOperations
 
     private static object? SetPersistentValue(IGH_Param parameter, JsonElement value)
     {
-        var rawValue = ToPlainObject(value);
+        var displayValue = ToPlainObject(value);
+        var rawValue = parameter is Param_Point or Param_Vector
+            ? ConvertCoordinates(value, parameter is Param_Vector)
+            : displayValue;
         var methods = parameter.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public)
             .Where(method => method.Name == "SetPersistentData")
             .Where(method => method.GetParameters().Length == 1)
@@ -449,7 +453,16 @@ internal static class GrasshopperOperations
             throw new NativeCommandException("invalidParameterValue", "Grasshopper could not convert the value for the selected parameter.");
         }
 
-        return rawValue;
+        return displayValue;
+    }
+
+    private static object? ConvertCoordinates(JsonElement value, bool vector)
+    {
+        if (value.ValueKind != JsonValueKind.Array)
+            return ToPlainObject(value);
+        if (value.GetArrayLength() == 3 && value.EnumerateArray().All(item => item.ValueKind == JsonValueKind.Number))
+            return vector ? (object)NativeFunctions.Vector(value) : NativeFunctions.Point(value);
+        return value.EnumerateArray().Select(item => ConvertCoordinates(item, vector)).ToArray();
     }
 
     private static int PersistentItemCount(object? value) => value switch

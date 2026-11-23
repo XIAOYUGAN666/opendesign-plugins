@@ -21,14 +21,16 @@ def diagnose_bridge(*, rhino_running: bool, bridge_ready: bool) -> dict:
 def diagnose_connection() -> dict:
     import pywintypes
 
-    from rhino_mcp._connector_process import running_instance
     from rhino_mcp.bridge import BridgeResultUnknown, BridgeUnavailable
+    from rhino_mcp.configuration import ConfigurationV1
+    from rhino_mcp.instances import instances, resolve_target
     from rhino_mcp.stdio_bridge import await_bridge
 
-    if running_instance("Rhino.exe") is None:
-        return diagnose_bridge(rhino_running=False, bridge_ready=False)
     try:
-        with await_bridge():
+        if not instances():
+            return diagnose_bridge(rhino_running=False, bridge_ready=False)
+        settings = ConfigurationV1.read()
+        with await_bridge(resolve_target(settings.targetPort or None), timeout=settings.timeout):
             return diagnose_bridge(rhino_running=True, bridge_ready=True)
     except BridgeUnavailable:
         return diagnose_bridge(rhino_running=True, bridge_ready=False)
@@ -152,6 +154,10 @@ def main():
             result = prepare_bridge(request, executable, binding)
         elif step == "diagnose":
             result = diagnose_connection()
+        elif step == "settings-action":
+            from rhino_mcp.instance_management import run_action
+
+            result = run_action(request["settingsAction"], request["arguments"], executable)
         else:
             result = {"type": "failed", "reason": "unsupportedSetupStep"}
     except (OSError, ValueError, subprocess.SubprocessError):

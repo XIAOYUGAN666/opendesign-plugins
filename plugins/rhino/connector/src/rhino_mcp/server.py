@@ -2,6 +2,7 @@
 import functools
 import hmac
 import inspect
+import json
 import logging
 import os
 import re
@@ -10,6 +11,7 @@ import uuid
 from weakref import WeakKeyDictionary
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from importlib import import_module
 from importlib.metadata import PackageNotFoundError
@@ -26,7 +28,7 @@ from mcp.server.auth.middleware.bearer_auth import (
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.shared.exceptions import MCPError
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, InputRequiredResult, ToolAnnotations
+from mcp.types import CallToolResult, InputRequiredResult, TextContent, ToolAnnotations
 from starlette.applications import Starlette
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.types import Receive, Scope, Send
@@ -59,6 +61,7 @@ RHINO_PERCEPTION = os.getenv("RHINO_MCP_PERCEPTION", "").lower() in (
 # result contract, so they are stripped before post-flight validation; the
 # full result, these keys included, is still returned to the caller.
 PERCEPTION_RESULT_KEYS = ("_delta", "_health")
+_perception_receipts: ContextVar[list[dict] | None] = ContextVar("perception_receipts", default=None)
 RHINO_DEBUG = os.getenv("RHINO_MCP_DEBUG", "").lower() in ("1", "true", "yes")
 RHINO_LOG_LEVEL = os.getenv("RHINO_MCP_LOG_LEVEL", "DEBUG" if RHINO_DEBUG else "INFO")
 
@@ -309,6 +312,11 @@ class RhinoConnection:
                     )
                 ) from exc
             raise
+        receipts = _perception_receipts.get()
+        if receipts is not None and isinstance(result, dict):
+            receipt = {key: result[key] for key in PERCEPTION_RESULT_KEYS if key in result}
+            if receipt:
+                receipts.append(receipt)
         return result
 
     def _check_plugin_compatibility(
@@ -459,15 +467,39 @@ class RhinoConnectorServer(MCPServer):
             if session is None:
                 session = self.command_sessions[connection] = uuid.uuid4().hex
         token = logical_command_session.set(session)
+        receipts = [] if RHINO_PERCEPTION else None
+        receipt_token = _perception_receipts.set(receipts)
         try:
             result = await super().call_tool(name, arguments, context)
             _check_request_dispatch_state(context)
+            if receipts and isinstance(result, CallToolResult):
+                visible_keys = _perception_keys_in_result(result)
+                additional = [{key: value for key, value in item.items() if key not in visible_keys}
+                              for item in receipts]
+                content = [TextContent(type="text", text=json.dumps(item, ensure_ascii=False))
+                           for item in additional if item]
+                if content:
+                    result = result.model_copy(update={"content": [*result.content, *content]})
             return result
         finally:
+            _perception_receipts.reset(receipt_token)
             logical_command_session.reset(token)
 
     def add_tool(self, fn, *args, **kwargs):
         return super().add_tool(_reporting_errors(fn), *args, **kwargs)
+
+
+def _perception_keys_in_result(result: CallToolResult) -> set[str]:
+    keys = set(PERCEPTION_RESULT_KEYS).intersection(result.structured_content or {})
+    for item in result.content:
+        if isinstance(item, TextContent) and item.text.lstrip().startswith("{"):
+            try:
+                decoded = json.loads(item.text)
+            except ValueError:
+                continue
+            if isinstance(decoded, dict):
+                keys.update(set(PERCEPTION_RESULT_KEYS).intersection(decoded))
+    return keys
 
 
 # Create the MCP server with lifespan support
@@ -892,9 +924,17 @@ def create_mcp_server(bridge_client: BridgeClient | None = None, *, stdio_bridge
 
 
 def run_stdio() -> None:
+    from rhino_mcp.configuration import ConfigurationV1
     from rhino_mcp.stdio_bridge import StdioBridgeSlot
 
-    create_mcp_server(stdio_bridge=StdioBridgeSlot()).run(transport="stdio")
+    global RHINO_PERCEPTION
+    settings = ConfigurationV1.read()
+    if os.environ.get("PLUGIN_DATA"):
+        RHINO_PERCEPTION = settings.perception
+        logger.setLevel(settings.logLevel)
+        logging.getLogger().setLevel(settings.logLevel)
+    slot = StdioBridgeSlot(settings.targetPort or None, settings.timeout, settings.validation)
+    create_mcp_server(stdio_bridge=slot).run(transport="stdio")
 
 
 # Source-level consumers and tests use this discovery-only instance. Managed

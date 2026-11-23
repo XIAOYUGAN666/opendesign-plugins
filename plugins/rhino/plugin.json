@@ -8,7 +8,147 @@
   },
   "extensions": {
     "ai.opendesign.desktop": {
-      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "rhino_mcp.setup"], "diagnostics": true}
+      "setup": {
+        "command": "runtime/python/python.exe",
+        "args": [
+          "-m",
+          "rhino_mcp.setup"
+        ],
+        "diagnostics": true,
+        "settings": {
+          "connectionLabel": "连接",
+          "commandsLabel": "原生命令",
+          "statusAction": "status",
+          "locateAction": {
+            "id": "locate",
+            "label": "定位窗口"
+          },
+          "fields": [
+            {
+              "id": "softwareVersion",
+              "label": "软件版本"
+            },
+            {
+              "id": "connectionScope",
+              "label": "连接范围"
+            },
+            {
+              "id": "port",
+              "label": "监听端口"
+            },
+            {
+              "id": "portSource",
+              "label": "端口来源"
+            },
+            {
+              "id": "bridgeLoaded",
+              "label": "Bridge 已加载"
+            },
+            {
+              "id": "bridgeVersion",
+              "label": "Bridge 版本"
+            },
+            {
+              "id": "grasshopperLoaded",
+              "label": "Grasshopper 已加载"
+            },
+            {
+              "id": "grasshopperDocumentName",
+              "label": "Grasshopper 定义"
+            },
+            {
+              "id": "startedAt",
+              "label": "监听开始时间"
+            },
+            {
+              "id": "lastCommand",
+              "label": "最近命令"
+            },
+            {
+              "id": "lastCommandAt",
+              "label": "末次命令时间"
+            },
+            {
+              "id": "commandCount",
+              "label": "命令计数"
+            }
+          ],
+          "commands": [
+            {
+              "id": "mcpstart",
+              "label": "mcpstart",
+              "arguments": [
+                {
+                  "id": "port",
+                  "label": "Port（0 为自动）",
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0,
+                  "maximum": 65535
+                }
+              ]
+            },
+            {
+              "id": "mcpstop",
+              "label": "mcpstop"
+            },
+            {
+              "id": "mcpversion",
+              "label": "mcpversion"
+            },
+            {
+              "id": "mcptest",
+              "label": "mcptest",
+              "timeoutSeconds": 600,
+              "arguments": [
+                {
+                  "id": "visual",
+                  "label": "Visual",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "id": "grasshopper",
+                  "label": "Grasshopper",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "id": "delay",
+                  "label": "Delay（毫秒）",
+                  "type": "integer",
+                  "default": 500,
+                  "minimum": 0,
+                  "maximum": 5000
+                }
+              ]
+            }
+          ],
+          "clientFields": [
+            {
+              "id": "connectedAt",
+              "label": "连接时间"
+            },
+            {
+              "id": "commandCount",
+              "label": "命令计数"
+            },
+            {
+              "id": "lastCommand",
+              "label": "最近命令"
+            },
+            {
+              "id": "lastCommandAt",
+              "label": "末次命令时间"
+            }
+          ],
+          "toolSettings": [
+            "run_command",
+            "execute_rhinoscript_python_code",
+            "execute_rhinocommon_csharp_code"
+          ]
+        }
+      }
     },
     "io.github.xiaoyugan666.native": {
       "platform": {
@@ -66,7 +206,7 @@
         "packageId": "rhino-mcp-bridge",
         "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
         "relativePath": "native/rhino-mcp-bridge-0.1.21-rh8-win.yak",
-        "sha256": "sha256:a6596d4a058425e8e18ba512eac666ad0c91ac9208d4d619817e61c119473fe1",
+        "sha256": "sha256:52a4a5961eb264d8e77bcc6ab8824af3227f603550fb5c1f12da4d72b27b8e55",
         "version": "0.1.21"
       }
     },

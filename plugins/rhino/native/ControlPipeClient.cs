@@ -127,6 +127,11 @@ internal sealed class ControlPipeClient
 #endif
 
     private const int ConnectTimeoutMilliseconds = 1500;
+    private readonly string _transportPipeName;
+
+    public ControlPipeClient() : this(PipeName) { }
+
+    internal ControlPipeClient(string transportPipeName) => _transportPipeName = transportPipeName;
 
     public async Task<ControlPipeSession> ConnectAsync(
         BridgeRegistration registration,
@@ -142,7 +147,7 @@ internal sealed class ControlPipeClient
 
         var pipe = new NamedPipeClientStream(
             ServerName,
-            PipeName,
+            _transportPipeName,
             PipeDirection.InOut,
             PipeOptions,
             TokenImpersonationLevel.None

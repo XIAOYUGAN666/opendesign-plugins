@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 import math
 import re
 import socket
@@ -19,6 +20,8 @@ import jsonschema
 
 from rhino_mcp.validation import (
     CONTRACTS_DIR,
+    NO_RESULT_SCHEMA_COMMANDS,
+    RESPONSE_SCHEMA_MAP,
     SchemaInfrastructureError,
     validate_command,
     validate_contract_inventory,
@@ -101,8 +104,11 @@ class BridgeConfig:
     connector_build_id: str
     contract_digest: str
     contract_root: Path = CONTRACTS_DIR
+    validation_mode: Literal["off", "warn", "strict"] = "strict"
 
     def __post_init__(self) -> None:
+        if self.validation_mode not in {"off", "warn", "strict"}:
+            raise ValueError("Invalid Rhino schema validation mode.")
         if (
             not isinstance(self.endpoint, tuple)
             or len(self.endpoint) != 2
@@ -379,12 +385,15 @@ class BridgeClient:
         """Validate, send once, and return the matching response without replay."""
         command_params = dict(params or {})
         try:
-            validate_command(
+            if command_type not in RESPONSE_SCHEMA_MAP and command_type not in NO_RESULT_SCHEMA_COMMANDS:
+                raise SchemaInfrastructureError("Command is outside the packaged inventory.")
+            if self._config.validation_mode != "off" and not validate_command(
                 command_type,
                 command_params,
-                raise_on_error=True,
+                raise_on_error=self._config.validation_mode == "strict",
                 contract_root=self._config.contract_root,
-            )
+            ):
+                logging.getLogger(__name__).warning("Rhino command parameters differ from the contract: %s", command_type)
         except SchemaInfrastructureError as exc:
             raise BridgeProtocolError(
                 "Connector command contracts are unavailable; the command was not sent.",
@@ -488,12 +497,13 @@ class BridgeClient:
                 if key not in _RESULT_METADATA_FIELDS
             }
         try:
-            validate_response(
+            if self._config.validation_mode != "off" and not validate_response(
                 command_type,
                 validation_result,
-                raise_on_error=True,
+                raise_on_error=self._config.validation_mode == "strict",
                 contract_root=self._config.contract_root,
-            )
+            ):
+                logging.getLogger(__name__).warning("Rhino command response differs from the contract: %s", command_type)
         except SchemaInfrastructureError as exc:
             raise BridgeResultUnknown(
                 "Rhino returned an unverifiable result; the action may already have occurred. Do not retry automatically."

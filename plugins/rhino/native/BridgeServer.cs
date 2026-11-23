@@ -29,15 +29,54 @@ internal sealed class BridgeServer : IDisposable
 
     private readonly object _gate = new();
     private readonly SemaphoreSlim _commandGate = new(1, 1);
-    private readonly Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> _executor;
-    private readonly Action<string>? _connectionClosed;
+    private sealed record LeaseBinding(
+        BridgeLease Lease,
+        Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> Execute,
+        Action<string>? Disconnected
+    );
+
     private readonly CancellationTokenSource _shutdown = new();
-    private BridgeLease? _lease;
+    private LeaseBinding? _binding;
     private TcpListener? _listener;
     private readonly HashSet<TcpClient> _clients = new();
+    private readonly Dictionary<TcpClient, ClientActivity> _clientActivity = new();
+    private readonly ClientActivity _listenerActivity = new();
+    private sealed class ClientActivity
+    {
+        internal DateTimeOffset ConnectedAt { get; } = DateTimeOffset.Now;
+        internal DateTimeOffset? LastCommandAt { get; set; }
+        internal string? LastCommand { get; set; }
+        internal int CommandCount { get; set; }
+    }
+
+    internal object[] ClientStatus()
+    {
+        lock (_gate)
+            return _clientActivity.Values.Select(item => (object)new
+            {
+                connectedAt = item.ConnectedAt,
+                lastCommandAt = item.LastCommandAt,
+                lastCommand = item.LastCommand,
+                commandCount = item.CommandCount,
+            }).ToArray();
+    }
+
+    internal object ListenerActivity()
+    {
+        lock (_gate)
+            return new
+            {
+                connectedAt = _listenerActivity.ConnectedAt,
+                lastCommandAt = _listenerActivity.LastCommandAt,
+                lastCommand = _listenerActivity.LastCommand,
+                commandCount = _listenerActivity.CommandCount,
+            };
+    }
     private Task? _acceptTask;
     private int _started;
     private int _disposed;
+
+    internal BridgeServer() { }
 
     public BridgeServer(
         BridgeLease lease,
@@ -52,9 +91,16 @@ internal sealed class BridgeServer : IDisposable
         Action<string>? connectionClosed
     )
     {
-        _connectionClosed = connectionClosed;
-        _lease = lease ?? throw new ArgumentNullException(nameof(lease));
-        _executor = executor ?? throw new ArgumentNullException(nameof(executor));
+        BindLease(lease, executor, connectionClosed);
+    }
+
+    internal void BindLease(
+        BridgeLease lease, Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> executor,
+        Action<string>? connectionClosed
+    )
+    {
+        if (lease is null) throw new ArgumentNullException(nameof(lease));
+        if (executor is null) throw new ArgumentNullException(nameof(executor));
         if (
             lease.Generation == 0
             || !BridgeWire.IsOpaqueToken(lease.Token)
@@ -64,26 +110,47 @@ internal sealed class BridgeServer : IDisposable
         {
             throw new ArgumentException("Bridge lease identity is invalid.", nameof(lease));
         }
+        lock (_gate)
+        {
+            if (_disposed != 0) throw new ObjectDisposedException(nameof(BridgeServer));
+            if (_binding is not null) throw new InvalidOperationException("A Bridge lease is already active.");
+            _binding = new LeaseBinding(lease, executor, connectionClosed);
+        }
+    }
+
+    internal void RevokeLease(BridgeLease lease)
+    {
+        TcpClient[] clients;
+        lock (_gate)
+        {
+            if (!ReferenceEquals(_binding?.Lease, lease))
+                return;
+            _binding = null;
+            clients = _clients.ToArray();
+            _clients.Clear();
+            _clientActivity.Clear();
+        }
+        CloseClients(clients);
     }
 
     public int Port { get; private set; }
 
     public void Start()
     {
-        if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
-        {
-            throw new InvalidOperationException("Bridge listener has already been started.");
-        }
-
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(BridgeServer));
-        }
-
         var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        StartBound(listener);
+    }
+
+    internal void StartBound(TcpListener listener)
+    {
         try
         {
-            listener.Start(2);
+            if (Interlocked.CompareExchange(ref _started, 1, 0) != 0)
+                throw new InvalidOperationException("Bridge listener has already been started.");
+            if (Volatile.Read(ref _disposed) != 0)
+                throw new ObjectDisposedException(nameof(BridgeServer));
+
             _listener = listener;
             Port = ((IPEndPoint)listener.LocalEndpoint).Port;
             _acceptTask = AcceptLoopAsync(listener, _shutdown.Token);
@@ -102,7 +169,7 @@ internal sealed class BridgeServer : IDisposable
             return;
         }
 
-        Interlocked.Exchange(ref _lease, null);
+
         _shutdown.Cancel();
         try
         {
@@ -116,17 +183,22 @@ internal sealed class BridgeServer : IDisposable
         TcpClient[] clients;
         lock (_gate)
         {
+            _binding = null;
             clients = _clients.ToArray();
             _clients.Clear();
+            _clientActivity.Clear();
         }
+        CloseClients(clients);
+        _shutdown.Dispose();
+    }
 
+    private static void CloseClients(IEnumerable<TcpClient> clients)
+    {
         foreach (var client in clients)
         {
             try { client.Close(); }
             catch (SocketException) { }
         }
-
-        _shutdown.Dispose();
     }
 
     private async Task AcceptLoopAsync(TcpListener listener, CancellationToken cancellationToken)
@@ -152,6 +224,7 @@ internal sealed class BridgeServer : IDisposable
             }
 
             client.NoDelay = true;
+            LeaseBinding? binding;
             lock (_gate)
             {
                 if (cancellationToken.IsCancellationRequested || Volatile.Read(ref _disposed) != 0)
@@ -161,16 +234,18 @@ internal sealed class BridgeServer : IDisposable
                 }
 
                 _clients.Add(client);
+                binding = _binding;
             }
 
-            _ = Task.Run(() => HandleConnectorAsync(client, cancellationToken));
+            _ = Task.Run(() => HandleConnectorAsync(client, binding, cancellationToken));
         }
     }
 
-    private async Task HandleConnectorAsync(TcpClient client, CancellationToken cancellationToken)
+    private async Task HandleConnectorAsync(TcpClient client, LeaseBinding? binding, CancellationToken cancellationToken)
     {
         var connectionOwner = "connection:" + Guid.NewGuid().ToString("N");
         var authenticated = false;
+        var activity = new ClientActivity();
         try
         {
             using (client)
@@ -184,13 +259,21 @@ internal sealed class BridgeServer : IDisposable
                         stream, BridgeWire.MaxBridgeFrameSize, authenticationTimeout.Token, allowCleanEof: true
                     ).ConfigureAwait(false);
                 }
-                if (firstPayload is null || !TryAuthenticate(firstPayload, out var lease))
+                if (firstPayload is null || binding is null || !ReferenceEquals(Volatile.Read(ref _binding), binding)
+                    || !TryAuthenticate(firstPayload, binding.Lease))
                 {
                     await WriteAuthenticationRejectedAsync(stream, cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
-                authenticated = true;
+                var lease = binding.Lease;
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_binding, binding))
+                        return;
+                    _clientActivity.Add(client, activity);
+                    authenticated = true;
+                }
                 await BridgeWire.WriteJsonFrameAsync(
                     stream,
                     new
@@ -248,7 +331,21 @@ internal sealed class BridgeServer : IDisposable
                         byte[] result;
                         try
                         {
-                            result = await _executor(
+                            if (!ReferenceEquals(Volatile.Read(ref _binding), binding))
+                                return;
+                            lock (_gate)
+                            {
+                                if (_clientActivity.ContainsKey(client))
+                                {
+                                    activity.LastCommand = commandType;
+                                    activity.LastCommandAt = DateTimeOffset.Now;
+                                    activity.CommandCount++;
+                                    _listenerActivity.LastCommand = activity.LastCommand;
+                                    _listenerActivity.LastCommandAt = activity.LastCommandAt;
+                                    _listenerActivity.CommandCount++;
+                                }
+                            }
+                            result = await binding.Execute(
                                 commandType, parametersJson, includeDelta, includeHealth,
                                 logicalSession is null ? connectionOwner : "session:" + logicalSession,
                                 cancellationToken
@@ -302,21 +399,15 @@ internal sealed class BridgeServer : IDisposable
             lock (_gate)
             {
                 _clients.Remove(client);
+                _clientActivity.Remove(client);
             }
             if (authenticated)
-                _connectionClosed?.Invoke(connectionOwner);
+                binding?.Disconnected?.Invoke(connectionOwner);
         }
     }
 
-    private bool TryAuthenticate(byte[] payload, out BridgeLease lease)
+    private static bool TryAuthenticate(byte[] payload, BridgeLease currentLease)
     {
-        lease = null!;
-        BridgeLease? currentLease = Volatile.Read(ref _lease);
-        if (currentLease is null)
-        {
-            return false;
-        }
-
         using var document = BridgeWire.ParseStrictJson(payload);
         var root = document.RootElement;
         if (!HasExactFields(root, AuthenticationFields))
@@ -345,7 +436,6 @@ internal sealed class BridgeServer : IDisposable
             return false;
         }
 
-        lease = currentLease;
         return true;
     }
 

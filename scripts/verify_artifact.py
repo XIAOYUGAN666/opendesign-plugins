@@ -94,10 +94,12 @@ def validate_setup_declaration(identity: dict, files: set[str]) -> None:
         return
     if (
         not isinstance(setup, dict) or not {"command", "args"} <= setup.keys()
-        or setup.keys() - {"command", "args", "diagnostics", "credentialSlots"}
+        or setup.keys() - {"command", "args", "diagnostics", "credentialSlots", "settings"}
         or not isinstance(setup["command"], str) or not isinstance(setup["args"], list)
         or type(setup.get("diagnostics", False)) is not bool
     ):
+        raise ValueError("invalidPortableSetup")
+    if "settings" in setup and not isinstance(setup["settings"], dict):
         raise ValueError("invalidPortableSetup")
     declared = identity.get("extensions", {}).get("io.github.xiaoyugan666.native", {}).get("secretSlots", [])
     fields = {slot["fieldId"] for slot in declared}

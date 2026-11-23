@@ -12,13 +12,6 @@ NATIVE_ROOT = PLUGIN_ROOT / "native"
 
 FORBIDDEN_PRODUCTION_TEXT = (
     "net7.0",
-    "Commands/",
-    "MCP" + "StartCommand",
-    "MCP" + "StopCommand",
-    "MCP" + "TestCommand",
-    "MCP" + "VersionCommand",
-    "TestAllFunctions",
-    "TestGrasshopperFunctions",
     "install.sh",
     "launchSettings.json",
     "RHINO_MCP_" + "HOST",
@@ -26,7 +19,7 @@ FORBIDDEN_PRODUCTION_TEXT = (
 )
 
 
-def test_native_package_contains_no_legacy_cli() -> None:
+def test_native_package_contains_no_external_client_launchers() -> None:
     assert NATIVE_ROOT.is_dir()
     production_files = [
         path

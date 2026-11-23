@@ -97,16 +97,16 @@ internal static class Perception
         var intersections = 0;
         var clash = bboxGap <= context.AbsoluteTolerance;
 
-        var firstBrep = first.Geometry as Brep ?? (first.Geometry as Extrusion)?.ToBrep();
-        var secondBrep = second.Geometry as Brep ?? (second.Geometry as Extrusion)?.ToBrep();
+        var firstBrep = AsBrep(first.Geometry);
+        var secondBrep = AsBrep(second.Geometry);
         if (firstBrep is not null && secondBrep is not null)
         {
             method = "brep";
-            if (Intersection.BrepBrep(firstBrep, secondBrep, context.AbsoluteTolerance, out var curves, out var points))
-            {
-                intersections = (curves?.Length ?? 0) + (points?.Length ?? 0);
-                clash = intersections > 0;
-            }
+            Intersection.BrepBrep(firstBrep, secondBrep, context.AbsoluteTolerance, out var curves, out var points);
+            intersections = (curves?.Length ?? 0) + (points?.Length ?? 0);
+            clash = intersections > 0 || (firstBrep.IsSolid && secondBrep.IsSolid &&
+                (Contains(firstBrep, secondBrep, context.AbsoluteTolerance) ||
+                 Contains(secondBrep, firstBrep, context.AbsoluteTolerance)));
         }
         else if (first.Geometry is Curve firstCurve && second.Geometry is Curve secondCurve)
         {
@@ -126,6 +126,17 @@ internal static class Perception
             ["method"] = method,
         };
     }
+
+    private static bool Contains(Brep outer, Brep inner, double tolerance) =>
+        inner.Vertices.Count > 0 && outer.IsPointInside(inner.Vertices[0].Location, tolerance, strictlyIn: false);
+
+    private static Brep? AsBrep(GeometryBase geometry) => geometry switch
+    {
+        Brep brep => brep,
+        Extrusion extrusion => extrusion.ToBrep(),
+        Surface surface => surface.ToBrep(),
+        _ => null,
+    };
 
     [McpCommand("section_profile", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object Section(RequestContext context, JsonElement parameters)
@@ -173,17 +184,19 @@ internal static class Perception
         };
         var start = NativeFunctions.Has(profile, "start") ? NativeFunctions.Number(profile, "start") : minimum;
         var end = NativeFunctions.Has(profile, "end") ? NativeFunctions.Number(profile, "end") : maximum;
+        if (end < start)
+            (start, end) = (end, start);
         var sections = new List<Dictionary<string, object?>>();
         for (var index = 0; index < count; index++)
         {
-            var position = start + (end - start) * index / (count - 1);
+            var position = start + (end - start) * (index + 0.5) / count;
             var plane = AxisPlane(axis, position);
-            var curves = objects.SelectMany(obj => SectionCurves(obj.Geometry, plane, context.AbsoluteTolerance)).ToArray();
+            var sliced = objects.Select(obj => SectionObject(context, obj, plane)).ToArray();
             sections.Add(new Dictionary<string, object?>
             {
                 ["position"] = position,
-                ["total_section_area"] = curves.Where(curve => curve.IsClosed).Sum(curve => AreaMassProperties.Compute(curve)?.Area ?? 0),
-                ["loop_count"] = curves.Length,
+                ["total_section_area"] = sliced.Sum(item => (double)item["section_area"]!),
+                ["loop_count"] = sliced.Sum(item => (int)item["loop_count"]!),
             });
         }
 
@@ -200,23 +213,27 @@ internal static class Perception
     private static Dictionary<string, object?> SectionObject(RequestContext context, Rhino.DocObjects.RhinoObject obj, Plane plane)
     {
         var curves = SectionCurves(obj.Geometry, plane, context.AbsoluteTolerance);
-        var loops = curves.Select(curve =>
+        var tolerance = context.AbsoluteTolerance;
+        var measured = curves.Select(curve => (Curve: curve,
+            Area: curve.IsClosed && curve.IsPlanar(tolerance) ? AreaMassProperties.Compute(curve) : null)).ToArray();
+        var loops = measured.Select((item, index) =>
         {
-            var areaProperties = curve.IsClosed ? AreaMassProperties.Compute(curve) : null;
-            var orientation = curve.IsClosed ? curve.ClosedCurveOrientation(plane) : CurveOrientation.Undefined;
-            var isHole = orientation == CurveOrientation.Clockwise;
-            var area = areaProperties?.Area;
-            var centroid = areaProperties is null ? null : NativeFunctions.PointArray(areaProperties.Centroid);
-            areaProperties?.Dispose();
+            var areaProperties = item.Area;
+            var isHole = areaProperties is not null && measured.Where((other, otherIndex) =>
+                otherIndex != index && other.Area is not null &&
+                Curve.PlanarClosedCurveRelationship(item.Curve, other.Curve, plane, tolerance) == RegionContainment.AInsideB
+            ).Count() % 2 == 1;
             return new Dictionary<string, object?>
             {
-                ["closed"] = curve.IsClosed,
-                ["perimeter"] = curve.GetLength(),
-                ["area"] = area,
-                ["centroid"] = centroid,
+                ["closed"] = areaProperties is not null,
+                ["perimeter"] = item.Curve.GetLength(),
+                ["area"] = areaProperties?.Area,
+                ["centroid"] = areaProperties is null ? null : NativeFunctions.PointArray(areaProperties.Centroid),
                 ["is_hole"] = isHole,
             };
         }).ToArray();
+        foreach (var item in measured)
+            item.Area?.Dispose();
         var areaSum = loops.Sum(loop => loop["area"] is double area ? (bool)loop["is_hole"]! ? -area : area : 0);
         return new Dictionary<string, object?>
         {
@@ -231,26 +248,13 @@ internal static class Perception
 
     private static Curve[] SectionCurves(GeometryBase geometry, Plane plane, double tolerance)
     {
-        var brep = geometry as Brep ?? (geometry as Extrusion)?.ToBrep();
-        if (brep is not null)
-        {
-            return Intersection.BrepPlane(brep, plane, tolerance, out var curves, out _) && curves is not null
-                ? curves
-                : Array.Empty<Curve>();
-        }
-
-        if (geometry is Mesh mesh)
-        {
-            return Mesh.CreateContourCurves(mesh, plane, tolerance) ?? Array.Empty<Curve>();
-        }
-
-        if (geometry is Curve curve)
-        {
-            var point = Intersection.CurvePlane(curve, plane, tolerance);
-            return point is null ? Array.Empty<Curve>() : Array.Empty<Curve>();
-        }
-
-        return Array.Empty<Curve>();
+        var fragments = geometry is Mesh mesh
+            ? Mesh.CreateContourCurves(mesh, plane, Rhino.RhinoMath.SqrtEpsilon * 10)
+            : AsBrep(geometry) is { } brep ? Brep.CreateContourCurves(brep, plane) : null;
+        if (fragments is null || fragments.Length == 0)
+            return Array.Empty<Curve>();
+        var joined = Curve.JoinCurves(fragments, tolerance);
+        return joined is { Length: > 0 } ? joined : fragments;
     }
 
     private static Plane ResolvePlane(JsonElement value)

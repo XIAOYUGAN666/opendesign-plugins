@@ -102,12 +102,13 @@ async def test_stdio_sessions_discover_independently_without_holding_the_bridge(
     attempts = []
 
     @contextmanager
-    def unavailable():
+    def unavailable(target, **settings):
         attempts.append("acquired")
         raise BridgeUnavailable("Start Rhino and load the Bridge.")
         yield
 
     monkeypatch.setattr(stdio_bridge, "await_bridge", unavailable)
+    monkeypatch.setattr(stdio_bridge, "resolve_target", lambda *_: stdio_bridge.Target("rhino-one", 1, 1999))
     first = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     second = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     async with connected_client(first) as one, connected_client(second) as two:
@@ -117,6 +118,33 @@ async def test_stdio_sessions_discover_independently_without_holding_the_bridge(
         assert result.is_error
         assert "Start Rhino" in result.content[0].text
         assert attempts == ["acquired"]
+
+
+@pytest.mark.asyncio
+async def test_perception_receipts_survive_a_tool_that_projects_its_bridge_response(monkeypatch):
+    from rhino_mcp import server
+    from rhino_mcp.bridge import BridgeClient
+    from tests.fixtures.bridge_contract import FakeBridge, bridge_config
+    from tests.fixtures.mcp_client import connected_client
+
+    monkeypatch.setattr(server.RhinoConnection, "_check_plugin_compatibility", lambda *_: None)
+    delta = {"created_count": 1, "deleted_count": 0}
+    health = {"checked_count": 1, "invalid_count": 0}
+    args = {"type": "BOX", "params": {"width": 1, "length": 1, "height": 1}}
+    value = {"id": "a" * 8 + "-aaaa-aaaa-aaaa-" + "a" * 12, "name": "Fixture", "type": "BOX",
+             "layer": "Fixture", "color": {"r": 0, "g": 0, "b": 0},
+             "bounding_box": [[0, 0, 0], [1, 1, 1]]}
+    with FakeBridge(response=lambda _: {"status": "success", "result": {**value, "_delta": delta, "_health": health}}) as fake:
+        bridge = BridgeClient(bridge_config(fake.endpoint))
+        async with connected_client(server.create_mcp_server(bridge)) as client:
+            monkeypatch.setattr(server, "RHINO_PERCEPTION", True)
+            result = await client.call_tool("create_object", args)
+            assert not result.is_error
+            assert json.loads(result.content[-1].text) == {"_delta": delta, "_health": health}
+            assert fake.command_frames[-1]["include_health"] is True
+            monkeypatch.setattr(server, "RHINO_PERCEPTION", False)
+            without_receipt = await client.call_tool("create_object", args)
+            assert not without_receipt.is_error and len(without_receipt.content) == 1
 
 
 @pytest.mark.asyncio

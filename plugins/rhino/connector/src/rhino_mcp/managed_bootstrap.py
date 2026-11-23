@@ -32,6 +32,7 @@ from rhino_mcp.bridge import (
     BridgeUnavailable,
 )
 from rhino_mcp.build_identity import CONNECTOR_BUILD_ID
+from rhino_mcp.configuration import ConfigurationV1
 from rhino_mcp.server import (
     ManagedTokenVerifier,
     RhinoConnectorServer,
@@ -79,15 +80,6 @@ class ConnectorRuntimeContext:
 class ExactModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid", frozen=True, strict=True, hide_input_in_errors=True
-    )
-
-
-class ConfigurationV1(ExactModel):
-    """Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。"""
-
-    model_config = ConfigDict(
-        title="Rhino",
-        description="Rhino 插件无需 API Key。请启动兼容版本的 Rhino 8 以建立连接。",
     )
 
 

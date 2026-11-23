@@ -165,15 +165,8 @@ internal static class GrasshopperComponents
                 active.Locked = !NativeFunctions.Boolean(parameters, "enabled");
             }
 
-            if (NativeFunctions.Has(parameters, "preview"))
-            {
-                if (item is not IGH_PreviewObject preview)
-                {
-                    throw new NativeCommandException("unsupportedComponentState", "The selected Grasshopper object does not support preview visibility.");
-                }
-
+            if (NativeFunctions.Has(parameters, "preview") && item is IGH_PreviewObject preview)
                 preview.Hidden = !NativeFunctions.Boolean(parameters, "preview");
-            }
 
             return GrasshopperHelpers.ObjectInfo(item, includeValues: true, maxItems: 100);
         });

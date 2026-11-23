@@ -24,14 +24,20 @@ internal sealed record ActiveDocumentSnapshot(
 internal sealed class RhinoActiveDocumentSource : IActiveDocumentSource
 {
     private static GH_Canvas? CurrentGrasshopperCanvas => Instances.ActiveCanvas;
+    private static GH_Document? CurrentGrasshopperDocument => Instances.ActiveDocument;
 
     public GH_Canvas? ActiveGrasshopperCanvas => CurrentGrasshopperCanvas;
+    internal static RhinoDoc? CaptureRhinoDocument() => RhinoDoc.ActiveDoc;
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    internal static string? LoadedGrasshopperName() =>
+        (CurrentGrasshopperCanvas?.Document ?? CurrentGrasshopperDocument)?.DisplayName;
 
     public ActiveDocumentSnapshot Capture()
     {
-        var document = RhinoDoc.ActiveDoc;
+        var document = CaptureRhinoDocument();
         var canvas = CurrentGrasshopperCanvas;
-        var grasshopperDocument = canvas?.Document ?? Instances.ActiveDocument;
+        var grasshopperDocument = canvas?.Document ?? CurrentGrasshopperDocument;
 
         return new ActiveDocumentSnapshot(
             document,

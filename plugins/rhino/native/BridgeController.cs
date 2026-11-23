@@ -111,18 +111,24 @@ internal sealed class BridgeController : IDisposable
     private readonly object _gate = new();
     private readonly BridgeRegistration _registration;
     private readonly string _contractDigest;
-    private readonly ControlPipeClient _pipeClient = new();
+    private readonly ControlPipeClient _pipeClient;
     private readonly NativeBridgeCommandExecutor _executor = new();
     private readonly CancellationTokenSource _shutdown = new();
     private ControlPipeSession? _activeControl;
-    private BridgeServer? _activeBridge;
+    private BridgeServer? _endpoint;
+    private BridgePortBinding? _portBinding;
+    private DateTimeOffset? _listeningSince;
     private NativeBridgeCommandExecutor.Session? _activeSession;
     private Task? _runTask;
     private BridgeControllerState _state = BridgeControllerState.WaitingForHost;
     private int _stopped;
 
     internal BridgeController(BridgeRegistration registration, string contractDigest)
+        : this(registration, contractDigest, ControlPipeClient.PipeName) { }
+
+    internal BridgeController(BridgeRegistration registration, string contractDigest, string pipeName)
     {
+        _pipeClient = new ControlPipeClient(pipeName);
         _registration = registration ?? throw new ArgumentNullException(nameof(registration));
         if (!BridgeWire.IsSha256(contractDigest))
         {
@@ -141,6 +147,100 @@ internal sealed class BridgeController : IDisposable
                 return _state;
             }
         }
+    }
+
+    internal object[] ClientStatus()
+    {
+        lock (_gate)
+            return _endpoint?.ClientStatus() ?? Array.Empty<object>();
+    }
+
+    internal object? ListenerActivity()
+    {
+        lock (_gate)
+            return _endpoint?.ListenerActivity();
+    }
+
+    internal (int Port, string Source, DateTimeOffset StartedAt)? ListenerStatus()
+    {
+        lock (_gate)
+            return _portBinding is { } binding && _listeningSince is { } started
+                ? (binding.Port, binding.Source, started) : null;
+    }
+
+    // Called on Rhino's UI thread by the plug-in and the native management commands.
+    internal bool StartEndpoint(int port, out string message)
+    {
+        lock (_gate)
+        {
+            if (_portBinding is { } current)
+            {
+                message = $"RhinoMCP server is already running on 127.0.0.1:{current.Port}. Run mcpstop first to change port.";
+                return true;
+            }
+
+            if (_stopped != 0)
+                throw new ObjectDisposedException(nameof(BridgeController));
+            BridgePortBinding binding;
+            var configured = System.Environment.GetEnvironmentVariable(BridgePortSelection.EnvironmentVariable);
+            try
+            {
+                binding = BridgePortSelection.Open(port, configured);
+            }
+            catch (System.Net.Sockets.SocketException error) when (
+                error.SocketErrorCode is System.Net.Sockets.SocketError.AddressAlreadyInUse
+                    or System.Net.Sockets.SocketError.AccessDenied)
+            {
+                var chosen = port == 0 && int.TryParse(configured, out var environmentPort) ? environmentPort : port;
+                var source = port == 0 ? BridgePortSelection.EnvironmentVariable : "Port option";
+                message = $"RhinoMCP server not started: port {chosen} ({source}) is already in use, probably by another Rhino. "
+                    + "Run mcpstatus there, or choose another port with: -mcpstart Port=<n>";
+                return false;
+            }
+            catch (InvalidOperationException)
+            {
+                message = "RhinoMCP server not started: ports 1999-2008 are all in use. "
+                    + "Stop a server with mcpstop in another Rhino, or choose a port with: -mcpstart Port=<n>";
+                return false;
+            }
+
+            var endpoint = new BridgeServer();
+            endpoint.StartBound(binding.Listener);
+            _endpoint = endpoint;
+            _portBinding = binding;
+            _listeningSince = DateTimeOffset.Now;
+            WindowTitleTag.Show($"MCP:{binding.Port}");
+            message = $"RhinoMCP server started on 127.0.0.1:{binding.Port} ({binding.Source}).";
+            if (binding.Port != 1999)
+                message += $"\nMCP clients must set {BridgePortSelection.EnvironmentVariable}={binding.Port} to talk to this Rhino.";
+            return true;
+        }
+    }
+
+    internal string StopEndpoint()
+    {
+        BridgeServer? endpoint;
+        ControlPipeSession? control;
+        int? port;
+        lock (_gate)
+        {
+            endpoint = _endpoint;
+            port = _portBinding?.Port;
+            control = _activeControl;
+            _activeSession?.CloseAsync();
+            _activeControl = null;
+            _endpoint = null;
+            _portBinding = null;
+            _listeningSince = null;
+        }
+
+        endpoint?.Dispose();
+        control?.Dispose();
+        _executor.CloseUndoGroups();
+        if (port is null)
+            return "RhinoMCP server is not running.";
+        WindowTitleTag.Clear();
+        return $"RhinoMCP server on port {port} stopped.";
     }
 
     internal Task Start()
@@ -170,22 +270,11 @@ internal sealed class BridgeController : IDisposable
             return;
         }
 
-        ControlPipeSession? control;
-        BridgeServer? bridge;
         lock (_gate)
-        {
             _state = BridgeControllerState.Stopping;
-            control = _activeControl;
-            bridge = _activeBridge;
-            _activeSession?.CloseAsync();
-            _activeControl = null;
-            _activeBridge = null;
-        }
 
         _shutdown.Cancel();
-        bridge?.Dispose();
-        control?.Dispose();
-        _executor.CloseUndoGroups();
+        StopEndpoint();
     }
 
     public void Dispose()
@@ -208,33 +297,38 @@ internal sealed class BridgeController : IDisposable
                 try
                 {
                     SetState(BridgeControllerState.WaitingForHost);
+                    bool listening;
+                    lock (_gate)
+                        listening = _endpoint is not null;
+                    if (!listening)
+                    {
+                        await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+                        continue;
+                    }
                     control = await _pipeClient.ConnectWithRetryAsync(
                         _registration,
                         _contractDigest,
                         cancellationToken
                     ).ConfigureAwait(false);
-                    SetActiveControl(control);
-
                     lock (_gate)
                     {
-                        if (_stopped != 0)
-                        {
+                        // The host lookup can outlive a native stop/start. Bind to the
+                        // current listener only when the verified lease is ready.
+                        bridge = _endpoint;
+                        if (_stopped != 0 || bridge is null)
                             throw new OperationCanceledException(cancellationToken);
-                        }
 
                         session = _executor.OpenSession();
+                        bridge.BindLease(control.Lease, session.ExecuteOwnedAsync, session.ConnectionClosed);
                         _activeSession = session;
+                        _activeControl = control;
                     }
-
-                    bridge = new BridgeServer(control.Lease, session.ExecuteOwnedAsync, session.ConnectionClosed);
-                    bridge.Start();
                     await control.ReportReadyAsync(
                         bridge.Port,
                         _registration.CapabilityDigest,
                         session.PreviousSessionState,
                         cancellationToken
                     ).ConfigureAwait(false);
-                    SetActiveBridge(bridge);
                     SetState(BridgeControllerState.Active);
                     await control.WaitForHostDisconnectAsync(cancellationToken).ConfigureAwait(false);
                     reconnectAttempt = 0;
@@ -251,8 +345,9 @@ internal sealed class BridgeController : IDisposable
                 {
                     // Revoke old handlers before transport disposal can cancel their responses.
                     var drain = session?.CloseAsync();
-                    ClearActive(control, bridge);
-                    bridge?.Dispose();
+                    ClearActive(control, session);
+                    if (control is not null)
+                        bridge?.RevokeLease(control.Lease);
                     control?.Dispose();
                     if (drain is not null)
                     {
@@ -290,34 +385,6 @@ internal sealed class BridgeController : IDisposable
         }
     }
 
-    private void SetActiveControl(ControlPipeSession control)
-    {
-        lock (_gate)
-        {
-            if (_stopped != 0)
-            {
-                control.Dispose();
-                throw new OperationCanceledException(_shutdown.Token);
-            }
-
-            _activeControl = control;
-        }
-    }
-
-    private void SetActiveBridge(BridgeServer bridge)
-    {
-        lock (_gate)
-        {
-            if (_stopped != 0)
-            {
-                bridge.Dispose();
-                throw new OperationCanceledException(_shutdown.Token);
-            }
-
-            _activeBridge = bridge;
-        }
-    }
-
     private void SetState(BridgeControllerState state)
     {
         lock (_gate)
@@ -329,7 +396,7 @@ internal sealed class BridgeController : IDisposable
         }
     }
 
-    private void ClearActive(ControlPipeSession? control, BridgeServer? bridge)
+    private void ClearActive(ControlPipeSession? control, NativeBridgeCommandExecutor.Session? session)
     {
         lock (_gate)
         {
@@ -338,11 +405,8 @@ internal sealed class BridgeController : IDisposable
                 _activeControl = null;
             }
 
-            if (bridge is not null && ReferenceEquals(_activeBridge, bridge))
-            {
-                _activeBridge = null;
+            if (session is not null && ReferenceEquals(_activeSession, session))
                 _activeSession = null;
-            }
 
             if (_stopped == 0)
             {
@@ -622,7 +686,7 @@ internal sealed class NativeBridgeCommandExecutor
                 if (includeHealth)
                 {
                     resultObject["_health"] = BridgePerception.BuildHealth(
-                        CaptureHealth(context, before, after)
+                        BridgePerception.CaptureHealth(context.RhinoDocument, before, after)
                     );
                 }
             }
@@ -648,21 +712,6 @@ internal sealed class NativeBridgeCommandExecutor
     private static HashSet<Guid> SnapshotIds(RequestContext context) =>
         NativeFunctions.Objects(context).Select(item => item.Id).ToHashSet();
 
-    private static GeometryHealthSnapshot[] CaptureHealth(
-        RequestContext context,
-        HashSet<Guid> before,
-        HashSet<Guid> after
-    ) => after
-        .Except(before)
-        .Select(id => context.RhinoDocument.Objects.FindId(id))
-        .Where(item => item is not null)
-        .Select(item =>
-        {
-            var isValid = item!.Geometry.IsValidWithLog(out var log);
-            return new GeometryHealthSnapshot(item.Id, isValid, log ?? string.Empty);
-        })
-        .ToArray();
-
     private static async Task<byte[]> AwaitAndDisposeAsync(
         Task<byte[]> task,
         CancellationTokenRegistration registration
@@ -686,7 +735,22 @@ internal sealed record GeometryHealthSnapshot(Guid Id, bool IsValid, string Vali
 
 internal static class BridgePerception
 {
-    private const int DetailCap = 50;
+    internal const int DetailCap = 50;
+
+    internal static GeometryHealthSnapshot[] CaptureHealth(
+        RhinoDoc document,
+        HashSet<Guid> before,
+        HashSet<Guid> after
+    ) => after
+        .Except(before)
+        .Select(id => document.Objects.FindId(id))
+        .Where(item => item is not null)
+        .Select(item =>
+        {
+            var isValid = item!.Geometry.IsValidWithLog(out var log);
+            return new GeometryHealthSnapshot(item.Id, isValid, log ?? string.Empty);
+        })
+        .ToArray();
 
     internal static Dictionary<string, object?> BuildDelta(
         IEnumerable<Guid> before,

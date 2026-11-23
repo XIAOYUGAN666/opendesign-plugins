@@ -16,7 +16,7 @@ def select_instance(records, executable_name):
     return "si_" + identity
 
 
-def running_instance(executable_name):
+def running_records(executable_name):
     if os.name != "nt":
         raise OSError("softwareProcessDetectionUnavailable")
     class ProcessEntry(ctypes.Structure):
@@ -57,4 +57,8 @@ def running_instance(executable_name):
             raise OSError("softwareProcessDetectionUnavailable")
     finally:
         kernel.CloseHandle(snapshot)
-    return select_instance(records, executable_name)
+    return records
+
+
+def running_instance(executable_name):
+    return select_instance(running_records(executable_name), executable_name)

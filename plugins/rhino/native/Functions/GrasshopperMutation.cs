@@ -214,15 +214,8 @@ internal static class GrasshopperMutation
             active.Locked = !NativeFunctions.Boolean(operation, "enabled");
         }
 
-        if (hasPreview)
-        {
-            if (target is not IGH_PreviewObject preview)
-            {
-                throw new NativeCommandException("unsupportedComponentState", "The selected Grasshopper object does not support preview visibility.");
-            }
-
+        if (hasPreview && target is IGH_PreviewObject preview)
             preview.Hidden = !NativeFunctions.Boolean(operation, "preview");
-        }
 
         object? value = null;
         if (hasValue)

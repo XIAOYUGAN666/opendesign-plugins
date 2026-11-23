@@ -78,7 +78,9 @@ def execute_rhinocommon_csharp_code(
     - output: Any output from output.AppendLine() calls
     - message: Error message if failed (includes compilation errors)
 
-    Any changes made to the document will be undone if the script fails.
+    A script failure can leave partial document changes in the Rhino undo record.
+    Check the returned change receipt, if enabled, and verify the document before
+    attempting another write. A script or external side effect is never replayed automatically.
 
     Safety: this tool compiles+runs arbitrary C# inside Rhino. Gated by the
     RHINO_MCP_ENABLE_CSHARP env var (default on for local dev). Set to "0"

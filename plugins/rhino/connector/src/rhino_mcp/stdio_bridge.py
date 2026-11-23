@@ -7,10 +7,12 @@ import ctypes
 from contextlib import contextmanager
 from ctypes import wintypes
 from pathlib import Path
+from threading import Lock
 from time import monotonic, sleep
 
 from rhino_mcp.bridge import BridgeBusy, BridgeClient, BridgeConfig, BridgeResultUnknown, BridgeUnavailable
 from rhino_mcp.build_identity import CONNECTOR_BUILD_ID
+from rhino_mcp.instances import Target, resolve_target
 from rhino_mcp.setup import installed_rhino
 
 
@@ -47,7 +49,7 @@ def _send(pipe, value):
 
 
 @contextmanager
-def await_bridge():
+def await_bridge(target: Target | None = None, *, timeout: float = 15, validation: str = "strict"):
     import pywintypes
     import win32api
     import win32file
@@ -57,6 +59,8 @@ def await_bridge():
     expected = installed_rhino()
     if expected is None:
         raise BridgeUnavailable("Rhino is missing or its selected installation is no longer available.")
+    target = target or resolve_target()
+    pid, pipe_name = target.pid, target.pipe
     security = pywintypes.SECURITY_ATTRIBUTES()
     security.SECURITY_DESCRIPTOR = win32security.ConvertStringSecurityDescriptorToSecurityDescriptor(
         "D:P(A;;GA;;;OW)", win32security.SDDL_REVISION_1
@@ -65,7 +69,7 @@ def await_bridge():
     while True:
         try:
             handle = win32pipe.CreateNamedPipe(
-                r"\\.\pipe\rhino-mcp-control-v1",
+                rf"\\.\pipe\{pipe_name}",
                 win32pipe.PIPE_ACCESS_DUPLEX | 0x00080000, 8 | win32pipe.PIPE_NOWAIT,
                 1, 65536, 65536, 0, security,
             )
@@ -87,8 +91,10 @@ def await_bridge():
                     raise BridgeUnavailable("Start Rhino and load the Bridge before calling a Rhino tool.") from error
                 sleep(0.05)
         win32pipe.SetNamedPipeHandleState(handle, win32pipe.PIPE_WAIT, None, None)
-        pid = win32pipe.GetNamedPipeClientProcessId(handle)
-        process = win32api.OpenProcess(0x1000, False, pid)
+        peer = win32pipe.GetNamedPipeClientProcessId(handle)
+        if peer != pid:
+            raise ValueError("rhinoBridgeUnexpectedProcess")
+        process = win32api.OpenProcess(0x1000, False, peer)
         try:
             image = _process_image(process)
         finally:
@@ -121,12 +127,14 @@ def await_bridge():
             if (
                 ready.get("kind") != "bridgeReady" or ready.get("generation") != generation
                 or ready.get("capabilityDigest") != registration.get("capabilityDigest")
+                or ready.get("port") != target.port
             ):
                 raise ValueError("invalidRhinoBridgeReady")
             if ready.get("previousSessionState") != "quiescent":
                 raise BridgeResultUnknown("A previous Rhino result remains unknown; further dispatch is blocked.")
             bridge = BridgeClient(BridgeConfig(
-                ("127.0.0.1", ready["port"]), 15, generation, token, CONNECTOR_BUILD_ID, contract,
+                ("127.0.0.1", target.port), timeout, generation, token, CONNECTOR_BUILD_ID, contract,
+                validation_mode=validation,
             ))
             try:
                 yield bridge
@@ -139,13 +147,28 @@ def await_bridge():
 class StdioBridgeSlot:
     """Acquire the exclusive Rhino Bridge only while dispatching a command."""
 
+    def __init__(self, port: int | None = None, timeout: float = 15, validation: str = "warn"):
+        self._port = port
+        self._timeout = timeout
+        self._validation = validation
+        self._target: Target | None = None
+        self._selection = Lock()
+
+    def _resolve(self) -> Target:
+        with self._selection:
+            existing = self._target
+            if existing is None:
+                self._target = resolve_target(self._port)
+                return self._target
+            return resolve_target(existing.port, existing.identity)
+
     def send_command(self, command_type, params=None):
         import pywintypes
 
         from rhino_mcp.server import RhinoConnection
 
         try:
-            with await_bridge() as bridge:
+            with await_bridge(self._resolve(), timeout=self._timeout, validation=self._validation) as bridge:
                 result = RhinoConnection(bridge).send_command(command_type, params)
                 if bridge.lifecycle_snapshot()[0] == "unknown":
                     raise BridgeResultUnknown("The Rhino result is unknown. Do not retry automatically.")
