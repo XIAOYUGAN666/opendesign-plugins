@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Rhino.Geometry;
 
 namespace RhinoMcpBridge.Functions;
 
@@ -9,38 +8,39 @@ internal static class CreateObjects
     internal static object CreateMany(RequestContext context, JsonElement parameters) =>
         NativeFunctions.Mutate(context, "Create MCP geometry batch", () =>
         {
-            var created = new List<string>();
+            var results = new Dictionary<string, object?>();
+            var successCount = 0;
             var errors = new List<Dictionary<string, object?>>();
             foreach (var entry in parameters.EnumerateObject())
             {
                 context.CancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    var item = entry.Value;
-                    var type = NativeFunctions.Text(item, "type")
-                        ?? throw new NativeCommandException("invalidParameters", "A geometry type is required.");
-                    var geometry = NativeFunctions.CreateGeometry(context, type, NativeFunctions.Property(item, "params"));
-                    NativeFunctions.ApplyTransforms(geometry, item, Point3d.Origin);
-                    var attributes = NativeFunctions.Attributes(context, item);
-
-                    created.Add(NativeFunctions.AddGeometry(context, geometry, attributes).ToString("D"));
+                    results[entry.Name] = CreateObject.CreateGeometry(context, entry.Value);
+                    successCount++;
                 }
-                catch (Exception exception)
+                catch (Exception exception) when (exception is not OperationCanceledException)
                 {
+                    var error = exception is NativeCommandException native ? native.SafeMessage : "Geometry could not be created.";
+                    results[entry.Name] = new Dictionary<string, object?>
+                    {
+                        ["status"] = "error",
+                        ["error"] = error,
+                    };
                     errors.Add(new Dictionary<string, object?>
                     {
                         ["name"] = entry.Name,
-                        ["error"] = exception is NativeCommandException native ? native.SafeMessage : "Geometry could not be created.",
+                        ["error"] = error,
                     });
                 }
             }
 
             return new Dictionary<string, object?>
             {
-                ["success_count"] = created.Count,
+                ["success_count"] = successCount,
                 ["failure_count"] = errors.Count,
-                ["total"] = created.Count + errors.Count,
-                ["created_ids"] = created,
+                ["total"] = successCount + errors.Count,
+                ["objects"] = results,
                 ["errors"] = errors,
             };
         });

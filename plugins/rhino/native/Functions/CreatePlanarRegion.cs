@@ -68,9 +68,13 @@ internal static class CreatePlanarRegion
 
             return new Dictionary<string, object?>
             {
-                ["result_ids"] = new[] { id },
-                ["count"] = 1,
-                ["message"] = "Planar region created.",
+                ["success"] = true,
+                ["id"] = id,
+                ["face_count"] = prepared.Faces.Count,
+                ["loop_count"] = prepared.Loops.Count,
+                ["outer_loop_count"] = prepared.Loops.Count(loop => loop.LoopType == BrepLoopType.Outer),
+                ["inner_loop_count"] = prepared.Loops.Count(loop => loop.LoopType == BrepLoopType.Inner),
+                ["message"] = "Created planar region",
             };
         });
     }

@@ -817,7 +817,7 @@ class TestDeleteLayerTool:
         mock_get_conn.return_value = mock_conn
 
         result = delete_layer(ctx=None, name="DeletedLayer")
-        assert result == "Deleted layer: DeletedLayer"
+        assert result == "Layer DeletedLayer deleted"
 
         call_args = mock_conn.send_command.call_args
         assert call_args[0][0] == "delete_layer"

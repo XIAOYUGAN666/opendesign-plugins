@@ -106,7 +106,7 @@ def test_layer_tool_formats_actual_sdk_receipt_without_missing_message(
     monkeypatch.setattr(module, "get_rhino_connection", lambda _ctx: ObservedReceipt())
     assert (
         module.delete_layer(None, guid=case["targetId"])
-        == "Deleted layer: SDK_DELETE_LAYER"
+        == "Layer SDK_DELETE_LAYER deleted"
     )
     assert calls == [("delete_layer", {"guid": case["targetId"]})]
 

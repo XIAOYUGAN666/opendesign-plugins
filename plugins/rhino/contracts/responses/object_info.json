@@ -34,7 +34,10 @@
       "description": "Axis-aligned bounding box"
     },
     "geometry": {
-      "type": "object",
+      "oneOf": [
+        { "type": "object" },
+        { "$ref": "../common/definitions.json#/$defs/point3d" }
+      ],
       "description": "Type-specific geometry data"
     },
     "attributes": {
@@ -43,5 +46,5 @@
       "additionalProperties": { "type": "string" }
     }
   },
-  "required": ["id", "name", "type", "layer", "color", "bounding_box"]
+  "required": ["id", "name", "type", "layer", "bounding_box"]
 }

@@ -4,14 +4,14 @@
   "title": "Created planar geometry receipt",
   "type": "object",
   "properties": {
-    "result_ids": {
-      "$ref": "../common/definitions.json#/$defs/guidArray",
-      "minItems": 1,
-      "uniqueItems": true
-    },
-    "count": { "type": "integer", "minimum": 1 },
+    "success": { "const": true },
+    "id": { "$ref": "../common/definitions.json#/$defs/guid" },
+    "face_count": { "const": 1 },
+    "loop_count": { "type": "integer", "minimum": 1 },
+    "outer_loop_count": { "const": 1 },
+    "inner_loop_count": { "type": "integer", "minimum": 0 },
     "message": { "type": "string" }
   },
-  "required": ["result_ids", "count", "message"],
+  "required": ["success", "id", "face_count", "loop_count", "outer_loop_count", "inner_loop_count", "message"],
   "additionalProperties": false
 }

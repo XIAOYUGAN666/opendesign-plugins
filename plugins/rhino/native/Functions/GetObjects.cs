@@ -12,7 +12,7 @@ internal static class GetObjects
         var offset = Math.Max(0, NativeFunctions.Integer(parameters, "offset"));
         var limit = Math.Min(200, Math.Max(1, NativeFunctions.Integer(parameters, "limit", 50)));
         var layerFilter = NativeFunctions.Text(parameters, "layer_filter");
-        var typeFilter = NativeFunctions.Text(parameters, "type_filter");
+        var typeFilter = NativeFunctions.Text(parameters, "type_filter")?.ToUpperInvariant();
         var bboxFilter = NativeFunctions.Property(parameters, "bbox_filter");
         var includeGeometry = NativeFunctions.Boolean(parameters, "include_geometry", true);
         var selectedOnly = NativeFunctions.Boolean(parameters, "selected_only");
@@ -74,15 +74,27 @@ internal static class GetObjects
         if (includeHidden) filters["include_hidden"] = true;
         if (!includeLocked) filters["include_locked"] = false;
 
-        return new Dictionary<string, object?>
+        var page = matches.Skip(offset).Take(limit).ToArray();
+        var result = new Dictionary<string, object?>
         {
-            ["objects"] = matches.Skip(offset).Take(limit).Select(obj => NativeFunctions.ObjectInfo(obj, includeGeometry)).ToArray(),
+            ["objects"] = page.Select(obj => includeGeometry
+                ? NativeFunctions.ObjectInfo(obj)
+                : new Dictionary<string, object?>
+                {
+                    ["id"] = obj.Id.ToString("D"),
+                    ["name"] = obj.Name ?? "(unnamed)",
+                    ["type"] = GetDocumentSummary.NormalizedType(obj),
+                    ["layer"] = context.RhinoDocument.Layers.FindIndex(obj.Attributes.LayerIndex)?.Name ?? "(deleted layer)",
+                    ["bounding_box"] = NativeFunctions.BoundingBox(obj.Geometry.GetBoundingBox(accurate: true)),
+                }).ToArray(),
             ["total_matching"] = matches.Length,
             ["offset"] = offset,
             ["limit"] = limit,
-            ["has_more"] = offset + limit < matches.Length,
-            ["filters"] = filters,
+            ["has_more"] = offset + page.Length < matches.Length,
         };
+        if (filters.Count > 0)
+            result["filters"] = filters;
+        return result;
     }
 
     private static bool Overlaps(BoundingBox first, BoundingBox second) =>

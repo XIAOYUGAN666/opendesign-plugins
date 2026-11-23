@@ -30,7 +30,11 @@ internal static class UndoRedo
         {
             ["success"] = completed > 0,
             ["completed"] = completed,
-            ["message"] = $"{(undo ? "Undid" : "Redid")} {completed} of {steps} requested step(s).",
+            [undo ? "undone_steps" : "redone_steps"] = completed,
+            ["requested_steps"] = steps,
+            ["message"] = completed > 0
+                ? $"{(undo ? "Undid" : "Redid")} {completed} operation(s)"
+                : (undo ? "Nothing to undo" : "Nothing to redo"),
         };
     }
 

@@ -29,6 +29,8 @@ internal static class DeleteLayer
                 ["name"] = name,
                 ["deleted"] = true,
                 ["count"] = 1,
+                ["success"] = true,
+                ["message"] = $"Layer {name} deleted",
             };
         });
 }

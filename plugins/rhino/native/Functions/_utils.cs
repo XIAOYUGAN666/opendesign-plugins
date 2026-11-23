@@ -269,28 +269,31 @@ internal static class NativeFunctions
         );
     }
 
-    internal static Dictionary<string, object?> ObjectInfo(RhinoObject obj, bool includeGeometry = true)
+    internal static Dictionary<string, object?> ObjectInfo(RhinoObject obj)
     {
         var geometry = obj.Geometry;
         var bbox = geometry.GetBoundingBox(accurate: true);
         var info = new Dictionary<string, object?>
         {
             ["id"] = obj.Id.ToString("D"),
-            ["name"] = string.IsNullOrWhiteSpace(obj.Attributes.Name) ? "(unnamed)" : obj.Attributes.Name,
-            ["type"] = GeometryType(geometry),
-            ["layer"] = obj.Document?.Layers.FindIndex(obj.Attributes.LayerIndex)?.FullPath ?? "(deleted layer)",
+            ["name"] = obj.Name ?? "(unnamed)",
+            ["type"] = geometry switch
+            {
+                Rhino.Geometry.Point => "POINT",
+                LineCurve => "LINE",
+                PolylineCurve => "POLYLINE",
+                Curve => "Curve",
+                Extrusion => "EXTRUSION",
+                _ => obj.ObjectType.ToString(),
+            },
+            ["layer"] = obj.Document?.Layers.FindIndex(obj.Attributes.LayerIndex)?.Name ?? "(deleted layer)",
+            ["material"] = obj.Attributes.MaterialIndex.ToString(CultureInfo.InvariantCulture),
             ["color"] = RgbObject(obj.Attributes.ObjectColor),
             ["bounding_box"] = BoundingBox(bbox),
-            ["is_valid"] = geometry.IsValid,
         };
-        if (includeGeometry)
-        {
-            var detail = GeometryInfo(geometry);
-            if (detail is not null)
-            {
-                info["geometry"] = detail;
-            }
-        }
+        var detail = GeometryInfo(geometry);
+        if (detail is not null)
+            info["geometry"] = detail;
 
         return info;
     }
@@ -315,44 +318,28 @@ internal static class NativeFunctions
         }
         : Array.Empty<double[]>();
 
-    internal static object? GeometryInfo(GeometryBase geometry)
+    private static object? GeometryInfo(GeometryBase geometry) => geometry switch
     {
-        if (geometry is Point point)
+        Rhino.Geometry.Point point => RoundedPoint(point.Location),
+        LineCurve line => new Dictionary<string, object?>
         {
-            return new Dictionary<string, object?>
-            {
-                ["location"] = PointArray(point.Location),
-            };
-        }
-
-        if (geometry is Curve curve)
+            ["start"] = RoundedPoint(line.Line.From),
+            ["end"] = RoundedPoint(line.Line.To),
+        },
+        PolylineCurve polyline => new Dictionary<string, object?>
         {
-            var domain = curve.Domain;
-            return new Dictionary<string, object?>
-            {
-                ["degree"] = curve.Degree,
-                ["is_closed"] = curve.IsClosed,
-                ["length"] = curve.GetLength(),
-                ["start"] = PointArray(curve.PointAtStart),
-                ["end"] = PointArray(curve.PointAtEnd),
-                ["domain"] = new[] { domain.Min, domain.Max },
-            };
-        }
-
-        if (geometry is Brep brep)
+            ["points"] = polyline.ToArray().Select(RoundedPoint).ToArray(),
+        },
+        Curve curve => new Dictionary<string, object?>
         {
-            return new Dictionary<string, object?>
-            {
-                ["face_count"] = brep.Faces.Count,
-                ["edge_count"] = brep.Edges.Count,
-                ["is_solid"] = brep.IsSolid,
-                ["volume"] = brep.IsSolid ? VolumeMassProperties.Compute(brep)?.Volume : null,
-                ["area"] = AreaMassProperties.Compute(brep)?.Area,
-            };
-        }
+            ["points"] = curve.ControlPolygon().Select(RoundedPoint).ToArray(),
+            ["degree"] = curve.Degree.ToString(CultureInfo.InvariantCulture),
+        },
+        _ => null,
+    };
 
-        return null;
-    }
+    private static double[] RoundedPoint(Point3d point) =>
+        new[] { Math.Round(point.X, 2), Math.Round(point.Y, 2), Math.Round(point.Z, 2) };
 
     internal static double[] PointArray(Point3d point) => new[] { point.X, point.Y, point.Z };
 

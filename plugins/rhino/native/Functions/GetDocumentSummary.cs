@@ -39,14 +39,14 @@ internal static class GetDocumentSummary
             ["children"] = new List<Dictionary<string, object?>>(),
         });
         var hierarchy = new List<Dictionary<string, object?>>();
-        foreach (var layer in layers.OrderBy(layer => layer.FullPath, StringComparer.OrdinalIgnoreCase))
+        foreach (var layer in layers)
         {
             var node = nodes[layer.Id];
             if (nodes.TryGetValue(layer.ParentLayerId, out var parent))
             {
                 ((List<Dictionary<string, object?>>)parent["children"]!).Add(node);
             }
-            else
+            else if (layer.ParentLayerId == Guid.Empty)
             {
                 hierarchy.Add(node);
             }
@@ -69,7 +69,7 @@ internal static class GetDocumentSummary
             ["objects_by_layer"] = byShortLayer,
             ["objects_by_layer_path"] = byLayer,
             ["model_bounding_box"] = bounds.IsValid ? NativeFunctions.BoundingBox(bounds) : null,
-            ["layer_count"] = layers.Length,
+            ["layer_count"] = context.RhinoDocument.Layers.Count,
             ["layer_hierarchy"] = hierarchy,
         };
     }

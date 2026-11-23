@@ -167,9 +167,8 @@ internal sealed partial class NativeSelfTests
             var successCount = batchResult["success_count"]?.ToObject<int>() ?? 0;
             if (successCount != 2)
                 throw new Exception($"Expected 2 successes, got {successCount}");
-            var createdIds = batchResult["created_ids"] as JArray;
-            batchBox1Id = createdIds?.ElementAtOrDefault(0)?.ToString();
-            batchBox2Id = createdIds?.ElementAtOrDefault(1)?.ToString();
+            batchBox1Id = batchResult["objects"]?["BatchBox1"]?["id"]?.ToString();
+            batchBox2Id = batchResult["objects"]?["BatchBox2"]?["id"]?.ToString();
             if (string.IsNullOrEmpty(batchBox1Id) || string.IsNullOrEmpty(batchBox2Id))
                 throw new Exception("Batch-created boxes did not return object IDs");
             box2Id = batchBox1Id;
@@ -236,7 +235,7 @@ internal sealed partial class NativeSelfTests
         // Test 7: GetSelectedObjectsInfo
         try
         {
-            var selectedObjects = InvokeValue("get_selected_objects_info", new JObject { ["include_attributes"] = true }) as JArray;
+            var selectedObjects = Invoke("get_selected_objects_info", new JObject { ["include_attributes"] = true })["selected_objects"] as JArray;
             if (selectedObjects == null || selectedObjects.Count == 0)
                 throw new Exception("No selected objects returned");
             results["get_selected_objects_info"] = new JObject { ["status"] = "pass", ["count"] = selectedObjects.Count };

@@ -15,16 +15,6 @@ internal static class ObjectAttributesCommands
         {
             throw new NativeCommandException("layerNotFound", "The Rhino object's layer was not found.");
         }
-        var strings = attributes.GetUserStrings();
-        var userStrings = new SortedDictionary<string, string>(StringComparer.Ordinal);
-        if (strings is not null)
-        {
-            foreach (var key in strings.AllKeys.Where(key => key is not null))
-            {
-                userStrings[key!] = strings[key!] ?? string.Empty;
-            }
-        }
-
         return new Dictionary<string, object?>
         {
             ["id"] = obj.Id.ToString("D"),
@@ -45,8 +35,20 @@ internal static class ObjectAttributesCommands
             ["locked"] = obj.IsLocked,
             ["hidden"] = obj.IsHidden,
             ["normal"] = obj.IsNormal,
-            ["user_strings"] = userStrings,
+            ["user_strings"] = UserStrings(attributes),
         };
+    }
+
+    internal static SortedDictionary<string, string> UserStrings(ObjectAttributes attributes)
+    {
+        var userStrings = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var strings = attributes.GetUserStrings();
+        if (strings is not null)
+        {
+            foreach (var key in strings.AllKeys.Where(key => key is not null))
+                userStrings[key!] = strings[key!] ?? string.Empty;
+        }
+        return userStrings;
     }
 
     [McpCommand("update_object_attributes", ReadOnly = false, SupportsDryRun = false, CompletesWithinCallback = true)]

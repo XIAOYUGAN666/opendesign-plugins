@@ -15,13 +15,24 @@ INNER_A = "00000000-0000-0000-0000-000000000002"
 INNER_B = "00000000-0000-0000-0000-000000000003"
 
 
+def _creation_receipt(holes=0):
+    return {
+        "success": True,
+        "id": OUTER,
+        "face_count": 1,
+        "loop_count": 1 + holes,
+        "outer_loop_count": 1,
+        "inner_loop_count": holes,
+        "message": "Created planar region",
+    }
+
+
 @patch("rhino_mcp.tools.create_planar_region.get_rhino_connection")
 def test_preserves_actual_native_creation_receipt(mock_get_connection):
-    receipt = {"result_ids": [OUTER], "count": 1, "message": "Planar region created."}
+    receipt = _creation_receipt()
     mock_get_connection.return_value.send_command.return_value = receipt
     result = create_planar_region(ctx=None, outer_curve_id=INNER_A)
-    assert result == {"success": True, **receipt}
-    assert "id" not in result and "face_count" not in result
+    assert result == receipt
 
 
 def test_native_receipt_has_a_response_contract():
@@ -29,9 +40,14 @@ def test_native_receipt_has_a_response_contract():
 
     assert validate_response(
         "create_planar_region",
-        {"result_ids": [OUTER], "count": 1, "message": "Planar region created."},
+        _creation_receipt(2),
     )
-    for invalid in ({}, {"id": OUTER}, {"result_ids": [], "count": 0, "message": ""}):
+    for invalid in (
+        {},
+        {"id": OUTER},
+        {**_creation_receipt(), "face_count": 2},
+        {"result_ids": [OUTER], "count": 1, "message": "Created planar region"},
+    ):
         assert not validate_response(
             "create_planar_region", invalid, raise_on_error=False
         )
@@ -40,11 +56,7 @@ def test_native_receipt_has_a_response_contract():
 @patch("rhino_mcp.tools.create_planar_region.get_rhino_connection")
 def test_forwards_typed_command_and_returns_native_ids(mock_get_connection):
     connection = MagicMock()
-    connection.send_command.return_value = {
-        "result_ids": [OUTER],
-        "count": 1,
-        "message": "Planar region created.",
-    }
+    connection.send_command.return_value = _creation_receipt(2)
     mock_get_connection.return_value = connection
 
     result = create_planar_region(
@@ -62,22 +74,13 @@ def test_forwards_typed_command_and_returns_native_ids(mock_get_connection):
             "name": "plate",
         },
     )
-    assert result == {
-        "success": True,
-        "result_ids": [OUTER],
-        "count": 1,
-        "message": "Planar region created.",
-    }
+    assert result == _creation_receipt(2)
 
 
 @patch("rhino_mcp.tools.create_planar_region.get_rhino_connection")
 def test_defaults_inner_curves_to_empty_list_and_omits_name(mock_get_connection):
     connection = MagicMock()
-    connection.send_command.return_value = {
-        "result_ids": [OUTER],
-        "count": 1,
-        "message": "Planar region created.",
-    }
+    connection.send_command.return_value = _creation_receipt()
     mock_get_connection.return_value = connection
 
     create_planar_region(ctx=None, outer_curve_id=OUTER)
