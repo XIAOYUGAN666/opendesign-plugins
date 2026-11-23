@@ -82,9 +82,9 @@ def test_release_identity_rejects_derived_version_drift(tmp_path):
         copied,
         ignore=shutil.ignore_patterns(".venv", "bin", "obj", "__pycache__"),
     )
-    identity = json.loads((copied / "plugin.json").read_text())
+    identity = json.loads((copied / "plugin.json").read_text(encoding="utf-8"))
     identity["version"] += "-drift"
-    (copied / "plugin.json").write_text(json.dumps(identity))
+    (copied / "plugin.json").write_text(json.dumps(identity), encoding="utf-8")
     original = build_release.PLUGIN_ROOT
     try:
         build_release.configure_plugin_root(copied)

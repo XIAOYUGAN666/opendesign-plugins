@@ -92,7 +92,7 @@ class ReleaseInputTests(unittest.TestCase):
                 stage.assert_not_called()
 
     def test_publisher_sequence_is_explicit_bounded_and_not_plugin_identity(self):
-        identity = json.loads((PLUGIN / "plugin.json").read_text())
+        identity = json.loads((PLUGIN / "plugin.json").read_text(encoding="utf-8"))
         release = verifier.release_identity(identity, release_sequence=2)
         self.assertEqual(release["releaseSequence"], 2)
         self.assertEqual(release["pluginVersion"], identity["version"])
@@ -361,14 +361,14 @@ print('signed round trip and six zero-runtime trust negatives passed')
         (plugin / "plugin.json").write_text(json.dumps(identity), encoding="utf-8")
         result = subprocess.run([str(PYTHON), "-B", str(ROOT / "scripts/build_artifact.py"), str(plugin), "--generate-release-input", "--release-sequence", "1"], cwd=ROOT, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors="replace"))
-        generated = json.loads((plugin / "packaging/release-input.json").read_text())
+        generated = json.loads((plugin / "packaging/release-input.json").read_text(encoding="utf-8"))
         self.assertEqual(generated["releaseIdentity"]["pluginVersion"], "0.1.42")
         self.assertEqual(generated["rootSha256"], "sha256:" + hashlib.sha256((plugin / "plugin.json").read_bytes()).hexdigest())
         self.assertTrue({"archive", "connectorBuildId", "filesDigest", "sbomDigest", "toolCatalogDigest"}.isdisjoint(generated["releaseIdentity"]))
         for name in ("dlubal-rfem", "rhino"):
             root = ROOT / "plugins" / name
-            identity = json.loads((root / "plugin.json").read_text())
-            copied = json.loads((root / "packaging/release-input.json").read_text())
+            identity = json.loads((root / "plugin.json").read_text(encoding="utf-8"))
+            copied = json.loads((root / "packaging/release-input.json").read_text(encoding="utf-8"))
             self.assertEqual(copied["releaseIdentity"]["packageId"], name)
             self.assertEqual(copied["releaseIdentity"]["pluginVersion"], identity["version"])
             self.assertEqual(copied["rootSha256"], "sha256:" + hashlib.sha256((root / "plugin.json").read_bytes()).hexdigest())
