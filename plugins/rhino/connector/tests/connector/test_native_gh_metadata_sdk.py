@@ -74,6 +74,8 @@ def test_actual_component_type_metadata_reports_stable_port_indices(
 ):
     info = native_gh_metadata[identity]
     assert info["guid"] == identity
+    assert type(info["obsolete"]) is bool
+    assert type(info["hidden"]) is bool
     assert len(info["inputs"]) == inputs
     assert len(info["outputs"]) == outputs
     assert [port["index"] for port in info["inputs"]] == list(range(inputs))

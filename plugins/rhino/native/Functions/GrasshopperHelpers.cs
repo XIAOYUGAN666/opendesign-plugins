@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Grasshopper;
@@ -11,55 +12,87 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GrasshopperHelpers
 {
+    private static readonly Dictionary<string, string> GhComponentAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Slider"] = "Number Slider",
+        ["NumSlider"] = "Number Slider",
+        ["Num Slider"] = "Number Slider",
+        ["Toggle"] = "Boolean Toggle",
+        ["Bool Toggle"] = "Boolean Toggle",
+        ["Text Panel"] = "Panel",
+        ["ValueList"] = "Value List",
+        ["Add"] = "Addition",
+        ["Plus"] = "Addition",
+        ["Subtract"] = "Subtraction",
+        ["Minus"] = "Subtraction",
+        ["Multiply"] = "Multiplication",
+        ["Mult"] = "Multiplication",
+        ["Divide"] = "Division",
+        ["Div"] = "Division",
+        ["Pt"] = "Point",
+        ["Point Param"] = "Point",
+        ["Curve Param"] = "Curve",
+        ["Brep Param"] = "Brep",
+        ["Circ"] = "Circle",
+        ["Rect"] = "Rectangle",
+        ["Ln"] = "Line",
+        ["Vec"] = "Vector",
+        ["Pt3d"] = "Construct Point",
+        ["Mv"] = "Move",
+        ["Rot"] = "Rotate",
+        ["Scl"] = "Scale",
+        ["ListItem"] = "List Item"
+    };
+
     internal static GH_Document RequireDocument(RequestContext context) =>
         context.RequireGrasshopperDocument();
 
     internal static IReadOnlyList<IGH_ObjectProxy> Proxies =>
         Instances.ComponentServer?.ObjectProxies
-            .Where(proxy => proxy is not null && !proxy.Obsolete)
+            .Where(proxy => proxy is not null)
             .ToArray()
         ?? Array.Empty<IGH_ObjectProxy>();
 
-    internal static IReadOnlyList<IGH_ObjectProxy> SearchProxies(
-        string? query,
-        string? category,
-        int limit
-    )
+    private static bool IsOutdatedProxy(IGH_ObjectProxy proxy) =>
+        proxy.Obsolete || proxy.Exposure == GH_Exposure.hidden;
+
+    internal static IReadOnlyList<IGH_ObjectProxy> SearchProxies(string? query, string? category, int limit)
     {
-        var boundedLimit = Math.Max(1, Math.Min(limit, 5000));
-        IEnumerable<IGH_ObjectProxy> candidates;
-        if (string.IsNullOrWhiteSpace(query))
+        var candidates = Proxies.Where(proxy => string.IsNullOrWhiteSpace(category)
+            || string.Equals(proxy.Desc.Category, category, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(query))
         {
-            candidates = Proxies;
+            var term = query!;
+            GhComponentAliases.TryGetValue(term, out var alias);
+            candidates = candidates.Where(proxy =>
+                    ContainsText(proxy.Desc.Name, term) || ContainsText(proxy.Desc.NickName, term)
+                    || ContainsText(proxy.Desc.Description, term)
+                    || (alias is not null && ContainsText(proxy.Desc.Name, alias)))
+                .OrderByDescending(proxy => NamesEqual(proxy.Desc.Name, term))
+                .ThenByDescending(proxy => NamesEqual(proxy.Desc.NickName, term))
+                .ThenByDescending(proxy => alias is not null && NamesEqual(proxy.Desc.Name, alias))
+                .ThenBy(IsOutdatedProxy)
+                .ThenBy(proxy => proxy.Desc.Category)
+                .ThenBy(proxy => proxy.Desc.SubCategory)
+                .ThenBy(proxy => proxy.Desc.Name);
         }
         else
         {
-            var componentServer = Instances.ComponentServer;
-            if (componentServer is null)
-            {
-                return Array.Empty<IGH_ObjectProxy>();
-            }
-
-            IGH_ObjectProxy[] matches = Array.Empty<IGH_ObjectProxy>();
-            double[] scores = Array.Empty<double>();
-            var count = componentServer.FindObjects(
-                query!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries),
-                boundedLimit,
-                ref matches,
-                ref scores
-            );
-            candidates = matches.Take(Math.Max(0, Math.Min(count, matches.Length)));
+            candidates = candidates.OrderBy(IsOutdatedProxy)
+                .ThenBy(proxy => proxy.Desc.Category)
+                .ThenBy(proxy => proxy.Desc.SubCategory)
+                .ThenBy(proxy => proxy.Desc.Name);
         }
 
-        var seen = new HashSet<Guid>();
-        return candidates
-            .Where(proxy => proxy is not null && !proxy.Obsolete)
-            .Where(proxy => string.IsNullOrWhiteSpace(category)
-                || string.Equals(proxy.Desc.Category, category, StringComparison.OrdinalIgnoreCase))
-            .Where(proxy => seen.Add(proxy.Guid))
-            .Take(boundedLimit)
-            .ToArray();
+        return candidates.GroupBy(proxy => proxy.Guid).Select(group => group.First())
+            .Take(Math.Max(1, Math.Min(limit, 5000))).ToArray();
     }
+
+    private static bool ContainsText(string? text, string term) =>
+        text?.IndexOf(term, StringComparison.OrdinalIgnoreCase) >= 0;
+
+    private static bool NamesEqual(string? text, string term) =>
+        string.Equals(text, term, StringComparison.OrdinalIgnoreCase);
 
     internal static IGH_ObjectProxy RequireProxy(string? name, string? guid)
     {
@@ -80,18 +113,16 @@ internal static class GrasshopperHelpers
             throw new NativeCommandException("invalidParameters", "A Grasshopper component name or identifier is required.");
         }
 
-        var matches = proxies
-            .Where(proxy => string.Equals(proxy.Desc.Name, name, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(proxy.Desc.NickName, name, StringComparison.OrdinalIgnoreCase)
-                || string.Equals(proxy.Desc.Category + " "+ proxy.Desc.SubCategory + " "+ proxy.Desc.Name, name, StringComparison.OrdinalIgnoreCase))
-            .Take(2)
-            .ToArray();
-        return matches.Length switch
-        {
-            1 => matches[0],
-            0 => throw new NativeCommandException("componentTypeNotFound", "The Grasshopper component type was not found."),
-            _ => throw new NativeCommandException("ambiguousComponentType", "The component name is ambiguous; search and use its component identifier."),
-        };
+        var term = name!;
+        if (GhComponentAliases.TryGetValue(term, out var alias))
+            term = alias;
+        var preferred = proxies.OrderBy(IsOutdatedProxy).ToArray();
+        return preferred.FirstOrDefault(proxy => NamesEqual(proxy.Desc.Name, term))
+            ?? preferred.FirstOrDefault(proxy => NamesEqual(proxy.Desc.NickName, term))
+            ?? preferred.FirstOrDefault(proxy => NamesEqual($"{proxy.Desc.Category} {proxy.Desc.SubCategory} {proxy.Desc.Name}", term))
+            ?? preferred.FirstOrDefault(proxy => ContainsText(proxy.Desc.Name, term))
+            ?? preferred.FirstOrDefault(proxy => ContainsText(proxy.Desc.NickName, term))
+            ?? throw new NativeCommandException("componentTypeNotFound", "The Grasshopper component type was not found.");
     }
 
     internal static IGH_DocumentObject CreateInstance(IGH_ObjectProxy proxy) =>
@@ -232,6 +263,7 @@ internal static class GrasshopperHelpers
             ["subcategory"] = proxy.Desc.SubCategory,
             ["description"] = includeDescription ? proxy.Desc.Description : null,
             ["obsolete"] = proxy.Obsolete,
+            ["hidden"] = proxy.Exposure == GH_Exposure.hidden,
             ["inputs"] = Inputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
             ["outputs"] = Outputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
         };
@@ -293,6 +325,39 @@ internal static class GrasshopperHelpers
             .ToArray();
     }
 
+    /// <summary>
+    /// A parameter's TypeName without tripping Grasshopper. GH_Param&lt;T&gt;.TypeName
+    /// instantiates T, and for an abstract or interface T (IGH_Goo, as on the
+    /// placeholder Grasshopper puts in for a missing plugin's component)
+    /// Grasshopper opens a modal "Grasshopper breakpoint" dialog before it
+    /// throws, which blocks Rhino's UI thread and with it every MCP command
+    /// (issue #93). Such a parameter reports its data type's name instead.
+    /// </summary>
+    internal static string SafeParamTypeName(IGH_Param param)
+    {
+        try
+        {
+            var dataType = param.Type;
+            bool cannotInstantiate = dataType != null && (dataType.IsInterface || dataType.IsAbstract);
+            if (cannotInstantiate && !OverridesTypeName(param))
+                return dataType!.Name;
+            return param.TypeName;
+        }
+        catch (Exception)
+        {
+            return param.Type?.Name ?? "Unknown";
+        }
+    }
+
+    // True when a class below GH_Param<T> supplies its own TypeName, which then
+    // does not instantiate T (Param_GenericObject reports "Generic Data").
+    private static bool OverridesTypeName(IGH_Param param)
+    {
+        var declaring = param.GetType().GetProperty("TypeName", BindingFlags.Public | BindingFlags.Instance)?.DeclaringType;
+        return declaring != null
+            && !(declaring.IsGenericType && declaring.GetGenericTypeDefinition() == typeof(GH_Param<>));
+    }
+
     internal static object PortInfo(IGH_Param parameter, int index = -1, bool includeValues = false, int maxItems = 20)
     {
         var result = new Dictionary<string, object?>
@@ -300,7 +365,7 @@ internal static class GrasshopperHelpers
             ["index"] = index,
             ["name"] = parameter.Name,
             ["nickname"] = parameter.NickName,
-            ["type"] = parameter.TypeName,
+            ["type"] = SafeParamTypeName(parameter),
             ["optional"] = parameter.Optional,
             ["access"] = parameter.Access.ToString(),
             ["source_count"] = parameter.SourceCount,

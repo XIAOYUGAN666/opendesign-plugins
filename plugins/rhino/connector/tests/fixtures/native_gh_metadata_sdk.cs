@@ -52,13 +52,19 @@ internal static class NativeGhMetadataSdkProbe
             var proxies = ((System.Collections.IEnumerable)property.GetValue(server,null)).Cast<object>().ToArray();
             if (RhinoApp.Version.ToString() != "8.26.25349.19001") throw new InvalidOperationException("Exact accepted Rhino build required.");
             var helpers = bridge.GetType("RhinoMcpBridge.Functions.GrasshopperHelpers",true);
-            try {
-                var selected=helpers.GetMethod("RequireProxy",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{"Addition",null});
-                Console.WriteLine("NAME_RESOLVED="+selected.GetType().GetProperty("Guid").GetValue(selected,null));
-            } catch(Exception error) {
-                while(error is TargetInvocationException && error.InnerException!=null)error=error.InnerException;
-                Console.WriteLine("NAME_ERROR="+error.GetType().Name+":"+error.Message);
-            }
+            var requireProxy = helpers.GetMethod("RequireProxy", BindingFlags.Static | BindingFlags.NonPublic);
+            var addition = requireProxy.Invoke(null, new object[] { "Addition", null });
+            var addAlias = requireProxy.Invoke(null, new object[] { "Add", null });
+            var selectedId = (Guid)addition.GetType().GetProperty("Guid").GetValue(addition, null);
+            var aliasId = (Guid)addAlias.GetType().GetProperty("Guid").GetValue(addAlias, null);
+            var search = (System.Collections.IEnumerable)helpers.GetMethod("SearchProxies", BindingFlags.Static | BindingFlags.NonPublic)
+                .Invoke(null, new object[] { "Addition", null, 10 });
+            var first = search.Cast<object>().First();
+            var firstId = (Guid)first.GetType().GetProperty("Guid").GetValue(first, null);
+            if (selectedId != aliasId || selectedId != firstId)
+                throw new InvalidOperationException("Component resolution, alias, and search chose different Addition components.");
+            if ((bool)addition.GetType().GetProperty("Obsolete").GetValue(addition, null))
+                throw new InvalidOperationException("Search chose an obsolete Addition component.");
             foreach(var id in new[]{"a0d62394-a118-422d-abb3-6af115c75b25","57da07bd-ecab-415d-9d86-af36d7073abc","59e0b89a-e487-49f8-bab8-b5bab16be14c"})
             {
                 var proxy=proxies.SingleOrDefault(p=>(Guid)p.GetType().GetProperty("Guid").GetValue(p,null)==new Guid(id));

@@ -158,6 +158,7 @@ internal static class GrasshopperCatalog
             ["subcategory"] = proxy.Desc.SubCategory,
             ["description"] = includeDescription ? proxy.Desc.Description : null,
             ["obsolete"] = proxy.Obsolete,
+            ["hidden"] = proxy.Exposure == GH_Exposure.hidden,
         };
 
     private static string[] StringArray(JsonElement parameters, string key)
