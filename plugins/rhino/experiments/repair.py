@@ -59,7 +59,9 @@ def prepare(revision, candidate, patch, allowed):
     if not allowed or any(str(path) not in before or not path.is_relative_to(PACKAGE_PATH)
                           or before[str(path)]["kind"] != "file" for path in allowed):
         raise ValueError("Scope must name existing files in the plugin package")
-    apply = ["git", "apply", "--no-index", "--whitespace=error"]
+    # Upstream patches can carry CRLF context around a file without a final newline.
+    # Match that context regardless of spacing, then verify the exact changed files.
+    apply = ["git", "apply", "--no-index", "--ignore-space-change", "--whitespace=error"]
     subprocess.run([*apply, "--check", str(patch.resolve(strict=True))], cwd=candidate, check=True)
     subprocess.run([*apply, str(patch.resolve(strict=True))], cwd=candidate, check=True)
     changed = check_candidate(candidate, before, [path.as_posix() for path in allowed])
