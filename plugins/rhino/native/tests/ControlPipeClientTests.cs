@@ -142,6 +142,44 @@ public sealed class ControlPipeClientTests
         Assert.Equal(0, stream.Length);
     }
 
+    [Fact]
+    public async Task Release_acknowledges_only_the_current_lease()
+    {
+        using var native = NativeTestAssembly.Load();
+        using var stream = new MemoryStream();
+        using var session = CreateControlSession(native, stream);
+        await BridgeTestSupport.WriteFrameAsync(stream, """{"schemaVersion":1,"kind":"release","generation":1}""");
+        stream.Position = 0;
+
+        var accepted = await BridgeTestSupport.InvokeTask<bool>(
+            session, "ReadReleaseAsync", TestContext.Current.CancellationToken
+        );
+        Assert.True(accepted);
+        var responsePosition = stream.Position;
+        var report = session.GetType().GetMethod("ReportReleasedAsync")!;
+        await (Task)report.Invoke(session, [TestContext.Current.CancellationToken])!;
+        stream.Position = responsePosition;
+        using var response = await BridgeTestSupport.ReadFrameAsync(stream);
+        Assert.NotNull(response);
+        Assert.Equal("released", response.RootElement.GetProperty("kind").GetString());
+        Assert.Equal(1UL, response.RootElement.GetProperty("generation").GetUInt64());
+    }
+
+    [Theory]
+    [InlineData("""{"schemaVersion":1,"kind":"release","generation":2}""")]
+    [InlineData("""{"schemaVersion":1,"kind":"release","generation":"1"}""")]
+    public async Task Release_rejects_unrelated_or_malformed_frames(string frame)
+    {
+        using var native = NativeTestAssembly.Load();
+        using var stream = new MemoryStream();
+        using var session = CreateControlSession(native, stream);
+        await BridgeTestSupport.WriteFrameAsync(stream, frame);
+        stream.Position = 0;
+        await Assert.ThrowsAsync<InvalidDataException>(() => BridgeTestSupport.InvokeTask<bool>(
+            session, "ReadReleaseAsync", TestContext.Current.CancellationToken
+        ));
+    }
+
     private static IDisposable CreateControlSession(NativeTestAssembly native, Stream stream) =>
         (IDisposable)Activator.CreateInstance(BridgeTestSupport.RequireType(native, "RhinoMcpBridge.ControlPipeSession"),
             BindingFlags.Instance | BindingFlags.NonPublic, null,

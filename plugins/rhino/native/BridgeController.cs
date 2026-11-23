@@ -330,7 +330,11 @@ internal sealed class BridgeController : IDisposable
                         cancellationToken
                     ).ConfigureAwait(false);
                     SetState(BridgeControllerState.Active);
-                    await control.WaitForHostDisconnectAsync(cancellationToken).ConfigureAwait(false);
+                    if (await control.ReadReleaseAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        await session.ConfirmReleaseAsync().ConfigureAwait(false);
+                        await control.ReportReleasedAsync(cancellationToken).ConfigureAwait(false);
+                    }
                     reconnectAttempt = 0;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -468,6 +472,7 @@ internal sealed class NativeBridgeCommandExecutor
         internal readonly TaskCompletionSource<NativeDispatchDrain> Drain =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal bool Closed;
+        internal bool StartedExternalExecution;
 
         internal Session(NativeBridgeCommandExecutor owner)
         {
@@ -504,6 +509,19 @@ internal sealed class NativeBridgeCommandExecutor
 
                 CompleteDrainLocked();
                 return Drain.Task;
+            }
+        }
+
+        internal Task<NativeDispatchDrain> ConfirmReleaseAsync()
+        {
+            lock (Owner._dispatchGate)
+            {
+                if (ReferenceEquals(Owner._session, this) && !Closed && Pending.Count == 0
+                    && PreviousSessionState == "quiescent" && !StartedExternalExecution)
+                {
+                    Owner._hasUnboundedCallbacks = false;
+                }
+                return CloseAsync();
             }
         }
 
@@ -580,6 +598,8 @@ internal sealed class NativeBridgeCommandExecutor
                     dispatch.State = DispatchState.Started;
                     session.HadEnteredCallbacks = true;
                     _hasUnboundedCallbacks |= !CompletesWithinCallback(commandType);
+                    session.StartedExternalExecution |= commandType is
+                        "run_command" or "execute_rhinocommon_csharp_code" or "execute_rhinoscript_python_code";
                 }
 
                 try

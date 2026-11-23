@@ -82,7 +82,7 @@ internal sealed class ControlPipeSession : IDisposable
         ).ConfigureAwait(false);
     }
 
-    public async Task WaitForHostDisconnectAsync(CancellationToken cancellationToken)
+    public async Task<bool> ReadReleaseAsync(CancellationToken cancellationToken)
     {
         var pipe = GetPipe();
         var payload = await BridgeWire.ReadFramePayloadAsync(
@@ -92,11 +92,29 @@ internal sealed class ControlPipeSession : IDisposable
             allowCleanEof: true
         ).ConfigureAwait(false);
 
-        if (payload is not null)
+        if (payload is null)
+            return false;
+        using var message = BridgeWire.ParseStrictJson(payload);
+        var root = message.RootElement;
+        if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count() != 3
+            || !root.TryGetProperty("schemaVersion", out var schema) || schema.ValueKind != JsonValueKind.Number
+            || !schema.TryGetInt32(out var version) || version != 1
+            || !root.TryGetProperty("kind", out var kind) || kind.ValueKind != JsonValueKind.String || kind.GetString() != "release"
+            || !root.TryGetProperty("generation", out var generation) || generation.ValueKind != JsonValueKind.Number
+            || !generation.TryGetUInt64(out var value) || value != Lease.Generation)
         {
             throw new InvalidDataException("Unexpected control message.");
         }
+        return true;
     }
+
+    public Task ReportReleasedAsync(CancellationToken cancellationToken) =>
+        BridgeWire.WriteJsonFrameAsync(
+            GetPipe(),
+            new { schemaVersion = 1, kind = "released", generation = Lease.Generation },
+            BridgeWire.MaxControlFrameSize,
+            cancellationToken
+        );
 
     public void Dispose()
     {

@@ -288,6 +288,73 @@ public sealed class NativeDispatchLifetimeTests
         await Close(third);
     }
 
+    [Theory]
+    [InlineData("gh_get_canvas_state", "quiescent")]
+    [InlineData("gh_build_graph", "quiescent")]
+    [InlineData("gh_run_solution", "quiescent")]
+    [InlineData("run_command", "unknown")]
+    [InlineData("execute_rhinocommon_csharp_code", "unknown")]
+    public async Task Verified_release_only_clears_the_current_bounded_result(string command, string expected)
+    {
+        using var native = NativeTestAssembly.Load();
+        var executor = Create(native, callback => callback(), () => [1]);
+        var session = Open(executor);
+        await Execute(session, TestContext.Current.CancellationToken, command);
+        await ConfirmRelease(session);
+        var next = Open(executor);
+        Assert.Equal(expected, PreviousState(next));
+        await Close(next);
+    }
+
+    [Fact]
+    public async Task A_release_does_not_clear_result_evidence_from_a_prior_lease()
+    {
+        using var native = NativeTestAssembly.Load();
+        var executor = Create(native, callback => callback(), () => [1]);
+        var lost = Open(executor);
+        await Execute(lost, TestContext.Current.CancellationToken, "gh_run_solution");
+        await Close(lost);
+
+        var current = Open(executor);
+        await Execute(current, TestContext.Current.CancellationToken, "describe_capabilities");
+        await ConfirmRelease(current);
+        var next = Open(executor);
+        Assert.Equal("unknown", PreviousState(next));
+        await Close(next);
+    }
+
+    [Fact]
+    public async Task A_release_while_a_callback_is_running_keeps_the_result_unknown()
+    {
+        using var native = NativeTestAssembly.Load();
+        using var entered = new ManualResetEventSlim();
+        using var finish = new ManualResetEventSlim();
+        var executor = Create(native, callback => Task.Run(callback), () =>
+        {
+            entered.Set();
+            if (!finish.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException();
+            return [1];
+        });
+        var session = Open(executor);
+        var response = Execute(session, TestContext.Current.CancellationToken, "gh_run_solution");
+        Task drain;
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
+            drain = ConfirmRelease(session);
+            Assert.False(drain.IsCompleted);
+        }
+        finally
+        {
+            finish.Set();
+        }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => response);
+        await drain.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        var next = Open(executor);
+        Assert.Equal("unknown", PreviousState(next));
+        await Close(next);
+    }
+
     [Fact]
     public async Task Open_world_callback_failure_does_not_erase_unknown_entry_evidence()
     {
@@ -372,6 +439,7 @@ public sealed class NativeDispatchLifetimeTests
 
     private static object Open(object executor) => Invoke(executor, "OpenSession")!;
     private static Task Close(object session) => (Task)Invoke(session, "CloseAsync")!;
+    private static Task ConfirmRelease(object session) => (Task)Invoke(session, "ConfirmReleaseAsync")!;
     private static Task<byte[]> Execute(object session, CancellationToken token, string command = "test") =>
         (Task<byte[]>)Invoke(session, "ExecuteAsync", command, "{}", false, false, token)!;
     private static object? Invoke(object target, string method, params object[] arguments)

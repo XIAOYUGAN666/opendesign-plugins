@@ -1,6 +1,7 @@
 """Rhino-native control handshake owned by the Rhino package."""
 
 import json
+import logging
 import secrets
 import struct
 import ctypes
@@ -46,6 +47,25 @@ def _frame(pipe):
 def _send(pipe, value):
     raw = json.dumps(value, separators=(",", ":")).encode()
     pipe.write(struct.pack(">I", len(raw)) + raw)
+
+
+def _release_bridge(pipe, handle, generation):
+    import win32pipe
+
+    _send(pipe, {"schemaVersion": 1, "kind": "release", "generation": generation})
+    deadline = monotonic() + 2
+    while monotonic() < deadline:
+        header, available, _ = win32pipe.PeekNamedPipe(handle, 4)
+        if len(header) == 4:
+            size, = struct.unpack(">I", header)
+            if not 0 < size <= 65536:
+                raise ValueError("invalidRhinoBridgeRelease")
+            if available >= 4 + size:
+                if _frame(pipe) != {"schemaVersion": 1, "kind": "released", "generation": generation}:
+                    raise ValueError("invalidRhinoBridgeRelease")
+                return
+        sleep(0.01)
+    raise TimeoutError("rhinoBridgeReleaseTimeout")
 
 
 @contextmanager
@@ -140,6 +160,15 @@ def await_bridge(target: Target | None = None, *, timeout: float = 15, validatio
                 yield bridge
             finally:
                 bridge.disconnect()
+                if bridge.lifecycle_snapshot() == ("idle", 0):
+                    # Only a Connector that received terminal replies may release
+                    # an authenticated native lease as settled.
+                    try:
+                        _release_bridge(pipe, handle, generation)
+                    except (OSError, ValueError, pywintypes.error):
+                        # Result receipt is independent of lease cleanup. Without a
+                        # verified release, the next lease keeps the native guard.
+                        logging.getLogger(__name__).debug("Rhino Bridge lease release was not confirmed.")
     finally:
         win32file.CloseHandle(handle)
 

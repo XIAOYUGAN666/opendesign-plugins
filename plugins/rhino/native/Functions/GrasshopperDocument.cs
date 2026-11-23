@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Grasshopper;
+using Grasshopper.GUI.Canvas;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Special;
 using Rhino;
@@ -13,14 +14,15 @@ internal static class GrasshopperDocumentCommands
     {
         var openCanvas = NativeFunctions.Boolean(parameters, "open_canvas", true);
         var makeActive = NativeFunctions.Boolean(parameters, "make_active", true);
-        if (openCanvas && Instances.ActiveCanvas is null)
+        var canvas = context.GrasshopperCanvas;
+        if (openCanvas && canvas is null)
         {
             RhinoApp.RunScript(context.RhinoDocument.RuntimeSerialNumber, "_Grasshopper", false);
             RhinoApp.Wait();
+            canvas = context.ActiveDocumentSource?.ActiveGrasshopperCanvas;
         }
 
         var server = Instances.DocumentServer;
-        var canvas = Instances.ActiveCanvas;
         var document = canvas?.Document ?? context.GrasshopperDocument;
         if (document is null && server is { DocumentCount: > 0 })
         {
@@ -54,10 +56,10 @@ internal static class GrasshopperDocumentCommands
             ["has_document"] = document is not null,
             ["created"] = created,
             ["made_active"] = document is not null && makeActive,
-            ["canvas_open"] = Instances.ActiveCanvas is not null,
+            ["canvas_open"] = canvas is not null,
             ["file_path"] = document is null ? null : DocumentFileName(document),
             ["object_count"] = document?.ObjectCount ?? 0,
-            ["visibility"] = document is null ? null : Visibility(context, document),
+            ["visibility"] = document is null ? null : Visibility(context, document, canvas),
             ["message"] = document is null ? "No active Grasshopper document"
                 : created ? "Created Grasshopper document" : "Grasshopper document is available",
         };
@@ -87,7 +89,7 @@ internal static class GrasshopperDocumentCommands
             ["parameter_count"] = document.Objects.OfType<IGH_Param>()
                 .Count(parameter => parameter.Attributes?.GetTopLevel.DocObject is not IGH_Component),
             ["group_count"] = document.Objects.OfType<GH_Group>().Count(),
-            ["visibility"] = Visibility(context, document),
+            ["visibility"] = Visibility(context, document, context.GrasshopperCanvas),
             ["components_by_category"] = components.GroupBy(component => component.Category ?? "Unknown")
                 .ToDictionary(group => group.Key, group => group.Count()),
         };
@@ -96,9 +98,10 @@ internal static class GrasshopperDocumentCommands
     private static string DocumentFileName(GH_Document document) =>
         string.IsNullOrEmpty(document.FilePath) ? "(unsaved)" : Path.GetFileName(document.FilePath);
 
-    private static Dictionary<string, object?> Visibility(RequestContext context, GH_Document document)
+    private static Dictionary<string, object?> Visibility(
+        RequestContext context, GH_Document document, GH_Canvas? canvas
+    )
     {
-        var canvas = Instances.ActiveCanvas;
         var previewObjects = document.Objects.OfType<IGH_PreviewObject>().ToArray();
         var enabled = previewObjects.Count(item => !item.Hidden);
         var rhinoCount = context.RhinoDocument.Objects.Count;
