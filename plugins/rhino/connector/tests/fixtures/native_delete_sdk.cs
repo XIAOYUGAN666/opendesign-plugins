@@ -88,6 +88,33 @@ internal static class NativeDeleteSdkProbe
                     currentLayerId = document.Layers.CurrentLayer.Id.ToString("D"),
                     defaultLayerId = defaultId.ToString("D") });
             }
+            using (var document = RhinoDoc.CreateHeadless(null))
+            {
+                document.UndoRecordingEnabled = true;
+                var type = bridge.GetType("RhinoMcpBridge.Functions.UndoGroups", true);
+                var groups = Activator.CreateInstance(type, true);
+                var owner = GroupContext(document, groups, "one");
+                var other = GroupContext(document, groups, "two");
+                var begin = InvokeCommand(owner, "UndoGroups", "Begin", "{\"name\":\"SDK group\"}");
+                var prepare = type.GetMethod("PrepareCommand", BindingFlags.Instance | BindingFlags.NonPublic);
+                var foreignWrite = Rejects(() => prepare.Invoke(groups, new object[] { other, "create_object", false }));
+                var foreignEnd = Rejects(() => InvokeCommand(other, "UndoGroups", "End", "{}"));
+                var undoInGroup = Rejects(() => prepare.Invoke(groups, new object[] { owner, "undo", false }));
+                if (!(bool)prepare.Invoke(groups, new object[] { owner, "create_object", false }))
+                    throw new InvalidOperationException("Group owner did not obtain the existing undo record.");
+                document.Objects.AddPoint(new Point3d(1, 1, 1));
+                prepare.Invoke(groups, new object[] { owner, "create_object", false });
+                document.Objects.AddPoint(new Point3d(2, 2, 2));
+                var end = InvokeCommand(owner, "UndoGroups", "End", "{}");
+                var undo = InvokeCommand(owner, "UndoRedo", "Undo", "{}");
+                var afterUndo = ActiveCount(document);
+                var redo = InvokeCommand(owner, "UndoRedo", "Redo", "{}");
+                var afterRedo = ActiveCount(document);
+                InvokeCommand(owner, "UndoGroups", "Begin", "{\"name\":\"SDK forced\"}");
+                var forced = InvokeCommand(other, "UndoGroups", "End", "{\"force\":true}");
+                cases.Add(new { kind = "undo_group", begin, end, undo, redo, afterUndo, afterRedo,
+                    foreignWrite, foreignEnd, undoInGroup, forced });
+            }
             Console.WriteLine("RESULT_JSON=" + new JavaScriptSerializer().Serialize(new {
                 softwareBuild = RhinoApp.Version.ToString(),
                 bridgeVersion = bridge.GetName().Version.ToString(), cases }));
@@ -95,7 +122,35 @@ internal static class NativeDeleteSdkProbe
         return 0;
     }
 
+    static object GroupContext(RhinoDoc document, object groups, string owner)
+    {
+        var context = contextConstructor.Invoke(new object[] { document, null, null,
+            .001, .017, document.ModelUnitSystem, "sdk-rhino-contract", CancellationToken.None });
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        context.GetType().GetProperty("UndoGroupService", flags).SetValue(context, groups, null);
+        context.GetType().GetProperty("CommandOwner", flags).SetValue(context, owner, null);
+        return context;
+    }
+
+    static bool Rejects(Action invoke)
+    {
+        try { invoke(); return false; }
+        catch (TargetInvocationException error)
+        {
+            var native = error.InnerException;
+            var category = native.GetType().GetProperty("Category");
+            return category != null && (string)category.GetValue(native, null) == "invalid_argument";
+        }
+    }
+
     static object Invoke(RhinoDoc document, string handler, string arguments)
+    {
+        var context = contextConstructor.Invoke(new object[] { document, null, null,
+            .001, .017, document.ModelUnitSystem, "sdk-delete-contract", CancellationToken.None });
+        return InvokeCommand(context, handler, "Delete", arguments);
+    }
+
+    static object InvokeCommand(object context, string handler, string method, string arguments)
     {
         Assembly json = Assembly.LoadFrom(Path.Combine(nativeRoot, "System.Text.Json.dll"));
         Type documentType = json.GetType("System.Text.Json.JsonDocument", true);
@@ -105,10 +160,8 @@ internal static class NativeDeleteSdkProbe
         try
         {
             object element = documentType.GetProperty("RootElement").GetValue(parsed, null);
-            object context = contextConstructor.Invoke(new object[] { document, null, null,
-                .001, .017, document.ModelUnitSystem, "sdk-delete-contract", CancellationToken.None });
             return bridge.GetType("RhinoMcpBridge.Functions." + handler, true)
-                .GetMethod("Delete", BindingFlags.Static | BindingFlags.NonPublic)
+                .GetMethod(method, BindingFlags.Static | BindingFlags.NonPublic)
                 .Invoke(null, new[] { context, element });
         }
         finally { ((IDisposable)parsed).Dispose(); }

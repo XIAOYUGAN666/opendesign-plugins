@@ -185,6 +185,7 @@ internal sealed class BridgeController : IDisposable
         _shutdown.Cancel();
         bridge?.Dispose();
         control?.Dispose();
+        _executor.CloseUndoGroups();
     }
 
     public void Dispose()
@@ -225,7 +226,7 @@ internal sealed class BridgeController : IDisposable
                         _activeSession = session;
                     }
 
-                    bridge = new BridgeServer(control.Lease, session.ExecuteAsync);
+                    bridge = new BridgeServer(control.Lease, session.ExecuteOwnedAsync, session.ConnectionClosed);
                     bridge.Start();
                     await control.ReportReadyAsync(
                         bridge.Port,
@@ -358,6 +359,7 @@ internal sealed class NativeBridgeCommandExecutor
     private readonly CommandRegistry _registry = new();
     private readonly CommandExecutionPipeline _pipeline;
     private readonly IActiveDocumentSource _documentSource = new RhinoActiveDocumentSource();
+    private readonly UndoGroups _undoGroups = new();
 
     internal NativeBridgeCommandExecutor() : this(callback => RhinoApp.InvokeOnUiThread(callback), null) { }
 
@@ -369,6 +371,12 @@ internal sealed class NativeBridgeCommandExecutor
         _schedule = schedule;
         _executeBody = executeBody;
         _pipeline = new CommandExecutionPipeline(_registry);
+    }
+
+    internal void CloseUndoGroups()
+    {
+        if (_undoGroups.HasOpenGroup)
+            _schedule(_undoGroups.Shutdown);
     }
 
     private readonly object _dispatchGate = new();
@@ -410,7 +418,15 @@ internal sealed class NativeBridgeCommandExecutor
         internal Task<byte[]> ExecuteAsync(
             string commandType, string parametersJson, bool includeDelta, bool includeHealth,
             CancellationToken cancellationToken
-        ) => Owner.ExecuteAsync(this, commandType, parametersJson, includeDelta, includeHealth, cancellationToken);
+        ) => ExecuteOwnedAsync(commandType, parametersJson, includeDelta, includeHealth, "", cancellationToken);
+
+        internal Task<byte[]> ExecuteOwnedAsync(
+            string commandType, string parametersJson, bool includeDelta, bool includeHealth,
+            string commandOwner, CancellationToken cancellationToken
+        ) => Owner.ExecuteAsync(this, commandType, parametersJson, includeDelta, includeHealth, commandOwner, cancellationToken);
+
+        internal void ConnectionClosed(string owner) =>
+            Owner._schedule(() => Owner._undoGroups.ClientDisconnected(owner));
 
         internal Task<NativeDispatchDrain> CloseAsync()
         {
@@ -459,7 +475,7 @@ internal sealed class NativeBridgeCommandExecutor
 
     private Task<byte[]> ExecuteAsync(
         Session session, string commandType, string parametersJson, bool includeDelta, bool includeHealth,
-        CancellationToken cancellationToken
+        string commandOwner, CancellationToken cancellationToken
     )
     {
         var dispatch = new Dispatch();
@@ -505,7 +521,7 @@ internal sealed class NativeBridgeCommandExecutor
                 try
                 {
                     ExecuteOnRhinoUiThread(commandType, parametersJson, includeDelta, includeHealth,
-                        cancellationToken, dispatch.Completion);
+                        commandOwner, cancellationToken, dispatch.Completion);
                 }
                 finally
                 {
@@ -557,6 +573,7 @@ internal sealed class NativeBridgeCommandExecutor
         string parametersJson,
         bool includeDelta,
         bool includeHealth,
+        string commandOwner,
         CancellationToken cancellationToken,
         TaskCompletionSource<byte[]> completion
     )
@@ -575,15 +592,25 @@ internal sealed class NativeBridgeCommandExecutor
                 _documentSource,
                 Guid.NewGuid().ToString("N"),
                 CancellationToken.None
-            );
+            ) with { CommandOwner = commandOwner, UndoGroupService = _undoGroups };
             var command = _registry.Get(commandType);
+            context = context with { InUndoGroup = _undoGroups.PrepareCommand(context, commandType, command.ReadOnly) };
             HashSet<Guid>? before = null;
             if (!command.ReadOnly && (includeDelta || includeHealth))
             {
                 before = SnapshotIds(context);
             }
 
-            var result = _pipeline.Execute(commandType, context, parameterDocument.RootElement);
+            object? result = null;
+            try
+            {
+                result = _pipeline.Execute(commandType, context, parameterDocument.RootElement);
+            }
+            finally
+            {
+                _undoGroups.FinishCommand(context, !command.ReadOnly
+                    && commandType is not ("begin_undo_group" or "end_undo_group"), result);
+            }
             if (before is not null && result is IDictionary<string, object?> resultObject)
             {
                 var after = SnapshotIds(context);

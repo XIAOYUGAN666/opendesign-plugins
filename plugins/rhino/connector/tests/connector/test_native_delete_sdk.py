@@ -109,3 +109,14 @@ def test_layer_tool_formats_actual_sdk_receipt_without_missing_message(
         == "Deleted layer: SDK_DELETE_LAYER"
     )
     assert calls == [("delete_layer", {"guid": case["targetId"]})]
+
+def test_real_sdk_undo_group_is_one_undo_step_and_preserves_owner(native_delete_receipts):
+    case = native_delete_receipts["undo_group"]
+    validate_response("begin_undo_group", case["begin"], raise_on_error=True)
+    validate_response("end_undo_group", case["end"], raise_on_error=True)
+    assert case["end"]["end_reason"] == "requested"
+    assert case["end"]["command_count"] == 2
+    assert case["foreignWrite"] and case["foreignEnd"] and case["undoInGroup"]
+    assert case["undo"]["success"] and case["afterUndo"] == 0
+    assert case["redo"]["success"] and case["afterRedo"] == 2
+    assert case["forced"]["end_reason"] == "forced"

@@ -117,7 +117,7 @@ assert len(source_modules) == 27
 assert "curve" in source_modules
 assert all(modeling_guidance(topic)["content"].strip() for topic in TOPICS)
 assert {{module["ModuleName"] for module in rhinoscriptsyntax_json}} == source_modules - {{"compat"}}
-assert len(asyncio.run(rhino_mcp.mcp.list_tools())) == 73
+assert len(asyncio.run(rhino_mcp.mcp.list_tools())) == 75
 """
         probe_result = subprocess.run(
             [sys.executable, "-I", "-c", probe],

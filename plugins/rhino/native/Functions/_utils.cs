@@ -213,6 +213,18 @@ internal static class NativeFunctions
     internal static T Mutate<T>(RequestContext context, string description, Func<T> action)
     {
         var doc = context.RhinoDocument;
+        if (context.InUndoGroup)
+        {
+            context.CancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                return action();
+            }
+            finally
+            {
+                doc.Views.Redraw();
+            }
+        }
         uint ownedRecord = 0;
         uint nextRecord = 0;
         var ownedRecordUndone = false;

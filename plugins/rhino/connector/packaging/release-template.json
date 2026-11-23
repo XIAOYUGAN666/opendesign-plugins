@@ -50,13 +50,13 @@
   "filesDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   "sbomDigest": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
   "native": {
-    "capabilityDigest": "sha256:65646f8bf0460e8919b6d0b8af938efd3560ab07b376760184ac6e4c792f63bb",
-    "contractDigest": "sha256:c83bb3c857a6c8d65863ae6e58da3f1ec6c16aedaa65f62e2a42cc4a164f3c1c",
+    "capabilityDigest": "sha256:e32b954fc765d516ab298e34299ee8124b7ceca626fc3e55a64775f48990816d",
+    "contractDigest": "sha256:d812a4d350684dc64f7ff8b2307290d88e3ae702a00f2a85d48a64cecaf1e3e5",
     "contractVersion": 1,
     "packageId": "rhino-mcp-bridge",
     "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
     "relativePath": "native/rhino-mcp-bridge-0.1.21-rh8-win.yak",
-    "sha256": "sha256:b3e631ca40171c232ea1cbac23437277e4bf97673ab48ac16ee5add2509a1757",
+    "sha256": "sha256:a6596d4a058425e8e18ba512eac666ad0c91ac9208d4d619817e61c119473fe1",
     "version": "0.1.21"
   }
 }

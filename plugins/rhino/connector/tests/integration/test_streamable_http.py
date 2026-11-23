@@ -117,7 +117,7 @@ async def test_streamable_http_auth_host_and_catalog_over_loopback() -> None:
                 ) as (read_stream, write_stream):
                     async with ClientSession(read_stream, write_stream) as client:
                         await client.initialize()
-                        assert len((await client.list_tools()).tools) == 73
+                        assert len((await client.list_tools()).tools) == 75
                         assert len((await client.list_resources()).resources) == 1
                         assert (
                             len(

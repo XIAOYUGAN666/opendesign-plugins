@@ -61,13 +61,21 @@ def await_bridge():
     security.SECURITY_DESCRIPTOR = win32security.ConvertStringSecurityDescriptorToSecurityDescriptor(
         "D:P(A;;GA;;;OW)", win32security.SDDL_REVISION_1
     )
-    handle = win32pipe.CreateNamedPipe(
-        r"\\.\pipe\rhino-mcp-control-v1",
-        win32pipe.PIPE_ACCESS_DUPLEX | 0x00080000, 8 | win32pipe.PIPE_NOWAIT,
-        1, 65536, 65536, 0, security,
-    )
+    deadline = monotonic() + 10
+    while True:
+        try:
+            handle = win32pipe.CreateNamedPipe(
+                r"\\.\pipe\rhino-mcp-control-v1",
+                win32pipe.PIPE_ACCESS_DUPLEX | 0x00080000, 8 | win32pipe.PIPE_NOWAIT,
+                1, 65536, 65536, 0, security,
+            )
+            break
+        except pywintypes.error as error:
+            # The shared native control pipe is serialized before any command is sent.
+            if error.winerror not in (5, 231) or monotonic() >= deadline:
+                raise
+            sleep(0.05)
     try:
-        deadline = monotonic() + 10
         while True:
             try:
                 win32pipe.ConnectNamedPipe(handle)

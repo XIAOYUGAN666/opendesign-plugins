@@ -187,7 +187,7 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
     for name, schema in declarations.items():
         (staging / name).write_bytes(canonical(schema))
     preview, counts = probe_managed_runtime(staging, build_id)
-    if counts != {"tools": 73, "resourcesAndTemplates": 4, "prompts": 2}:
+    if counts != {"tools": 75, "resourcesAndTemplates": 4, "prompts": 2}:
         raise release.ReleaseBuildError(
             "The staged MCP census differs from its frozen contract."
         )

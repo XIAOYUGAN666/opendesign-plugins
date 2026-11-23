@@ -177,7 +177,7 @@ public sealed class BridgeProtocolTests
     }
 
     [Fact]
-    public async Task Rejects_a_second_provider_socket_while_the_first_is_active()
+    public async Task Accepts_independently_authenticated_provider_sockets()
     {
         using var native = NativeTestAssembly.Load();
         using var server = (IDisposable)CreateServer(native);
@@ -193,8 +193,46 @@ public sealed class BridgeProtocolTests
         using var secondResponse = await ReadWithTimeoutAsync(second.GetStream());
 
         Assert.NotNull(secondResponse);
-        Assert.Equal("authenticationRejected", secondResponse!.RootElement.GetProperty("type").GetString());
+        Assert.Equal("authenticated", secondResponse!.RootElement.GetProperty("type").GetString());
         Assert.True(first.Connected);
+    }
+
+    [Fact]
+    public async Task Logical_session_ownership_survives_an_authenticated_reconnect()
+    {
+        using var native = NativeTestAssembly.Load();
+        var serverType = BridgeTestSupport.RequireType(native, "RhinoMcpBridge.BridgeServer");
+        var lease = BridgeTestSupport.CreateLease(native);
+        var owners = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> executor =
+            (_, _, _, _, owner, _) =>
+            {
+                owners.Enqueue(owner);
+                return Task.FromResult(Encoding.UTF8.GetBytes("{}"));
+            };
+        Action<string> disconnected = _ => { };
+        using var server = (IDisposable)Activator.CreateInstance(serverType, [lease, executor, disconnected])!;
+        BridgeTestSupport.Invoke(server, "Start");
+
+        async Task InvokeFrom(string logicalSession)
+        {
+            using var connection = await BridgeTestSupport.ConnectLoopbackAsync(Port(server));
+            using var stream = connection.GetStream();
+            await BridgeTestSupport.WriteFrameAsync(stream, BridgeTestSupport.AuthenticationJson());
+            using var auth = await ReadWithTimeoutAsync(stream);
+            Assert.Equal("authenticated", auth!.RootElement.GetProperty("type").GetString());
+            await BridgeTestSupport.WriteFrameAsync(stream,
+                $$"""{"type":"describe_capabilities","params":{},"session":"{{logicalSession}}"}""");
+            using var response = await ReadWithTimeoutAsync(stream);
+            Assert.Equal("success", response!.RootElement.GetProperty("status").GetString());
+        }
+
+        var first = Guid.NewGuid().ToString("N");
+        var other = Guid.NewGuid().ToString("N");
+        await InvokeFrom(first);
+        await InvokeFrom(other);
+        await InvokeFrom(first);
+        Assert.Equal(new[] { $"session:{first}", $"session:{other}", $"session:{first}" }, owners.ToArray());
     }
 
     private static object CreateServer(

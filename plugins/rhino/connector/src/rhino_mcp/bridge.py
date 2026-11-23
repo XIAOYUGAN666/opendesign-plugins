@@ -10,6 +10,7 @@ import socket
 import threading
 import uuid
 from collections.abc import Mapping
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -32,8 +33,9 @@ _AUTH_REJECTED_TYPE = "authenticationRejected"
 _AUTH_ACK_FIELDS = frozenset(
     {"type", "generation", "connectorBuildId", "contractDigest"}
 )
+logical_command_session: ContextVar[str | None] = ContextVar("logical_command_session", default=None)
 _SAFE_ENVELOPE_FIELDS = frozenset({"include_delta", "include_health"})
-_RESULT_METADATA_FIELDS = frozenset({"_delta", "_health"})
+_RESULT_METADATA_FIELDS = frozenset({"_delta", "_health", "_undo_group"})
 _WINDOWS_PATH = re.compile(r"\b[A-Za-z]:\\[^\s\"'<>|]*")
 
 
@@ -267,6 +269,7 @@ class BridgeClient:
             raise TypeError("BridgeClient requires validated BridgeConfig.")
         self._config = config
         self._socket: socket.socket | None = None
+        self._logical_session = uuid.uuid4().hex
         self._lock = threading.Lock()
         self._status_lock = threading.Lock()
         self._in_flight = 0
@@ -394,7 +397,11 @@ class BridgeClient:
                 f"Command contract violation{location}; the command was not sent."
             ) from exc
 
-        command: dict[str, Any] = {"type": command_type, "params": command_params}
+        command: dict[str, Any] = {
+            "type": command_type,
+            "params": command_params,
+            "session": logical_command_session.get() or self._logical_session,
+        }
         if envelope_fields:
             if not set(envelope_fields).issubset(_SAFE_ENVELOPE_FIELDS) or any(
                 not isinstance(value, bool) for value in envelope_fields.values()

@@ -38,6 +38,8 @@
             "set_camera",
             "zoom_to",
             "undo",
+            "begin_undo_group",
+            "end_undo_group",
             "redo",
             "boolean_union",
             "boolean_difference",
@@ -82,6 +84,11 @@
             "gh_update_component",
             "gh_clear_canvas"
           ]
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{32}$",
+          "description": "Logical Connector session for undo ownership across authenticated reconnects"
         },
         "params": {
           "type": "object",

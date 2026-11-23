@@ -6,6 +6,8 @@ import logging
 import os
 import re
 import threading
+import uuid
+from weakref import WeakKeyDictionary
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -34,6 +36,7 @@ from rhino_mcp.bridge import (
     BridgeConfig,
     BridgeProtocolError,
     BridgeResultUnknown,
+    logical_command_session,
     BridgeUnavailable,
     RhinoCommandError,
 )
@@ -437,6 +440,7 @@ class RhinoConnectorServer(MCPServer):
     """MCPServer whose tools report their real error messages to the client."""
 
     connector_bridge_slot: "ConnectorBridgeSlot"
+    command_sessions: WeakKeyDictionary[object, str]
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any], context: Context | None = None
@@ -445,9 +449,22 @@ class RhinoConnectorServer(MCPServer):
         # registered function has no Context parameter. Direct Python calls
         # without a request retain the SDK's existing behavior.
         _check_request_dispatch_state(context)
-        result = await super().call_tool(name, arguments, context)
-        _check_request_dispatch_state(context)
-        return result
+        # Use the SDK connection identity, never an identifier supplied in tool arguments.
+        session = None
+        if isinstance(context, Context):
+            # MCPServer 2.x builds a request-scoped ServerSession proxy over the
+            # authenticated connection. Key by the latter so requests share an owner.
+            connection = context.request_context.session._connection
+            session = self.command_sessions.get(connection)
+            if session is None:
+                session = self.command_sessions[connection] = uuid.uuid4().hex
+        token = logical_command_session.set(session)
+        try:
+            result = await super().call_tool(name, arguments, context)
+            _check_request_dispatch_state(context)
+            return result
+        finally:
+            logical_command_session.reset(token)
 
     def add_tool(self, fn, *args, **kwargs):
         return super().add_tool(_reporting_errors(fn), *args, **kwargs)
@@ -633,6 +650,7 @@ ToolRegistration = tuple[str, Callable[..., Any]]
 
 _TOOL_REGISTRATION_SOURCES: tuple[tuple[str, str], ...] = (
     ("analyze_objects", "rhino_mcp.tools.analyze_objects"),
+    ("begin_undo_group", "rhino_mcp.tools.undo_group"),
     ("boolean_difference", "rhino_mcp.tools.boolean_operations"),
     ("boolean_intersection", "rhino_mcp.tools.boolean_operations"),
     ("boolean_union", "rhino_mcp.tools.boolean_operations"),
@@ -653,6 +671,7 @@ _TOOL_REGISTRATION_SOURCES: tuple[tuple[str, str], ...] = (
         "rhino_mcp.tools.execute_rhinoscript_python_code",
     ),
     ("extrude_curve", "rhino_mcp.tools.advanced_geometry"),
+    ("end_undo_group", "rhino_mcp.tools.undo_group"),
     ("get_commands", "rhino_mcp.tools.get_commands"),
     ("get_context", "rhino_mcp.tools.get_context"),
     ("get_document_summary", "rhino_mcp.tools.get_document_summary"),
@@ -719,7 +738,7 @@ def _load_tool_registrations() -> tuple[ToolRegistration, ...]:
         (name, getattr(import_module(module_name), name))
         for name, module_name in _TOOL_REGISTRATION_SOURCES
     )
-    if len(registrations) != 73:
+    if len(registrations) != 75:
         raise RuntimeError("The explicit MCP tool registration table is incomplete.")
     return registrations
 
@@ -855,13 +874,14 @@ def create_mcp_server(bridge_client: BridgeClient | None = None, *, stdio_bridge
         version=server_version() or "0+unknown",
     )
     server.connector_bridge_slot = bridge_slot
+    server.command_sessions = WeakKeyDictionary()
     registered_names: set[str] = set()
     for name, tool in TOOL_REGISTRATIONS:
         if name in registered_names or name != tool.__name__:
             raise RuntimeError("The explicit MCP tool registration table is invalid.")
         registered_names.add(name)
         server.add_tool(tool, name=name, annotations=_tool_annotations(name))
-    if len(registered_names) != 73:
+    if len(registered_names) != 75:
         raise RuntimeError("The explicit MCP tool registration table is incomplete.")
 
     for uri, resource, mime_type in RESOURCE_REGISTRATIONS:

@@ -36,7 +36,7 @@ async def test_no_rhino_or_bridge_metadata_is_discoverable():
     from tests.fixtures.mcp_client import connected_client
 
     async with connected_client(create_mcp_server()) as client:
-        assert len((await client.list_tools()).tools) == 73
+        assert len((await client.list_tools()).tools) == 75
         assert len((await client.list_resources()).resources) == 1
         assert len((await client.list_resource_templates()).resource_templates) == 3
         assert len((await client.list_prompts()).prompts) == 2
@@ -111,7 +111,7 @@ async def test_stdio_sessions_discover_independently_without_holding_the_bridge(
     first = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     second = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     async with connected_client(first) as one, connected_client(second) as two:
-        assert len((await one.list_tools()).tools) == len((await two.list_tools()).tools) == 73
+        assert len((await one.list_tools()).tools) == len((await two.list_tools()).tools) == 75
         assert not attempts
         result = await two.call_tool("get_document_summary", {})
         assert result.is_error
@@ -132,7 +132,7 @@ async def test_managed_metadata_never_constructs_bridge(monkeypatch):
     server, bridge = managed_bootstrap.create_managed_server(envelope)
     assert bridge is None
     async with connected_client(server) as client:
-        assert len((await client.list_tools()).tools) == 73
+        assert len((await client.list_tools()).tools) == 75
         assert (await client.call_tool("get_document_summary", {})).is_error
 
 
@@ -232,3 +232,28 @@ async def test_untrusted_bridge_lease_rejected_before_engineering_dispatch(
         assert fake.command_frames == []
         assert len(fake.authentication_frames) == 1
         assert fake.authentication_frames[0]["generation"] == native_generation
+
+@pytest.mark.asyncio
+async def test_authenticated_mcp_sessions_use_distinct_stable_undo_owners():
+    from rhino_mcp.bridge import BridgeClient
+    from rhino_mcp.server import create_mcp_server
+    from tests.fixtures.bridge_contract import FakeBridge, bridge_config
+    from tests.fixtures.mcp_client import connected_client
+
+    owners = []
+
+    def respond(command):
+        owners.append(command["session"])
+        return {"status": "success", "result": {
+            "version": "0.1.21", "command_count": 1,
+            "commands": [{"name": "describe_capabilities", "read_only": True}],
+            "perception": {"description": "fixture", "envelope_flags": []},
+        }}
+
+    with FakeBridge(response=respond) as fake:
+        server = create_mcp_server(BridgeClient(bridge_config(fake.endpoint)))
+        async with connected_client(server) as first, connected_client(server) as second:
+            for client in (first, second, first):
+                assert not (await client.call_tool("describe_capabilities", {})).is_error
+    assert len(owners) == 3
+    assert owners[0] == owners[2] and owners[0] != owners[1]

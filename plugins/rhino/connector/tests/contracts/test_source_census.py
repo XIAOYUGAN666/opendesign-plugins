@@ -54,12 +54,12 @@ def test_fourteen_first_conversion_test_identities_are_present() -> None:
 
 def test_census_records_supported_inventory_and_conversion_floor() -> None:
     expected = json.loads(EXPECTED_CENSUS.read_text(encoding="utf-8"))
-    assert expected["mcpTools"] == 73
+    assert expected["mcpTools"] == 75
     assert expected["mcpResources"] == 4
     assert expected["mcpPrompts"] == 2
     assert expected["pythonToolModuleCount"] == 41
     assert expected["nativeRoutineCount"] == 69
-    assert expected["nativeCommandHandlerCount"] == 68
-    assert expected["commandSchemaCount"] == 68
-    assert expected["responseSchemaCount"] == len(expected["responseSchemas"]) == 21
+    assert expected["nativeCommandHandlerCount"] == 70
+    assert expected["commandSchemaCount"] == 70
+    assert expected["responseSchemaCount"] == len(expected["responseSchemas"]) == 23
     assert expected["baselineTestCount"] == 14

@@ -121,10 +121,10 @@ def test_protocol_schema_provider_and_native_dispatch_names_match() -> None:
     native_attributes = _native_attributes()
     native_commands = [name for name, _arguments in native_attributes]
 
-    assert len(protocol_commands) == 68
+    assert len(protocol_commands) == 70
     assert schema_commands == protocol_commands
     assert set(tool_commands) == protocol_commands
-    assert len(native_commands) == 68, (
+    assert len(native_commands) == 70, (
         f"Expected one native dispatch handler per protocol command; found "
         f"{len(native_commands)}. Missing: {sorted(protocol_commands - set(native_commands))}"
     )
@@ -182,7 +182,7 @@ def test_active_rhino_and_grasshopper_handles_are_captured_in_one_context_factor
     for path in production_files:
         source = path.read_text(encoding="utf-8")
         if path != context_files[0]:
-            assert "RhinoDoc.ActiveDoc" not in source, (
+            assert not re.search(r"\bRhinoDoc\.ActiveDoc\b", source), (
                 f"{path} must consume the captured RequestContext, not global ActiveDoc."
             )
             assert "Instances.ActiveDocument" not in source

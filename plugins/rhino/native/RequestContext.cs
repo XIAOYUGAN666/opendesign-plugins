@@ -56,6 +56,9 @@ internal sealed record RequestContext(
 )
 {
     internal IActiveDocumentSource? ActiveDocumentSource { get; init; }
+    internal Functions.UndoGroups? UndoGroupService { get; init; }
+    internal string CommandOwner { get; init; } = "";
+    internal bool InUndoGroup { get; init; }
 
     public GH_Document RequireGrasshopperDocument() =>
         GrasshopperDocument

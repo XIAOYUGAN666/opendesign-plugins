@@ -37,6 +37,8 @@ RESPONSE_SCHEMA_MAP: Mapping[str, str] = MappingProxyType(
         "section_profile": "section_profile_result.json",
         "set_camera": "set_camera_result.json",
     "zoom_to": "zoom_to_result.json",
+    "begin_undo_group": "begin_undo_group_result.json",
+    "end_undo_group": "end_undo_group_result.json",
     "get_context": "get_context_result.json",
     "get_document_summary": "document_summary.json",
         "get_objects": "get_objects_result.json",

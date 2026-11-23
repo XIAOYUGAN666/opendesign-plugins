@@ -62,6 +62,42 @@
       }
     },
     {
+      "name": "begin_undo_group",
+      "description": "\n    Make the next edits one undo step. Rhino normally records one undo step per\n    tool call; inside a group every change to the document lands in one step,\n    so a single Undo takes the whole change back.\n\n    Use it around a multi-step change the user would undo as a whole, for\n    example one object built from several create, boolean and modify calls.\n    Call end_undo_group when the change is done. Groups do not nest.\n\n    While a group is open:\n    - undo and redo are refused, since the group's step is still being\n      recorded; correct a mistake with modify_object or delete_object instead.\n    - edits the user makes in Rhino, and edits from other MCP clients, join\n      the group.\n\n    The plugin also ends the group when no command arrives from this client\n    for idle_timeout_seconds, and when the document is closed or another\n    document becomes active. A reconnect after a timeout keeps the group. If\n    the group ends without end_undo_group, the next change's result carries an\n    _undo_group block saying so; begin a new group to group what follows.\n\n    Parameters:\n    - name: short name for the change, e.g. \"Build chair frame\". Rhino lists\n      the step as \"MCP: <name>\".\n    - idle_timeout_seconds: end the group after this many seconds without any\n      command (default 120, at most 3600).\n\n    Returns name, undo_description, document_name, idle_timeout_seconds and a\n    message. Requires plugin 0.5.2.\n    ",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "idle_timeout_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idle Timeout Seconds"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "title": "begin_undo_groupArguments"
+      },
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
       "name": "boolean_difference",
       "description": "\n    Perform a boolean difference (subtraction) - subtract objects from a base object.\n\n    Parameters:\n    - base_id: The object ID (GUID) of the base object to subtract from\n    - subtract_ids: List of object IDs (GUIDs) to subtract from the base\n    - delete_sources: Whether to delete the source objects after operation (default: True)\n    - name: Optional name for the resulting object\n    - dry_run: Preview the result and its metrics without modifying the document (default: False)\n\n    Returns:\n    A message indicating the result of the operation.\n\n    Note: Objects must be valid closed solids (Breps, Extrusions, or Surfaces).\n    ",
       "inputSchema": {
@@ -654,6 +690,28 @@
         "readOnlyHint": true,
         "destructiveHint": false,
         "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "end_undo_group",
+      "description": "\n    End the undo group begun with begin_undo_group. Its changes become one\n    undo step, and later edits get their own steps again.\n\n    Parameters:\n    - force: end a group another client began (end_reason \"forced\"). Only for\n      a group whose client is gone; without it, ending another client's group\n      is refused.\n\n    Returns ended=true with the group's name, command_count and\n    duration_seconds. With no group open it returns ended=false instead of\n    failing; last_group then says why the previous group already ended (for\n    example idle_timeout), and edits made after that have their own undo steps.\n    Requires plugin 0.5.2.\n    ",
+      "inputSchema": {
+        "properties": {
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          }
+        },
+        "type": "object",
+        "title": "end_undo_groupArguments"
+      },
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
         "openWorldHint": false
       }
     },

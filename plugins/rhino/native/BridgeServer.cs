@@ -24,14 +24,17 @@ internal sealed class BridgeServer : IDisposable
         "params",
         "include_delta",
         "include_health",
+        "session",
     };
 
     private readonly object _gate = new();
-    private readonly Func<string, string, bool, bool, CancellationToken, Task<byte[]>> _executor;
+    private readonly SemaphoreSlim _commandGate = new(1, 1);
+    private readonly Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> _executor;
+    private readonly Action<string>? _connectionClosed;
     private readonly CancellationTokenSource _shutdown = new();
     private BridgeLease? _lease;
     private TcpListener? _listener;
-    private TcpClient? _activeClient;
+    private readonly HashSet<TcpClient> _clients = new();
     private Task? _acceptTask;
     private int _started;
     private int _disposed;
@@ -39,8 +42,17 @@ internal sealed class BridgeServer : IDisposable
     public BridgeServer(
         BridgeLease lease,
         Func<string, string, bool, bool, CancellationToken, Task<byte[]>> executor
+    ) : this(lease, (type, parameters, delta, health, _, token) => executor(type, parameters, delta, health, token), null)
+    {
+    }
+
+    public BridgeServer(
+        BridgeLease lease,
+        Func<string, string, bool, bool, string, CancellationToken, Task<byte[]>> executor,
+        Action<string>? connectionClosed
     )
     {
+        _connectionClosed = connectionClosed;
         _lease = lease ?? throw new ArgumentNullException(nameof(lease));
         _executor = executor ?? throw new ArgumentNullException(nameof(executor));
         if (
@@ -101,20 +113,17 @@ internal sealed class BridgeServer : IDisposable
             // The listener is already closed.
         }
 
-        TcpClient? client;
+        TcpClient[] clients;
         lock (_gate)
         {
-            client = _activeClient;
-            _activeClient = null;
+            clients = _clients.ToArray();
+            _clients.Clear();
         }
 
-        try
+        foreach (var client in clients)
         {
-            client?.Close();
-        }
-        catch (SocketException)
-        {
-            // Closing an already disconnected Connector socket is safe.
+            try { client.Close(); }
+            catch (SocketException) { }
         }
 
         _shutdown.Dispose();
@@ -151,13 +160,7 @@ internal sealed class BridgeServer : IDisposable
                     return;
                 }
 
-                if (_activeClient is not null)
-                {
-                    _ = RejectConcurrentClientAsync(client);
-                    continue;
-                }
-
-                _activeClient = client;
+                _clients.Add(client);
             }
 
             _ = Task.Run(() => HandleConnectorAsync(client, cancellationToken));
@@ -166,23 +169,28 @@ internal sealed class BridgeServer : IDisposable
 
     private async Task HandleConnectorAsync(TcpClient client, CancellationToken cancellationToken)
     {
+        var connectionOwner = "connection:" + Guid.NewGuid().ToString("N");
+        var authenticated = false;
         try
         {
             using (client)
             using (var stream = client.GetStream())
             {
-                var firstPayload = await BridgeWire.ReadFramePayloadAsync(
-                    stream,
-                    BridgeWire.MaxBridgeFrameSize,
-                    cancellationToken,
-                    allowCleanEof: true
-                ).ConfigureAwait(false);
+                byte[]? firstPayload;
+                using (var authenticationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                {
+                    authenticationTimeout.CancelAfter(TimeSpan.FromSeconds(2));
+                    firstPayload = await BridgeWire.ReadFramePayloadAsync(
+                        stream, BridgeWire.MaxBridgeFrameSize, authenticationTimeout.Token, allowCleanEof: true
+                    ).ConfigureAwait(false);
+                }
                 if (firstPayload is null || !TryAuthenticate(firstPayload, out var lease))
                 {
                     await WriteAuthenticationRejectedAsync(stream, cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
+                authenticated = true;
                 await BridgeWire.WriteJsonFrameAsync(
                     stream,
                     new
@@ -222,7 +230,7 @@ internal sealed class BridgeServer : IDisposable
                         continue;
                     }
 
-                    if (!TryParseCommand(root, out var commandType, out var parametersJson, out var includeDelta, out var includeHealth))
+                    if (!TryParseCommand(root, out var commandType, out var parametersJson, out var includeDelta, out var includeHealth, out var logicalSession))
                     {
                         await BridgeWire.WriteJsonFrameAsync(
                             stream,
@@ -236,13 +244,20 @@ internal sealed class BridgeServer : IDisposable
                     byte[] response;
                     try
                     {
-                        var result = await _executor(
-                            commandType,
-                            parametersJson,
-                            includeDelta,
-                            includeHealth,
-                            cancellationToken
-                        ).ConfigureAwait(false);
+                        await _commandGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        byte[] result;
+                        try
+                        {
+                            result = await _executor(
+                                commandType, parametersJson, includeDelta, includeHealth,
+                                logicalSession is null ? connectionOwner : "session:" + logicalSession,
+                                cancellationToken
+                            ).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            _commandGate.Release();
+                        }
                         using var resultDocument = BridgeWire.ParseStrictJson(result);
                         response = BridgeWire.Serialize(
                             new { status = "success", result = resultDocument.RootElement }
@@ -286,11 +301,10 @@ internal sealed class BridgeServer : IDisposable
         {
             lock (_gate)
             {
-                if (ReferenceEquals(_activeClient, client))
-                {
-                    _activeClient = null;
-                }
+                _clients.Remove(client);
             }
+            if (authenticated)
+                _connectionClosed?.Invoke(connectionOwner);
         }
     }
 
@@ -359,9 +373,11 @@ internal sealed class BridgeServer : IDisposable
         out string commandType,
         out string parametersJson,
         out bool includeDelta,
-        out bool includeHealth
+        out bool includeHealth,
+        out string? logicalSession
     )
     {
+        logicalSession = null;
         commandType = string.Empty;
         parametersJson = string.Empty;
         includeDelta = false;
@@ -396,6 +412,13 @@ internal sealed class BridgeServer : IDisposable
             {
                 return false;
             }
+        }
+
+        if (root.TryGetProperty("session", out var session))
+        {
+            if (session.ValueKind != JsonValueKind.String || !Guid.TryParseExact(session.GetString(), "N", out var id))
+                return false;
+            logicalSession = id.ToString("N");
         }
 
         commandType = typeElement.GetString()!;
@@ -437,29 +460,6 @@ internal sealed class BridgeServer : IDisposable
         }
 
         return difference == 0;
-    }
-
-    private static async Task RejectConcurrentClientAsync(TcpClient client)
-    {
-        using (client)
-        {
-            try
-            {
-                using var stream = client.GetStream();
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                _ = await BridgeWire.ReadFramePayloadAsync(
-                    stream,
-                    BridgeWire.MaxBridgeFrameSize,
-                    timeout.Token,
-                    allowCleanEof: false
-                ).ConfigureAwait(false);
-                await WriteAuthenticationRejectedAsync(stream, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception)
-            {
-                // Refusing another active Connector never affects the current session.
-            }
-        }
     }
 
     private static Task WriteAuthenticationRejectedAsync(Stream stream, CancellationToken cancellationToken) =>

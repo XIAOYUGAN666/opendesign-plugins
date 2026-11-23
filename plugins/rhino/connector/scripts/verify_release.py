@@ -607,7 +607,7 @@ def verify_release_archive(
             raise ReleaseVerificationError(
                 "The packaged private Connector runtime failed MCP discovery."
             ) from exc
-        if counts != {"tools": 73, "resourcesAndTemplates": 4, "prompts": 2}:
+        if counts != {"tools": 75, "resourcesAndTemplates": 4, "prompts": 2}:
             raise ReleaseVerificationError(
                 f"Packaged MCP discovery counts changed: {counts}."
             )

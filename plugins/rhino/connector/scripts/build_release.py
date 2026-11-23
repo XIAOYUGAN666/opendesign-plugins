@@ -1346,7 +1346,7 @@ def build_release(
             raise ReleaseBuildError(
                 "The staged private Connector runtime failed discovery."
             ) from exc
-        if counts != {"tools": 73, "resourcesAndTemplates": 4, "prompts": 2}:
+        if counts != {"tools": 75, "resourcesAndTemplates": 4, "prompts": 2}:
             raise ReleaseBuildError(
                 f"The staged MCP discovery surface changed unexpectedly: {counts}."
             )

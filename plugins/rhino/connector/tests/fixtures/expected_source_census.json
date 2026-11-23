@@ -1,16 +1,16 @@
 {
-  "mcpTools": 73,
+  "mcpTools": 75,
   "mcpResources": 4,
   "mcpPrompts": 2,
   "pythonToolModuleCount": 41,
   "nativeRoutineCount": 69,
-  "nativeCommandHandlerCount": 68,
-  "commandSchemaCount": 68,
-  "responseSchemaCount": 21,
+  "nativeCommandHandlerCount": 70,
+  "commandSchemaCount": 70,
+  "responseSchemaCount": 23,
   "baselineTestCount": 14,
   "pythonToolModules": [
-    "_params.py",
     "_grasshopper_common.py",
+    "_params.py",
     "advanced_geometry.py",
     "analyze_objects.py",
     "boolean_operations.py",
@@ -49,11 +49,12 @@
     "object_attributes.py",
     "rhinoscript_docs.py",
     "run_command.py",
-    "set_camera.py",
-    "zoom_to.py",
     "section_profile.py",
     "select_objects.py",
-    "undo.py"
+    "set_camera.py",
+    "undo.py",
+    "undo_group.py",
+    "zoom_to.py"
   ],
   "guides": [
     "organization.md",
@@ -94,6 +95,7 @@
   ],
   "commandSchemas": [
     "analyze_objects.json",
+    "begin_undo_group.json",
     "boolean_difference.json",
     "boolean_intersection.json",
     "boolean_union.json",
@@ -105,6 +107,7 @@
     "delete_layer.json",
     "delete_object.json",
     "describe_capabilities.json",
+    "end_undo_group.json",
     "execute_rhinocommon_csharp_code.json",
     "execute_rhinoscript_python_code.json",
     "extrude_curve.json",
@@ -156,14 +159,15 @@
     "section_profile.json",
     "select_objects.json",
     "set_camera.json",
-    "zoom_to.json",
     "split_curve.json",
     "sweep1.json",
     "undo.json",
-    "update_object_attributes.json"
+    "update_object_attributes.json",
+    "zoom_to.json"
   ],
   "responseSchemas": [
     "analyze_objects_result.json",
+    "begin_undo_group_result.json",
     "boolean_result.json",
     "capabilities.json",
     "capture_viewport_result.json",
@@ -173,6 +177,7 @@
     "curve_operation_result.json",
     "delete_result.json",
     "document_summary.json",
+    "end_undo_group_result.json",
     "execute_script_result.json",
     "get_context_result.json",
     "get_objects_result.json",
@@ -181,9 +186,9 @@
     "object_attributes.json",
     "object_info.json",
     "section_profile_result.json",
+    "select_result.json",
     "set_camera_result.json",
-    "zoom_to_result.json",
-    "select_result.json"
+    "zoom_to_result.json"
   ],
   "baselineTests": [
     "tests/connector/test_connection.py",

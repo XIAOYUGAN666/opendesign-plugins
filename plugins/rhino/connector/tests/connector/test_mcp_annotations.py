@@ -78,7 +78,7 @@ async def test_every_discovered_tool_has_complete_boolean_annotations() -> None:
     async with connected_client(rhino_mcp.mcp) as client:
         tools = (await client.list_tools()).tools
 
-    assert len(tools) == 73
+    assert len(tools) == 75
     for tool in tools:
         assert tool.description and tool.description.strip(), tool.name
         assert tool.annotations is not None, tool.name
@@ -88,7 +88,7 @@ async def test_every_discovered_tool_has_complete_boolean_annotations() -> None:
         assert isinstance(tool.annotations.open_world_hint, bool), tool.name
 
     by_name = {tool.name: tool for tool in tools}
-    assert len(by_name) == 73
+    assert len(by_name) == 75
     command_schema_names = {
         path.stem
         for path in (PROJECT_ROOT.parent / "contracts" / "commands").glob("*.json")
