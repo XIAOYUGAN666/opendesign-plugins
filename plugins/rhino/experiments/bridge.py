@@ -21,10 +21,14 @@ def use_bridge(port):
             _client.reset(token)
 
 
-def script(code):
+def command(name, params=None):
     client = _client.get()
     if client is None:
         raise RuntimeError("Select the dedicated test Bridge before measuring")
+    return client.send_command(name, params or {})
+
+
+def script(code):
     serialize = """
 string Serialize(object value) {
     var type = AppDomain.CurrentDomain.GetAssemblies()
@@ -34,7 +38,7 @@ string Serialize(object value) {
         .Invoke(null, new[] { value });
 }
 """
-    result = client.send_command("execute_rhinocommon_csharp_code", {"code": serialize + code})
+    result = command("execute_rhinocommon_csharp_code", {"code": serialize + code})
     if not result.get("success"):
         raise RuntimeError("RhinoCommon measurement failed")
     return result["output"].strip()
@@ -44,7 +48,11 @@ def assert_document(serial, marker):
     state = json.loads(script("""
 output.AppendLine(Serialize(new {
     document = doc.RuntimeSerialNumber,
-    marker = doc.Strings.GetValue("rhinomcp_experiment")
+    marker = doc.Strings.GetValue("rhinomcp_experiment"),
+    object_count = doc.Objects.GetObjectList(new Rhino.DocObjects.ObjectEnumeratorSettings {
+        NormalObjects = true, HiddenObjects = true, LockedObjects = true,
+        ReferenceObjects = true, IncludeLights = true
+    }).Count(o => o != null && !o.IsDeleted)
 }));
 """))
     if state["document"] != serial or state["marker"] != marker:

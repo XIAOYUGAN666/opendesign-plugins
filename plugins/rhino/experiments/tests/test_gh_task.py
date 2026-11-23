@@ -1,11 +1,50 @@
 import json
 from pathlib import Path
 import pytest
-from experiments.gh_task import validate, matches, evaluate
+from experiments.gh_task import validate, matches, evaluate, snapshot
 from experiments.runner import load_task
 from experiments.workflow.validate_gh import variants
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_live_snapshot_checks_document_ownership_between_native_reads(monkeypatch):
+    from experiments.workflow import gh_ownership
+
+    owner = (42, "fixture", "test-definition")
+    calls = []
+    monkeypatch.setattr(gh_ownership, "guard", lambda *args: calls.append(args))
+
+    def inspect(name, params):
+        calls.append(name)
+        return {"command": name}
+
+    monkeypatch.setattr(gh_ownership, "command", inspect)
+    task = load_task(ROOT / "experiments/tasks/gh_point_array.json")
+
+    saved = snapshot(task, *owner)
+
+    commands = [
+        "gh_run_solution",
+        "gh_get_document_info",
+        "gh_get_graph",
+        "gh_get_canvas_state",
+        "gh_get_parameter_value",
+    ]
+    assert calls == [event for command in commands for event in (owner, command, owner)]
+    assert saved["outputs"]["result0"] == {"command": "gh_get_parameter_value"}
+
+
+def test_live_guard_rejects_a_different_grasshopper_document(monkeypatch):
+    from experiments.workflow import gh_ownership
+
+    monkeypatch.setattr(gh_ownership, "assert_document", lambda *args: {"object_count": 0})
+    monkeypatch.setattr(
+        gh_ownership, "state", lambda: {"count": 1, "id": "other", "objects": 0}
+    )
+
+    with pytest.raises(RuntimeError, match="document changed"):
+        gh_ownership.guard(42, "fixture", "expected")
 
 
 @pytest.mark.parametrize("name", ["point_array", "circle_profiles", "loft_sections"])

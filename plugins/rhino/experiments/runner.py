@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 
 import jsonschema
-from experiments.bridge import script, use_bridge
+from experiments.bridge import assert_document, script, use_bridge
 from experiments.evaluator import evaluate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,8 +38,10 @@ def evaluator_versions():
             "trimmed_measure.cs",
             "strip_probe.py",
             "gh_task.py",
+            "bridge.py",
             "tasks/gh_definition.schema.json",
             "workflow/gh-reviewed-components.json",
+            "workflow/gh_ownership.py",
             "scene_task.py",
             "scene_measure.cs",
             "tasks/workflow_scene.schema.json",
@@ -99,6 +101,15 @@ def load_task(path):
             if not margin < center < size - margin:
                 raise ValueError("Opening must lie strictly inside the local patch")
     return task
+
+
+def save_candidate(path, serial, marker):
+    assert_document(serial, marker)
+    script(f"""
+if (!doc.WriteFile({json.dumps(str(path))}, new Rhino.FileIO.FileWriteOptions()))
+    throw new Exception("Candidate save failed");
+""")
+    return sha256(path)
 
 
 def measure(path, task=None):
