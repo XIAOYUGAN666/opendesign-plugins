@@ -54,7 +54,7 @@ internal sealed partial class NativeSelfTests
 
         void AddCreatedId(JObject result)
         {
-            var id = result["component"]?["instance_id"]?.ToString();
+            var id = result["instance_id"]?.ToString();
             if (!string.IsNullOrEmpty(id))
             {
                 createdIds.Add(id);
@@ -185,7 +185,7 @@ internal sealed partial class NativeSelfTests
                 {
                     ["queries"] = new JArray { "Number Slider", "Addition", "Panel" }
                 });
-                if ((batch["results"] as JArray)?.OfType<JObject>().Count() != 3)
+                if ((batch["results"] as JObject)?.Properties().Count(item => item.Value is JObject) != 3)
                 {
                     throw new InvalidOperationException("Batch search did not resolve the expected Grasshopper components.");
                 }
@@ -265,7 +265,7 @@ internal sealed partial class NativeSelfTests
                 {
                     throw new InvalidOperationException("gh_build_graph did not apply wrapped layout max_columns.");
                 }
-                if ((graph["solution"]?["object_count"]?.ToObject<int>() ?? 0) < 4)
+                if ((graph["summary"]?["object_count"]?.ToObject<int>() ?? 0) < 4)
                 {
                     throw new InvalidOperationException("gh_build_graph did not return diagnostics for created components.");
                 }
@@ -373,7 +373,7 @@ internal sealed partial class NativeSelfTests
                 {
                     throw new InvalidOperationException("gh_mutate_graph did not apply wrapped layout max_columns.");
                 }
-                if ((mutation["solution"]?["object_count"]?.ToObject<int>() ?? 0) < 1)
+                if ((mutation["summary"]?["object_count"]?.ToObject<int>() ?? 0) < 1)
                 {
                     throw new InvalidOperationException("gh_mutate_graph did not return diagnostics.");
                 }
@@ -561,7 +561,7 @@ internal sealed partial class NativeSelfTests
                     ["decimals"] = 2
                 });
                 AddCreatedId(sliderA);
-                sliderAId = sliderA["component"]?["instance_id"]?.ToString();
+                sliderAId = sliderA["instance_id"]?.ToString();
 
                 var sliderB = Invoke("gh_add_component", new JObject
                 {
@@ -574,7 +574,7 @@ internal sealed partial class NativeSelfTests
                     ["decimals"] = 2
                 });
                 AddCreatedId(sliderB);
-                sliderBId = sliderB["component"]?["instance_id"]?.ToString();
+                sliderBId = sliderB["instance_id"]?.ToString();
 
                 var addition = Invoke("gh_add_component", new JObject
                 {
@@ -583,7 +583,7 @@ internal sealed partial class NativeSelfTests
                     ["position"] = new JArray { 240, 80 }
                 });
                 AddCreatedId(addition);
-                addId = addition["component"]?["instance_id"]?.ToString();
+                addId = addition["instance_id"]?.ToString();
 
                 var panel = Invoke("gh_add_component", new JObject
                 {
@@ -593,7 +593,7 @@ internal sealed partial class NativeSelfTests
                     ["content"] = "MCP Grasshopper test"
                 });
                 AddCreatedId(panel);
-                panelId = panel["component"]?["instance_id"]?.ToString();
+                panelId = panel["instance_id"]?.ToString();
 
                 if (string.IsNullOrEmpty(sliderAId) ||
                     string.IsNullOrEmpty(sliderBId) ||
@@ -701,7 +701,8 @@ internal sealed partial class NativeSelfTests
                     ["y_spacing"] = 90,
                     ["recompute"] = true
                 });
-                if ((layout["laid_out_count"]?.ToObject<int>() ?? 0) != 4)
+                if ((layout["layout_count"]?.ToObject<int>() ?? 0) != 4
+                    || (layout["positions"] as JArray)?.Count != 4)
                 {
                     throw new InvalidOperationException("Grasshopper layout did not position the expected test objects.");
                 }
@@ -827,7 +828,7 @@ internal sealed partial class NativeSelfTests
                     ["content"] = "Delete target"
                 });
                 AddCreatedId(deleteTarget);
-                var deleteTargetId = deleteTarget["component"]?["instance_id"]?.ToString();
+                var deleteTargetId = deleteTarget["instance_id"]?.ToString();
                 if (string.IsNullOrEmpty(deleteTargetId))
                 {
                     throw new InvalidOperationException("Delete test target did not return an instance_id.");
@@ -835,7 +836,7 @@ internal sealed partial class NativeSelfTests
 
                 var deleted = Invoke("gh_delete_component", new JObject { ["instance_id"] = deleteTargetId });
                 createdIds.Remove(deleteTargetId);
-                if (deleted["instance_id"]?.ToString() != deleteTargetId)
+                if (deleted["deleted_id"]?.ToString() != deleteTargetId)
                 {
                     throw new InvalidOperationException("Grasshopper delete did not return the expected deleted_id.");
                 }

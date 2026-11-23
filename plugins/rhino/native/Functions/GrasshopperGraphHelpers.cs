@@ -144,6 +144,8 @@ internal static class GrasshopperGraphHelpers
         var proxy = GrasshopperHelpers.RequireProxy(name, guid);
         var item = GrasshopperHelpers.CreateInstance(proxy);
         GrasshopperOperations.ApplyObjectOptions(item, componentSpec, includeValue: true);
+        if (!NativeFunctions.Has(componentSpec, "position"))
+            GrasshopperOperations.SetPosition(item, JsonSerializer.SerializeToElement(GrasshopperComponents.NextPosition(document)));
         GrasshopperOperations.AddObject(document, item, "Build MCP Grasshopper graph");
         aliases.Add(alias, item);
         if (graphId is not null && !string.IsNullOrWhiteSpace(graphId))
@@ -355,14 +357,15 @@ internal static class GrasshopperGraphHelpers
                 : aliases.Values.GroupBy(item => item.InstanceGuid).Select(group => group.First()).ToArray();
         var objects = selected.Where(item => includeGroups || item is not GH_Group).ToArray();
         var start = ReadPosition(layout, "start_position", 40, 40);
-        var xSpacing = GrasshopperComponents.ReadSpacing(layout, "x_spacing", 220);
-        var ySpacing = GrasshopperComponents.ReadSpacing(layout, "y_spacing", 90);
-        var maxColumns = Math.Max(1, Math.Min(100, NativeFunctions.Integer(layout, "max_columns", 100)));
-        var positions = GrasshopperComponents.Layout(document, objects, start, xSpacing, ySpacing, maxColumns);
+        var xSpacing = Math.Max(60, GrasshopperComponents.ReadSpacing(layout, "x_spacing", 220));
+        var ySpacing = Math.Max(40, GrasshopperComponents.ReadSpacing(layout, "y_spacing", 90));
+        var maxColumns = Math.Max(0, Math.Min(100, NativeFunctions.Integer(layout, "max_columns", 0)));
+        var (positions, _) = GrasshopperComponents.Layout(objects, start, xSpacing, ySpacing, maxColumns);
         foreach (var item in objects)
         {
             GrasshopperOperations.RecordChange(document, item, "Layout MCP Grasshopper graph");
             GrasshopperOperations.SetPosition(item, JsonSerializer.SerializeToElement(positions[item.InstanceGuid]));
+            item.ExpireSolution(false);
         }
 
         return objects.Select(item => (object)new Dictionary<string, object?>

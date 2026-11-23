@@ -1,7 +1,7 @@
 {
   "manifestSchemaVersion": 1,
   "packageId": "rhino",
-  "pluginVersion": "0.1.25",
+  "pluginVersion": "0.1.26",
   "releaseSequence": 23,
   "artifactVariantId": "windows-x86_64-rhino-8",
   "platform": {
@@ -55,8 +55,8 @@
     "contractVersion": 1,
     "packageId": "rhino-mcp-bridge",
     "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
-    "relativePath": "native/rhino-mcp-bridge-0.1.25-rh8-win.yak",
-    "sha256": "sha256:dfbbaa45e8a9c254fb2b80c22f74e46e31a9e3256b6532e40cc73da80284ed1c",
-    "version": "0.1.25"
+    "relativePath": "native/rhino-mcp-bridge-0.1.26-rh8-win.yak",
+    "sha256": "sha256:245995c75663721b4bc99dda1fb003892b1c6bf418a98a71f04483b09f9e47b9",
+    "version": "0.1.26"
   }
 }

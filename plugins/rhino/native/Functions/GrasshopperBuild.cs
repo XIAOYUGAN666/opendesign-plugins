@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Globalization;
 using System.Text.Json;
 
 namespace RhinoMcpBridge.Functions;
@@ -7,28 +10,29 @@ internal static class GrasshopperBuild
     [McpCommand("gh_build_graph", ReadOnly = false, SupportsDryRun = false)]
     internal static object BuildGraph(RequestContext context, JsonElement parameters)
     {
-        var document = GrasshopperHelpers.RequireDocument(context);
+        var total = Stopwatch.StartNew();
         var graphId = NativeFunctions.Has(parameters, "graph_id")
             ? GrasshopperHelpers.RequireGraphId(parameters)
-            : null;
+            : "MCPGraph_" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
         var componentSpecs = NativeFunctions.Property(parameters, "components");
         if (componentSpecs.ValueKind != JsonValueKind.Array || componentSpecs.GetArrayLength() == 0)
         {
             throw new NativeCommandException("invalidParameters", "A Grasshopper graph requires at least one component.");
         }
 
+        var openCanvas = NativeFunctions.Boolean(parameters, "open_canvas", true);
+        var (selected, canvas, _) = GrasshopperDocumentCommands.EnsureDocument(
+            context, openCanvas, makeActive: true, newIfMissing: true);
+        var document = (context with { GrasshopperDocument = selected }).RequireGrasshopperDocument();
+        context = context with { GrasshopperDocument = document, GrasshopperCanvas = canvas };
         var rollbackOnError = NativeFunctions.Boolean(parameters, "rollback_on_error", true);
         return GrasshopperOperations.Mutate(
             document,
             "Build MCP Grasshopper graph",
             () =>
             {
-                var canvasOpened = GrasshopperGraphHelpers.OpenCanvas(
-                    context,
-                    document,
-                    NativeFunctions.Boolean(parameters, "open_canvas", true)
-                );
-                var aliases = new Dictionary<string, Grasshopper.Kernel.IGH_DocumentObject>(StringComparer.Ordinal);
+                var mutation = Stopwatch.StartNew();
+                var aliases = new Dictionary<string, Grasshopper.Kernel.IGH_DocumentObject>(StringComparer.OrdinalIgnoreCase);
                 var created = new List<Grasshopper.Kernel.IGH_DocumentObject>();
                 foreach (var componentSpec in componentSpecs.EnumerateArray())
                 {
@@ -37,19 +41,20 @@ internal static class GrasshopperBuild
                     StoreRole(document, graphId, componentSpec, item);
                 }
 
-                var connectionResults = new List<object>();
-                foreach (var connection in Elements(parameters, "connections"))
-                {
-                    connectionResults.Add(GrasshopperGraphHelpers.Connect(document, connection, graphId, aliases));
-                }
-
-                var valueResults = new List<object?>();
+                var valueCount = 0;
                 foreach (var value in Elements(parameters, "values"))
                 {
-                    valueResults.Add(GrasshopperGraphHelpers.SetValue(document, value, graphId, aliases));
+                    GrasshopperGraphHelpers.SetValue(document, value, graphId, aliases);
+                    valueCount++;
+                }
+                var connectionCount = 0;
+                foreach (var connection in Elements(parameters, "connections"))
+                {
+                    GrasshopperGraphHelpers.Connect(document, connection, graphId, aliases);
+                    connectionCount++;
                 }
 
-                var previewResults = ApplyPreviewUpdates(document, NativeFunctions.Property(parameters, "preview_updates"), aliases);
+                ApplyPreviewUpdates(document, NativeFunctions.Property(parameters, "preview_updates"), aliases);
                 var previewPolicyResults = GrasshopperGraphHelpers.ApplyPreviewPolicy(
                     document,
                     NativeFunctions.Property(parameters, "preview_policy"),
@@ -69,38 +74,64 @@ internal static class GrasshopperBuild
                     graphId
                 );
                 var recompute = NativeFunctions.Boolean(parameters, "recompute", true);
+                mutation.Stop();
+                var solve = new Stopwatch();
                 if (recompute)
                 {
-                    GrasshopperOperations.Recompute(document, expireAll: true);
+                    foreach (var item in created)
+                        item.ExpireSolution(true);
+                    solve.Start();
+                    GrasshopperOperations.Recompute(document, expireAll: false);
+                    solve.Stop();
                 }
+                var pivot = created.Last().Attributes.Pivot;
+                GrasshopperComponents.Redraw(context, document, new PointF(pivot.X, pivot.Y));
+                var summary = GrasshopperReadback.GraphSummary(created, graphId,
+                    aliases.ToDictionary(entry => entry.Value.InstanceGuid, entry => entry.Key));
 
                 return new Dictionary<string, object?>
                 {
                     ["graph_id"] = graphId,
+                    ["success"] = true,
                     ["aliases"] = aliases.ToDictionary(
                         entry => entry.Key,
                         entry => entry.Value.InstanceGuid.ToString("D"),
                         StringComparer.Ordinal
                     ),
-                    ["components"] = created.Select(item => GrasshopperHelpers.ObjectInfo(item, includeValues: true, maxItems: 100)).ToArray(),
-                    ["connections"] = connectionResults,
-                    ["values"] = valueResults,
-                    ["preview_updates"] = previewResults,
+                    ["components"] = created.Select(item => new Dictionary<string, object?>
+                    {
+                        ["instance_id"] = item.InstanceGuid.ToString("D"),
+                        ["name"] = item.Name,
+                        ["nickname"] = item.NickName,
+                        ["category"] = item.Category,
+                        ["subcategory"] = item.SubCategory,
+                        ["position"] = GrasshopperComponents.Position(item),
+                    }).ToArray(),
                     ["preview_policy"] = previewPolicyResults,
                     ["groups"] = groups,
                     ["layout"] = layout,
                     ["component_count"] = created.Count,
-                    ["connection_count"] = connectionResults.Count,
+                    ["created_component_count"] = created.Count,
+                    ["created_group_count"] = groups.Length,
+                    ["connection_count"] = connectionCount,
+                    ["value_count"] = valueCount,
                     ["recomputed"] = recompute,
-                    ["canvas_opened"] = canvasOpened,
-                    ["solution"] = recompute ? GrasshopperSolution.SolutionSummary(document) : null,
+                    ["rolled_back"] = false,
+                    ["mutation_duration_ms"] = mutation.ElapsedMilliseconds,
+                    ["solution_duration_ms"] = solve.ElapsedMilliseconds,
+                    ["verification_duration_ms"] = 0,
+                    ["duration_ms"] = total.ElapsedMilliseconds,
+                    ["diagnostics"] = GrasshopperSolution.SolutionSummary(document),
+                    ["visibility"] = GrasshopperDocumentCommands.Visibility(context, document, canvas),
+                    ["summary"] = summary,
+                    ["message"] = $"Built Grasshopper graph with {created.Count} component(s) and {connectionCount} connection(s)",
                 };
             },
             rollbackOnError
         );
     }
 
-    private static object[] ApplyPreviewUpdates(
+    private static void ApplyPreviewUpdates(
         Grasshopper.Kernel.GH_Document document,
         JsonElement updates,
         IReadOnlyDictionary<string, Grasshopper.Kernel.IGH_DocumentObject> aliases
@@ -108,11 +139,10 @@ internal static class GrasshopperBuild
     {
         if (!NativeFunctions.Has(updates, "enabled"))
         {
-            return Array.Empty<object>();
+            return;
         }
 
         var enabled = NativeFunctions.Boolean(updates, "enabled");
-        var results = new List<object>();
         foreach (var item in aliases.Values.GroupBy(item => item.InstanceGuid).Select(group => group.First()))
         {
             if (item is not Grasshopper.Kernel.IGH_PreviewObject preview || preview.Hidden == !enabled)
@@ -122,14 +152,7 @@ internal static class GrasshopperBuild
 
             GrasshopperOperations.RecordChange(document, item, "Update MCP Grasshopper preview visibility");
             preview.Hidden = !enabled;
-            results.Add(new Dictionary<string, object?>
-            {
-                ["instance_id"] = item.InstanceGuid.ToString("D"),
-                ["preview"] = enabled,
-            });
         }
-
-        return results.ToArray();
     }
 
     private static IEnumerable<JsonElement> Elements(JsonElement parameters, string key)

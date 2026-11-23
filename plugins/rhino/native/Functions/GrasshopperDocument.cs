@@ -14,6 +14,25 @@ internal static class GrasshopperDocumentCommands
     {
         var openCanvas = NativeFunctions.Boolean(parameters, "open_canvas", true);
         var makeActive = NativeFunctions.Boolean(parameters, "make_active", true);
+        var newIfMissing = NativeFunctions.Boolean(parameters, "new_if_missing", true);
+        var (document, canvas, created) = EnsureDocument(context, openCanvas, makeActive, newIfMissing);
+        return new Dictionary<string, object?>
+        {
+            ["has_document"] = document is not null,
+            ["created"] = created,
+            ["made_active"] = document is not null && makeActive,
+            ["canvas_open"] = canvas is not null,
+            ["file_path"] = document is null ? null : DocumentFileName(document),
+            ["object_count"] = document?.ObjectCount ?? 0,
+            ["visibility"] = document is null ? null : Visibility(context, document, canvas),
+            ["message"] = document is null ? "No active Grasshopper document"
+                : created ? "Created Grasshopper document" : "Grasshopper document is available",
+        };
+    }
+
+    internal static (GH_Document? Document, GH_Canvas? Canvas, bool Created) EnsureDocument(
+        RequestContext context, bool openCanvas, bool makeActive, bool newIfMissing)
+    {
         var canvas = context.GrasshopperCanvas;
         if (openCanvas && canvas is null)
         {
@@ -34,7 +53,7 @@ internal static class GrasshopperDocumentCommands
         }
 
         var created = false;
-        if (document is null && NativeFunctions.Boolean(parameters, "new_if_missing", true))
+        if (document is null && newIfMissing)
         {
             document = server?.AddNewDocument();
             created = document is not null;
@@ -51,18 +70,7 @@ internal static class GrasshopperDocumentCommands
             }
         }
 
-        return new Dictionary<string, object?>
-        {
-            ["has_document"] = document is not null,
-            ["created"] = created,
-            ["made_active"] = document is not null && makeActive,
-            ["canvas_open"] = canvas is not null,
-            ["file_path"] = document is null ? null : DocumentFileName(document),
-            ["object_count"] = document?.ObjectCount ?? 0,
-            ["visibility"] = document is null ? null : Visibility(context, document, canvas),
-            ["message"] = document is null ? "No active Grasshopper document"
-                : created ? "Created Grasshopper document" : "Grasshopper document is available",
-        };
+        return (document, canvas, created);
     }
 
     [McpCommand("gh_get_document_info", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
@@ -98,7 +106,7 @@ internal static class GrasshopperDocumentCommands
     private static string DocumentFileName(GH_Document document) =>
         string.IsNullOrEmpty(document.FilePath) ? "(unsaved)" : Path.GetFileName(document.FilePath);
 
-    private static Dictionary<string, object?> Visibility(
+    internal static Dictionary<string, object?> Visibility(
         RequestContext context, GH_Document document, GH_Canvas? canvas
     )
     {

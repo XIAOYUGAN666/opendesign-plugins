@@ -48,49 +48,46 @@ internal static class GrasshopperSolution
     internal static object ExpireSolution(RequestContext context, JsonElement parameters)
     {
         var document = GrasshopperHelpers.RequireDocument(context);
-        var targets = new Dictionary<Guid, IGH_DocumentObject>();
+        var targets = new List<IGH_DocumentObject>();
         var selectedIds = NativeFunctions.Property(parameters, "component_ids");
-        if (selectedIds.ValueKind == JsonValueKind.Array)
+        if (selectedIds.ValueKind == JsonValueKind.Array && selectedIds.GetArrayLength() > 0)
         {
             foreach (var id in NativeFunctions.Ids(parameters, "component_ids"))
             {
-                var item = document.Objects.FirstOrDefault(candidate => candidate.InstanceGuid == id)
-                    ?? throw new NativeCommandException("componentNotFound", "A Grasshopper object to expire was not found.");
-                targets[id] = item;
+                if (document.FindObject(id, true) is { } item)
+                    targets.Add(item);
             }
         }
-
-        if (NativeFunctions.Has(parameters, "instance_id") || NativeFunctions.Has(parameters, "nickname"))
+        else if (NativeFunctions.Has(parameters, "instance_id") || NativeFunctions.Has(parameters, "nickname"))
         {
             var item = GrasshopperHelpers.RequireObject(document, parameters);
-            targets[item.InstanceGuid] = item;
+            targets.Add(item);
         }
-
-        var expireAll = targets.Count == 0;
-        if (expireAll)
+        else
         {
-            targets = document.Objects.ToDictionary(item => item.InstanceGuid, item => item);
+            targets.AddRange(document.Objects);
         }
 
         var expireDownstream = NativeFunctions.Boolean(parameters, "expire_downstream", true);
-        foreach (var item in targets.Values.OfType<IGH_ActiveObject>())
+        var explicitTarget = selectedIds.ValueKind == JsonValueKind.Array && selectedIds.GetArrayLength() > 0
+            || NativeFunctions.Has(parameters, "instance_id")
+            || NativeFunctions.Has(parameters, "nickname");
+        foreach (var item in targets)
         {
-            item.ExpireSolution(expireDownstream);
+            item.ExpireSolution(explicitTarget && expireDownstream);
         }
 
         var recompute = NativeFunctions.Boolean(parameters, "recompute");
         if (recompute)
         {
-            document.NewSolution(expireAll);
+            GrasshopperOperations.Recompute(document, expireAll: false);
         }
 
         return new Dictionary<string, object?>
         {
             ["expired_count"] = targets.Count,
-            ["expired_ids"] = targets.Keys.Select(id => id.ToString("D")).ToArray(),
-            ["expire_downstream"] = expireDownstream,
             ["recomputed"] = recompute,
-            ["solution"] = SolutionSummary(document),
+            ["message"] = $"Expired {targets.Count} Grasshopper object(s)" + (recompute ? " and triggered recompute" : ""),
         };
     }
 

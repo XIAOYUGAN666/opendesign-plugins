@@ -251,10 +251,10 @@ internal static class GrasshopperHelpers
         };
     }
 
-    internal static object ComponentTypeInfo(IGH_ObjectProxy proxy, bool includeDescription = true)
+    internal static Dictionary<string, object?> ComponentTypeInfo(
+        IGH_ObjectProxy proxy, bool includeDescription = true)
     {
-        var instance = CreateInstance(proxy);
-        return new Dictionary<string, object?>
+        var info = new Dictionary<string, object?>
         {
             ["guid"] = proxy.Guid.ToString("D"),
             ["name"] = proxy.Desc.Name,
@@ -264,9 +264,17 @@ internal static class GrasshopperHelpers
             ["description"] = includeDescription ? proxy.Desc.Description : null,
             ["obsolete"] = proxy.Obsolete,
             ["hidden"] = proxy.Exposure == GH_Exposure.hidden,
-            ["inputs"] = Inputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
-            ["outputs"] = Outputs(instance).Select((port, index) => PortInfo(port, index)).ToArray(),
         };
+        info["success"] = true;
+        try
+        {
+            GrasshopperReadback.AddTypePorts(CreateInstance(proxy), info);
+        }
+        catch (NativeCommandException error)
+        {
+            info["warning"] = error.SafeMessage;
+        }
+        return info;
     }
 
     internal static Dictionary<string, object?> ObjectInfo(
@@ -305,7 +313,7 @@ internal static class GrasshopperHelpers
         };
     }
 
-    private static object[] RuntimeMessages(IGH_ActiveObject? active)
+    internal static object[] RuntimeMessages(IGH_ActiveObject? active)
     {
         if (active is null)
         {

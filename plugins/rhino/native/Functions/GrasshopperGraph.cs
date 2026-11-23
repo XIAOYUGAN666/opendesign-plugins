@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Special;
@@ -29,10 +30,12 @@ internal static class GrasshopperGraph
     [McpCommand("gh_clear_graph", ReadOnly = false, SupportsDryRun = false)]
     internal static object ClearGraph(RequestContext context, JsonElement parameters)
     {
+        var timer = Stopwatch.StartNew();
         var document = GrasshopperHelpers.RequireDocument(context);
         var graphId = GrasshopperHelpers.RequireGraphId(parameters);
         var includeGroups = NativeFunctions.Boolean(parameters, "include_groups", true);
-        var objects = GrasshopperHelpers.GraphObjects(document, graphId).ToList();
+        var objects = GrasshopperHelpers.GraphObjects(document, graphId)
+            .Where(item => item is not GH_Group).ToList();
         var groups = includeGroups ? GrasshopperHelpers.FindGraphGroups(document, graphId) : Array.Empty<GH_Group>();
         if (groups.Count > 0)
         {
@@ -48,17 +51,25 @@ internal static class GrasshopperGraph
             }
 
             var recompute = NativeFunctions.Boolean(parameters, "recompute");
+            var solve = new Stopwatch();
             if (recompute)
             {
-                GrasshopperOperations.Recompute(document, expireAll: true);
+                solve.Start();
+                GrasshopperOperations.Recompute(document, expireAll: false);
+                solve.Stop();
             }
 
             return new Dictionary<string, object?>
             {
                 ["graph_id"] = graphId,
                 ["deleted_count"] = objects.Count,
-                ["cleared"] = true,
+                ["deleted_component_count"] = objects.Count - groups.Count,
+                ["deleted_group_count"] = groups.Count,
+                ["include_groups"] = includeGroups,
                 ["recomputed"] = recompute,
+                ["solution_duration_ms"] = solve.ElapsedMilliseconds,
+                ["duration_ms"] = timer.ElapsedMilliseconds,
+                ["message"] = $"Cleared Grasshopper graph '{graphId}'",
             };
         });
     }

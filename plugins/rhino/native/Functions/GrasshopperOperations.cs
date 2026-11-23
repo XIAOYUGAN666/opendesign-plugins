@@ -207,6 +207,7 @@ internal static class GrasshopperOperations
         var attributes = item.Attributes
             ?? throw new NativeCommandException("componentInfoUnavailable", "Grasshopper could not create canvas attributes for the selected object.");
         attributes.Pivot = new PointF((float)coordinates[0], (float)coordinates[1]);
+        attributes.ExpireLayout();
     }
 
     internal static void ApplyObjectOptions(
@@ -330,9 +331,13 @@ internal static class GrasshopperOperations
         {
             // Preserve the original owner before clearing a component input's defaults.
             RecordChange(document, target, "Set MCP Grasshopper parameter value");
+            if (parameter.SourceCount > 0)
+                RecordWire(document, parameter, "Set MCP Grasshopper parameter value");
         }
 
-        return SetPersistentValue(parameter, value);
+        var result = SetPersistentValue(parameter, value);
+        parameter.RemoveAllSources();
+        return result;
     }
 
     internal static void Recompute(GH_Document document, bool expireAll) => document.NewSolution(expireAll);
@@ -367,10 +372,9 @@ internal static class GrasshopperOperations
             throw new NativeCommandException("invalidParameters", "The Number Slider minimum cannot exceed its maximum.");
         }
 
-        if (number < slider.Slider.Minimum || number > slider.Slider.Maximum || !slider.TrySetSliderValue(number))
-        {
-            throw new NativeCommandException("sliderValueOutOfRange", "The Number Slider value is outside its configured range.");
-        }
+        var clamped = Math.Max(slider.Slider.Minimum, Math.Min(slider.Slider.Maximum, number));
+        if (!slider.TrySetSliderValue(clamped))
+            slider.SetSliderValue(clamped);
     }
 
     private static decimal DecimalOption(JsonElement options, string key)

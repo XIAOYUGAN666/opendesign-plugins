@@ -41,16 +41,26 @@ internal static class GrasshopperConnections
         }
 
         var alreadyConnected = target.Sources.Any(item => ReferenceEquals(item, source));
-        if (alreadyConnected)
-        {
-            return ConnectionResult(sourceOwner, source, targetOwner, target, connected: true, alreadyConnected: true);
-        }
-
         return GrasshopperOperations.Mutate(document, "Connect MCP Grasshopper components", () =>
         {
-            GrasshopperOperations.RecordWire(document, target, "Connect MCP Grasshopper components");
-            target.AddSource(source);
-            return ConnectionResult(sourceOwner, source, targetOwner, target, connected: true, alreadyConnected: false);
+            if (!alreadyConnected)
+            {
+                GrasshopperOperations.RecordWire(document, target, "Connect MCP Grasshopper components");
+                target.AddSource(source);
+            }
+            GrasshopperParameters.EnsureData(source);
+            targetOwner.ExpireSolution(true);
+            GrasshopperOperations.Recompute(document, expireAll: false);
+            return new Dictionary<string, object?>
+            {
+                ["source_id"] = sourceOwner.InstanceGuid.ToString("D"),
+                ["source_nickname"] = sourceOwner.NickName,
+                ["source_param"] = source.Name,
+                ["target_id"] = targetOwner.InstanceGuid.ToString("D"),
+                ["target_nickname"] = targetOwner.NickName,
+                ["target_param"] = target.Name,
+                ["message"] = $"Connected {sourceOwner.NickName}.{source.Name} to {targetOwner.NickName}.{target.Name}",
+            };
         });
     }
 
@@ -73,10 +83,9 @@ internal static class GrasshopperConnections
         );
         var disconnectAll = NativeFunctions.Boolean(parameters, "disconnect_all");
         IGH_Param? source = null;
-        IGH_DocumentObject? sourceOwner = null;
         if (!disconnectAll)
         {
-            sourceOwner = GrasshopperOperations.ResolveSelector(
+            var sourceOwner = GrasshopperOperations.ResolveSelector(
                 document,
                 parameters,
                 "source_instance_id",
@@ -94,47 +103,27 @@ internal static class GrasshopperConnections
         var sources = disconnectAll
             ? target.Sources.ToArray()
             : target.Sources.Where(item => ReferenceEquals(item, source)).Take(1).ToArray();
-        if (sources.Length == 0)
-        {
-            return new Dictionary<string, object?>
-            {
-                ["disconnected_count"] = 0,
-                ["disconnected"] = false,
-            };
-        }
-
         return GrasshopperOperations.Mutate(document, "Disconnect MCP Grasshopper components", () =>
         {
-            GrasshopperOperations.RecordWire(document, target, "Disconnect MCP Grasshopper components");
+            if (sources.Length > 0)
+                GrasshopperOperations.RecordWire(document, target, "Disconnect MCP Grasshopper components");
             foreach (var item in sources)
             {
                 target.RemoveSource(item);
             }
 
+            targetOwner.ExpireSolution(true);
+            GrasshopperOperations.Recompute(document, expireAll: false);
             return new Dictionary<string, object?>
             {
                 ["disconnected_count"] = sources.Length,
-                ["disconnected"] = true,
-                ["target_instance_id"] = targetOwner.InstanceGuid.ToString("D"),
-                ["source_instance_id"] = sourceOwner?.InstanceGuid.ToString("D"),
+                ["target_id"] = targetOwner.InstanceGuid.ToString("D"),
+                ["target_nickname"] = targetOwner.NickName,
+                ["target_param"] = target.Name,
+                ["message"] = sources.Length > 0
+                    ? $"Disconnected {sources.Length} connection(s) from {targetOwner.NickName}.{target.Name}"
+                    : "No connections were disconnected",
             };
         });
     }
-
-    private static Dictionary<string, object?> ConnectionResult(
-        IGH_DocumentObject sourceOwner,
-        IGH_Param source,
-        IGH_DocumentObject targetOwner,
-        IGH_Param target,
-        bool connected,
-        bool alreadyConnected
-    ) => new()
-    {
-        ["source_instance_id"] = sourceOwner.InstanceGuid.ToString("D"),
-        ["source_output_name"] = source.NickName,
-        ["target_instance_id"] = targetOwner.InstanceGuid.ToString("D"),
-        ["target_input_name"] = target.NickName,
-        ["connected"] = connected,
-        ["already_connected"] = alreadyConnected,
-    };
 }

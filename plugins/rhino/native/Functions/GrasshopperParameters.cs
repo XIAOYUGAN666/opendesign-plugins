@@ -21,18 +21,46 @@ internal static class GrasshopperParameters
         return GrasshopperOperations.Mutate(document, "Set MCP Grasshopper parameter value", () =>
         {
             var value = NativeFunctions.Property(parameters, "value");
-            var result = GrasshopperOperations.SetValue(item, value, parameters, document);
-            if (item is IGH_ActiveObject active)
+            var currentValue = GrasshopperOperations.SetValue(item, value, parameters, document);
+            item.ExpireSolution(true);
+            if (item is GH_NumberSlider slider)
             {
-                active.ExpireSolution(false);
+                EnsureData(slider);
+                foreach (var recipient in slider.Recipients)
+                    (recipient.Attributes?.GetTopLevel.DocObject ?? recipient).ExpireSolution(true);
             }
-
-            return new Dictionary<string, object?>
+            GrasshopperOperations.Recompute(document, expireAll: false);
+            var result = new Dictionary<string, object?>
             {
                 ["instance_id"] = item.InstanceGuid.ToString("D"),
-                ["value"] = result,
-                ["component"] = GrasshopperHelpers.ObjectInfo(item, includeValues: true, maxItems: 100),
+                ["nickname"] = item.NickName,
             };
+            switch (item)
+            {
+                case GH_NumberSlider number:
+                    result["value"] = (double)number.CurrentValue;
+                    result["min"] = (double)number.Slider.Minimum;
+                    result["max"] = (double)number.Slider.Maximum;
+                    result["message"] = $"Set slider '{item.NickName}' to {number.CurrentValue}";
+                    break;
+                case GH_BooleanToggle:
+                    result["value"] = currentValue;
+                    result["message"] = $"Set toggle '{item.NickName}' to {currentValue}";
+                    break;
+                case GH_Panel:
+                    result["value"] = currentValue;
+                    result["message"] = $"Set panel '{item.NickName}' content";
+                    break;
+                case GH_ValueList:
+                    result["message"] = $"Set value list '{item.NickName}' selection";
+                    break;
+                default:
+                    var port = GrasshopperOperations.ResolvePort(item, parameters, "input", "input_index", "input_name");
+                    result["param_name"] = port.Name;
+                    result["message"] = $"Set value on {item.NickName}.{port.Name}";
+                    break;
+            }
+            return result;
         });
     }
 
@@ -52,14 +80,8 @@ internal static class GrasshopperParameters
         {
             if (item is IGH_Component component)
             {
-                foreach (var slider in component.Params.Input
-                    .SelectMany(port => port.Sources).OfType<GH_NumberSlider>())
-                {
-                    if (GrasshopperReadback.HasData(slider))
-                        continue;
-                    slider.ClearData();
-                    slider.AddVolatileData(new GH_Path(0), 0, new GH_Number((double)slider.CurrentValue));
-                }
+                foreach (var source in component.Params.Input.SelectMany(port => port.Sources))
+                    EnsureData(source);
             }
 
             active.ClearData();
@@ -79,5 +101,13 @@ internal static class GrasshopperParameters
         result["param_name"] = parameter.Name;
         result["type_name"] = GrasshopperHelpers.SafeParamTypeName(parameter);
         return result;
+    }
+
+    internal static void EnsureData(IGH_Param parameter)
+    {
+        if (parameter is not GH_NumberSlider slider || GrasshopperReadback.HasData(slider))
+            return;
+        slider.ClearData();
+        slider.AddVolatileData(new GH_Path(0), 0, new GH_Number((double)slider.CurrentValue));
     }
 }

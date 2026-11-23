@@ -7,6 +7,72 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GrasshopperReadback
 {
+    internal static Dictionary<string, object?> DetailedComponent(IGH_DocumentObject item)
+    {
+        var info = new Dictionary<string, object?>
+        {
+            ["instance_id"] = item.InstanceGuid.ToString("D"),
+            ["name"] = item.Name,
+            ["nickname"] = item.NickName,
+            ["category"] = item.Category,
+            ["subcategory"] = item.SubCategory,
+            ["description"] = item.Description,
+            ["position"] = GrasshopperComponents.Position(item),
+            ["type"] = item.GetType().Name,
+        };
+        if (item is IGH_PreviewObject preview)
+            info["preview"] = !preview.Hidden;
+        if (item is IGH_ActiveObject active)
+            info["enabled"] = !active.Locked;
+        AddSpecialState(item, info);
+
+        if (item is IGH_Component component)
+        {
+            info["runtime_message_level"] = component.RuntimeMessageLevel.ToString();
+            info["is_obsolete"] = component.Obsolete;
+            info["inputs"] = component.Params.Input.Select((port, index) => Port(port, index, true, false, 0)).ToArray();
+            info["outputs"] = component.Params.Output.Select((port, index) => Port(port, index, true, false, 0)).ToArray();
+            info["runtime_messages"] = GrasshopperHelpers.RuntimeMessages(component);
+        }
+        else if (item is IGH_Param param)
+        {
+            info["type_name"] = GrasshopperHelpers.SafeParamTypeName(param);
+            info["source_count"] = param.SourceCount;
+            info["recipient_count"] = param.Recipients.Count;
+            info["data_count"] = param.VolatileDataCount;
+        }
+        return info;
+    }
+
+    internal static void AddTypePorts(IGH_DocumentObject item, Dictionary<string, object?> info)
+    {
+        var inputs = GrasshopperHelpers.Inputs(item);
+        var outputs = GrasshopperHelpers.Outputs(item);
+        info["inputs"] = inputs.Select((port, index) => Port(port, index, false, false, 0)).ToArray();
+        info["outputs"] = outputs.Select((port, index) => Port(port, index, false, false, 0)).ToArray();
+        info["input_count"] = inputs.Length;
+        info["output_count"] = outputs.Length;
+        if (item is IGH_Param param)
+        {
+            info["is_parameter"] = true;
+            info["type_name"] = GrasshopperHelpers.SafeParamTypeName(param);
+        }
+        var warnings = new List<string>();
+        if (string.Equals(item.Name, "Expression", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.Name, "Evaluate", StringComparison.OrdinalIgnoreCase))
+        {
+            info["dynamic_inputs"] = true;
+            warnings.Add("Expression components have dynamic inputs; inspect after creation before wiring.");
+        }
+        if (string.Equals(item.Name, "Python", StringComparison.OrdinalIgnoreCase)
+            || item.Name.IndexOf("Script", StringComparison.OrdinalIgnoreCase) >= 0)
+            warnings.Add("Script components have configurable inputs and outputs; default sockets may differ.");
+        if (string.Equals(item.Name, "Cluster", StringComparison.OrdinalIgnoreCase))
+            warnings.Add("Cluster inputs and outputs depend on the cluster definition.");
+        if (warnings.Count > 0)
+            info["warnings"] = warnings;
+    }
+
     internal static Dictionary<string, object?> CanvasObjects(
         IEnumerable<IGH_DocumentObject> objects,
         bool includeConnections,
@@ -126,7 +192,7 @@ internal static class GrasshopperReadback
 
     internal static Dictionary<string, object?> GraphSummary(
         IEnumerable<IGH_DocumentObject> objects,
-        string graphId,
+        string? graphId,
         IReadOnlyDictionary<Guid, string> aliases)
     {
         var diagnostics = new List<Dictionary<string, object?>>();
