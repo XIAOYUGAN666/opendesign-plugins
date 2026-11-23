@@ -5,7 +5,7 @@ namespace RhinoMcpBridge.Functions;
 
 internal static class GrasshopperCatalog
 {
-    [McpCommand("gh_search_components", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("gh_search_components", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object SearchComponents(RequestContext context, JsonElement parameters)
     {
         var query = NativeFunctions.Text(parameters, "query");
@@ -21,7 +21,7 @@ internal static class GrasshopperCatalog
         };
     }
 
-    [McpCommand("gh_batch_search_components", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("gh_batch_search_components", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object BatchSearchComponents(RequestContext context, JsonElement parameters)
     {
         var queries = StringArray(parameters, "queries");
@@ -48,7 +48,7 @@ internal static class GrasshopperCatalog
         };
     }
 
-    [McpCommand("gh_list_component_categories", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("gh_list_component_categories", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object ListCategories(RequestContext context, JsonElement parameters)
     {
         var categories = GrasshopperHelpers.Proxies
@@ -73,7 +73,7 @@ internal static class GrasshopperCatalog
         };
     }
 
-    [McpCommand("gh_get_available_components", ReadOnly = true, SupportsDryRun = false)]
+    [McpCommand("gh_get_available_components", ReadOnly = true, SupportsDryRun = false, CompletesWithinCallback = true)]
     internal static object GetAvailableComponents(RequestContext context, JsonElement parameters)
     {
         var category = NativeFunctions.Text(parameters, "category");

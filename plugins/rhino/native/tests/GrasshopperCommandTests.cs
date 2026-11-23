@@ -100,14 +100,11 @@ public sealed class GrasshopperCommandTests
         var invoke = registryType.GetMethod("Invoke", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!;
         using var parameters = JsonDocument.Parse("{}");
 
-        var wrapped = Assert.Throws<TargetInvocationException>(
-            () => invoke.Invoke(registry, new[] { "gh_get_document_info", context, parameters.RootElement })
+        var response = Assert.IsType<Dictionary<string, object?>>(
+            invoke.Invoke(registry, new[] { "gh_get_document_info", context, parameters.RootElement })
         );
-        var category = wrapped.InnerException?.GetType()
-            .GetProperty("Category", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-            ?.GetValue(wrapped.InnerException) as string;
-
-        Assert.Equal("noActiveGrasshopperDocument", category);
+        Assert.False(Assert.IsType<bool>(response["has_document"]));
+        Assert.Equal("No active Grasshopper document", response["message"]);
     }
 
     [Fact]

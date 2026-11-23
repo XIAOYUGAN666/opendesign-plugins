@@ -337,6 +337,8 @@ public sealed class NativeDispatchLifetimeTests
             "modify_object", "modify_objects", "get_or_set_current_layer", "select_objects", "undo", "redo",
             "get_object_attributes", "update_object_attributes",
             "create_layer", "delete_layer", "create_object", "delete_object", "gh_get_document_info",
+            "gh_create_document", "gh_search_components", "gh_batch_search_components",
+            "gh_list_component_categories", "gh_get_available_components",
         };
         foreach (var command in commands)
         {

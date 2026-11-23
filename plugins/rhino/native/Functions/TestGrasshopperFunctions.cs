@@ -95,11 +95,11 @@ internal sealed partial class NativeSelfTests
                     ["make_active"] = true,
                     ["open_canvas"] = true
                 });
-                if (string.IsNullOrEmpty(created["document"]?["document_id"]?.ToString()))
+                if (created["has_document"]?.Value<bool>() != true)
                 {
                     throw new InvalidOperationException(created["message"]?.ToString() ?? "Failed to create or activate Grasshopper document.");
                 }
-                initialObjectCount = created["document"]?["object_count"]?.ToObject<int>() ?? 0;
+                initialObjectCount = created["object_count"]?.Value<int>() ?? 0;
             });
 
             if (results["gh_create_document"]?["status"]?.ToString() != "pass")
@@ -110,7 +110,7 @@ internal sealed partial class NativeSelfTests
             Record("gh_get_document_info", () =>
             {
                 var info = Invoke("gh_get_document_info", new JObject());
-                if (string.IsNullOrEmpty(info["document_id"]?.ToString()))
+                if (info["has_document"]?.Value<bool>() != true)
                 {
                     throw new InvalidOperationException(
                         "No active Grasshopper document. Open Grasshopper and create/open a document before running mcptest Grasshopper=On.");
