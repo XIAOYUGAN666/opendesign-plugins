@@ -121,10 +121,10 @@ def test_protocol_schema_provider_and_native_dispatch_names_match() -> None:
     native_attributes = _native_attributes()
     native_commands = [name for name, _arguments in native_attributes]
 
-    assert len(protocol_commands) == 65
+    assert len(protocol_commands) == 68
     assert schema_commands == protocol_commands
     assert set(tool_commands) == protocol_commands
-    assert len(native_commands) == 65, (
+    assert len(native_commands) == 68, (
         f"Expected one native dispatch handler per protocol command; found "
         f"{len(native_commands)}. Missing: {sorted(protocol_commands - set(native_commands))}"
     )

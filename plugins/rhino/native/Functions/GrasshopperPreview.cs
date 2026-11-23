@@ -86,7 +86,7 @@ internal static class GrasshopperPreview
         }
 
         var viewportTarget = NormalizeViewport(NativeFunctions.Text(parameters, "viewport", "perspective") ?? "perspective");
-        var view = CaptureViewport.ResolveView(context, viewportTarget);
+        var view = ViewportNavigation.ResolveView(context, viewportTarget == "active" ? null : viewportTarget);
         var viewport = view.ActiveViewport;
         var pushed = false;
         try

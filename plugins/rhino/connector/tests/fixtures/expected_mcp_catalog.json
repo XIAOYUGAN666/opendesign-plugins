@@ -50,8 +50,8 @@
             "type": "boolean"
           }
         },
-        "title": "analyze_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "analyze_objectsArguments"
       },
       "annotations": {
         "title": null,
@@ -104,8 +104,8 @@
           "base_id",
           "subtract_ids"
         ],
-        "title": "boolean_differenceArguments",
-        "type": "object"
+        "type": "object",
+        "title": "boolean_differenceArguments"
       },
       "annotations": {
         "title": null,
@@ -153,8 +153,8 @@
         "required": [
           "object_ids"
         ],
-        "title": "boolean_intersectionArguments",
-        "type": "object"
+        "type": "object",
+        "title": "boolean_intersectionArguments"
       },
       "annotations": {
         "title": null,
@@ -202,8 +202,8 @@
         "required": [
           "object_ids"
         ],
-        "title": "boolean_unionArguments",
-        "type": "object"
+        "type": "object",
+        "title": "boolean_unionArguments"
       },
       "annotations": {
         "title": null,
@@ -215,7 +215,7 @@
     },
     {
       "name": "capture_viewport",
-      "description": "\n    Capture a screenshot of a Rhino viewport for visual analysis.\n\n    This tool captures the current state of a Rhino viewport as an image,\n    allowing Claude to visually understand and analyze the 3D model.\n\n    Parameters:\n    - viewport: Target viewport to capture. Options:\n        - \"active\": The currently active viewport (default)\n        - \"perspective\": The perspective viewport\n        - \"top\": Top orthographic view (plan view)\n        - \"front\": Front orthographic view\n        - \"right\": Right orthographic view\n        - \"back\": Back orthographic view\n        - \"left\": Left orthographic view\n        - \"bottom\": Bottom orthographic view\n        - Or any custom viewport name defined in the document\n    - width: Image width in pixels (default: 800, range: 100-4096)\n    - height: Image height in pixels (default: 600, range: 100-4096)\n    - show_grid: Show the viewport grid (default: True)\n    - show_axes: Show world axes indicator (default: True)\n    - show_cplane_axes: Show construction plane axes (default: False)\n    - zoom_to_fit: Fit visible objects to the requested image dimensions (default: False).\n      The original camera and projection are restored after capture.\n\n    Returns:\n    An Image object that Claude can analyze visually.\n\n    Use Cases:\n    - Verify geometry creation matches user intent\n    - Analyze spatial relationships between objects\n    - Check visual appearance and layout\n    - Debug modeling issues by seeing the actual result\n    - Capture multiple views for comprehensive understanding\n\n    Example workflow:\n    1. capture_viewport(viewport=\"perspective\") - Get overall 3D view\n    2. capture_viewport(viewport=\"top\", zoom_to_fit=True) - Get plan view\n    3. capture_viewport(viewport=\"front\") - Get elevation view\n    ",
+      "description": "\n    Capture a Rhino viewport as an image plus metadata saying what it shows.\n\n    Parameters:\n    - viewport: Target viewport to capture. Options:\n        - \"active\": The currently active viewport (default)\n        - \"perspective\": The perspective viewport\n        - \"top\", \"front\", \"right\", \"back\", \"left\", \"bottom\": standard\n          orthographic views\n        - Or any custom viewport name defined in the document\n    - width: Image width in pixels (default: 800, range: 100-4096)\n    - height: Image height in pixels (default: 600, range: 100-4096)\n    - show_grid: Show the viewport grid (default: True)\n    - show_axes: Show world axes indicator (default: True)\n    - show_cplane_axes: Show construction plane axes (default: False)\n    - zoom_to_fit: Fit visible objects to the requested image dimensions (default: False)\n    - format: \"png\" (default) or \"jpeg\" (smaller, lossy; saves context)\n    - display_mode: Display mode name for this capture, e.g. \"Shaded\",\n      \"Wireframe\", \"Rendered\", \"Ghosted\", \"Technical\", \"Arctic\". An unknown\n      name is refused with the list of available modes.\n    - camera_location / camera_target: [x, y, z] explicit camera for this\n      capture; pass either or both. lens_length (mm) sets the 35mm-equivalent\n      lens of a perspective view.\n    - frame_object_ids: object ids to frame, or\n      frame_bbox: {\"min\": [x, y, z], \"max\": [x, y, z]} world box to frame.\n      An explicit camera (camera_location, camera_target or lens_length)\n      cannot be combined with framing (frame_object_ids, frame_bbox or\n      zoom_to_fit=True); the plugin refuses that with invalid_argument.\n\n    Display mode, camera, lens and framing are temporary: the viewport is\n    restored exactly as it was after the capture.\n\n    Returns:\n    The image, then a text block with a JSON object: viewport_name,\n    display_mode, projection (\"perspective\" or \"parallel\"), width, height,\n    camera_location, camera_target, camera_up, lens_length,\n    scene_bounding_box ({min, max}, null for an empty document),\n    visible_object_count and total_object_count. Read it to confirm the\n    picture shows what you meant to look at.\n\n    Example workflow:\n    1. capture_viewport(viewport=\"perspective\") - overall 3D view\n    2. capture_viewport(viewport=\"top\", zoom_to_fit=True) - plan view\n    3. capture_viewport(frame_object_ids=[id], display_mode=\"Wireframe\") - inspect one part\n    4. capture_viewport(camera_location=[50, -80, 40], camera_target=[0, 0, 10]) - known angle\n    ",
       "inputSchema": {
         "properties": {
           "viewport": {
@@ -252,10 +252,106 @@
             "default": false,
             "title": "Zoom To Fit",
             "type": "boolean"
+          },
+          "format": {
+            "default": "png",
+            "enum": [
+              "png",
+              "jpeg"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "display_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Display Mode"
+          },
+          "camera_location": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Camera Location"
+          },
+          "camera_target": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Camera Target"
+          },
+          "lens_length": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lens Length"
+          },
+          "frame_object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Frame Object Ids"
+          },
+          "frame_bbox": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Frame Bbox"
           }
         },
-        "title": "capture_viewportArguments",
-        "type": "object"
+        "type": "object",
+        "title": "capture_viewportArguments"
       },
       "annotations": {
         "title": null,
@@ -289,8 +385,8 @@
             "type": "string"
           }
         },
-        "title": "create_layerArguments",
-        "type": "object"
+        "type": "object",
+        "title": "create_layerArguments"
       },
       "annotations": {
         "title": null,
@@ -396,8 +492,8 @@
             "title": "Scale"
           }
         },
-        "title": "create_objectArguments",
-        "type": "object"
+        "type": "object",
+        "title": "create_objectArguments"
       },
       "annotations": {
         "title": null,
@@ -409,7 +505,7 @@
     },
     {
       "name": "create_objects",
-      "description": "\n    Create multiple objects at once in the Rhino document.\n    \n    Parameters:\n    - objects: A list of dictionaries, each containing the parameters for a single object\n\n    Each object should have the following values:\n    - type: Object type (\"POINT\", \"LINE\", \"POLYLINE\", \"BOX\", \"SPHERE\", etc.)\n    - name: Optional name for the object\n    - color: Optional [r, g, b] color values (0-255) for the object\n    - params: Type-specific parameters dictionary (see documentation for each type in create_object() function)\n    - translation: Optional [x, y, z] translation vector\n    - rotation: Optional [x, y, z] rotation in radians\n    - scale: Optional [x, y, z] scale factors\n\n    Returns:\n    A message indicating the created objects.\n    \n    Examples of params:\n    [\n        {\n            \"type\": \"POINT\",\n            \"name\": \"Point 1\",\n            \"params\": {\"x\": 0, \"y\": 0, \"z\": 0}\n        },\n        {\n            \"type\": \"LINE\",\n            \"name\": \"Line 1\",\n            \"params\": {\"start\": [0, 0, 0], \"end\": [1, 1, 1]}\n        },\n        {\n            \"type\": \"POLYLINE\",\n            \"name\": \"Polyline 1\",\n            \"params\": {\"points\": [[0, 0, 0], [1, 1, 1], [2, 2, 2]]}\n        },\n        {\n            \"type\": \"CURVE\",\n            \"name\": \"Curve 1\",\n            \"params\": {\"points\": [[0, 0, 0], [1, 1, 1], [2, 2, 2]], \"degree\": 3}\n        },\n        {\n            \"type\": \"BOX\",\n            \"name\": \"Box 1\",\n            \"color\": [255, 0, 0],\n            \"params\": {\"width\": 1.0, \"length\": 1.0, \"height\": 1.0},\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 0, 0],\n            \"scale\": [1, 1, 1]\n        },\n        {\n            \"type\": \"SPHERE\",\n            \"name\": \"Sphere 1\",\n            \"color\": [0, 255, 0],\n            \"params\": {\"radius\": 1.0},\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 0, 0],\n            \"scale\": [1, 1, 1]\n        }\n    ]\n    ",
+      "description": "\n    Create multiple objects at once in the Rhino document.\n\n    Parameters:\n    - objects: A list of dictionaries, each containing the parameters for a single object\n\n    Each object should have the following values:\n    - type: Object type (\"POINT\", \"LINE\", \"POLYLINE\", \"BOX\", \"SPHERE\", etc.)\n    - name: Optional name for the object\n    - color: Optional [r, g, b] color values (0-255) for the object\n    - params: Type-specific parameters dictionary (see documentation for each type in create_object() function)\n    - translation: Optional [x, y, z] translation vector\n    - rotation: Optional [x, y, z] rotation in radians\n    - scale: Optional [x, y, z] scale factors\n\n    Returns:\n    A message indicating the created objects.\n\n    Examples of params:\n    [\n        {\n            \"type\": \"POINT\",\n            \"name\": \"Point 1\",\n            \"params\": {\"x\": 0, \"y\": 0, \"z\": 0}\n        },\n        {\n            \"type\": \"LINE\",\n            \"name\": \"Line 1\",\n            \"params\": {\"start\": [0, 0, 0], \"end\": [1, 1, 1]}\n        },\n        {\n            \"type\": \"POLYLINE\",\n            \"name\": \"Polyline 1\",\n            \"params\": {\"points\": [[0, 0, 0], [1, 1, 1], [2, 2, 2]]}\n        },\n        {\n            \"type\": \"CURVE\",\n            \"name\": \"Curve 1\",\n            \"params\": {\"points\": [[0, 0, 0], [1, 1, 1], [2, 2, 2]], \"degree\": 3}\n        },\n        {\n            \"type\": \"BOX\",\n            \"name\": \"Box 1\",\n            \"color\": [255, 0, 0],\n            \"params\": {\"width\": 1.0, \"length\": 1.0, \"height\": 1.0},\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 0, 0],\n            \"scale\": [1, 1, 1]\n        },\n        {\n            \"type\": \"SPHERE\",\n            \"name\": \"Sphere 1\",\n            \"color\": [0, 255, 0],\n            \"params\": {\"radius\": 1.0},\n            \"translation\": [0, 0, 0],\n            \"rotation\": [0, 0, 0],\n            \"scale\": [1, 1, 1]\n        }\n    ]\n    ",
       "inputSchema": {
         "properties": {
           "objects": {
@@ -424,8 +520,8 @@
         "required": [
           "objects"
         ],
-        "title": "create_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "create_objectsArguments"
       },
       "annotations": {
         "title": null,
@@ -475,8 +571,8 @@
         "required": [
           "outer_curve_id"
         ],
-        "title": "create_planar_regionArguments",
-        "type": "object"
+        "type": "object",
+        "title": "create_planar_regionArguments"
       },
       "annotations": {
         "title": null,
@@ -502,8 +598,8 @@
             "type": "string"
           }
         },
-        "title": "delete_layerArguments",
-        "type": "object"
+        "type": "object",
+        "title": "delete_layerArguments"
       },
       "annotations": {
         "title": null,
@@ -534,8 +630,8 @@
             "type": "boolean"
           }
         },
-        "title": "delete_objectArguments",
-        "type": "object"
+        "type": "object",
+        "title": "delete_objectArguments"
       },
       "annotations": {
         "title": null,
@@ -550,8 +646,8 @@
       "description": "\n    Describe what this MCP server itself can do.\n\n    Unlike get_commands, which lists Rhino's own application commands (Box,\n    Circle, ...) for use with run_command, this lists the MCP command surface:\n    every command the server handles and whether it is read-only, so you can\n    discover what is callable here instead of guessing a name.\n\n    Returns:\n    - version: the plugin version\n    - command_count: how many commands the server handles\n    - commands: a list of {name, read_only, supports_dry_run}, sorted by name.\n      supports_dry_run is absent on plugins older than the flag; read that as no.\n    - perception: the opt-in envelope flags (include_delta, include_health) and\n      what each attaches to a mutating command's result\n    - server_version: this Python server's version\n    - plugin_matches_server: whether plugin and server versions agree (null when\n      either is unknown)\n    - update_advice: which side is older and how to update it, or null\n    ",
       "inputSchema": {
         "properties": {},
-        "title": "describe_capabilitiesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "describe_capabilitiesArguments"
       },
       "annotations": {
         "title": null,
@@ -574,8 +670,8 @@
         "required": [
           "code"
         ],
-        "title": "execute_rhinocommon_csharp_codeArguments",
-        "type": "object"
+        "type": "object",
+        "title": "execute_rhinocommon_csharp_codeArguments"
       },
       "annotations": {
         "title": null,
@@ -598,8 +694,8 @@
         "required": [
           "code"
         ],
-        "title": "execute_rhinoscript_python_codeArguments",
-        "type": "object"
+        "type": "object",
+        "title": "execute_rhinoscript_python_codeArguments"
       },
       "annotations": {
         "title": null,
@@ -647,8 +743,8 @@
           "curve_id",
           "direction"
         ],
-        "title": "extrude_curveArguments",
-        "type": "object"
+        "type": "object",
+        "title": "extrude_curveArguments"
       },
       "annotations": {
         "title": null,
@@ -674,8 +770,24 @@
             "type": "boolean"
           }
         },
-        "title": "get_commandsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_commandsArguments"
+      },
+      "annotations": {
+        "title": null,
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_context",
+      "description": "\n    Get a bounded snapshot of where you stand in Rhino. Call this first.\n\n    Returns, for the active document and active viewport only:\n    - document_name (null when untitled) and document_path (withheld)\n    - units, absolute_tolerance, angle_tolerance (degrees)\n    - current_layer (full path) and layer_count\n    - object_count and objects_by_type (top 8 types by count, descending)\n    - selection_count and selected_ids (first 20)\n    - viewport: name (also as viewport_name), projection (\"perspective\" or\n      \"parallel\"), display_mode, camera_location and camera_target as\n      [x, y, z], camera_up and lens_length\n    - scene_bounding_box {min, max}, null when the document is empty\n    - grasshopper_definition_count (open Grasshopper definitions)\n\n    Reading the context changes nothing. For the layer hierarchy and\n    per-layer counts use get_document_summary; for objects use get_objects.\n    ",
+      "inputSchema": {
+        "properties": {},
+        "type": "object",
+        "title": "get_contextArguments"
       },
       "annotations": {
         "title": null,
@@ -690,8 +802,8 @@
       "description": "\n    Get a lightweight summary of the current Rhino document.\n\n    This returns aggregated statistics about the model without individual object details:\n    - Document metadata (name, units, tolerance, dates)\n    - Total object count\n    - Object counts grouped by type (e.g., 50 curves, 30 surfaces)\n    - Object counts grouped by layer\n    - Model-wide bounding box encompassing all objects\n    - Full layer hierarchy with parent-child relationships and per-layer object counts\n\n    Use this tool first to understand the model composition before querying specific objects.\n    For detailed object information, use get_objects with filters.\n    ",
       "inputSchema": {
         "properties": {},
-        "title": "get_document_summaryArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_document_summaryArguments"
       },
       "annotations": {
         "title": null,
@@ -720,8 +832,8 @@
             "type": "string"
           }
         },
-        "title": "get_modeling_guidanceArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_modeling_guidanceArguments"
       },
       "annotations": {
         "title": null,
@@ -744,8 +856,8 @@
         "required": [
           "module_name"
         ],
-        "title": "get_module_functionsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_module_functionsArguments"
       },
       "annotations": {
         "title": null,
@@ -785,8 +897,8 @@
             "title": "Name"
           }
         },
-        "title": "get_object_attributesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_object_attributesArguments"
       },
       "annotations": {
         "title": null,
@@ -812,8 +924,8 @@
             "type": "string"
           }
         },
-        "title": "get_object_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_object_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -825,7 +937,7 @@
     },
     {
       "name": "get_objects",
-      "description": "\n    Query objects in the Rhino document with filtering and pagination.\n\n    Use this tool to retrieve specific subsets of objects after first calling\n    get_document_summary to understand the model composition.\n\n    Parameters:\n    - offset: Number of objects to skip (default: 0)\n    - limit: Maximum objects to return (default: 50, max: 200)\n    - layer_filter: Return only objects on this layer (name or full path)\n    - type_filter: Return only objects of this type:\n        POINT, LINE, POLYLINE, CIRCLE, ARC, CURVE,\n        BOX, SPHERE, CONE, CYLINDER, SURFACE, BREP, EXTRUSION, MESH\n    - bbox_filter: Return objects within bounding box [[min_x,min_y,min_z],[max_x,max_y,max_z]]\n    - include_geometry: Include detailed geometry data (default: true, false for lightweight listing)\n\n    Returns:\n    - objects: Array of object information\n    - total_matching: Total count matching filters\n    - offset, limit: Applied pagination\n    - has_more: Whether more objects are available\n    - filters: The filters that were applied\n\n    Example: Get all curves on layer \"Walls\":\n        get_objects(layer_filter=\"Walls\", type_filter=\"CURVE\")\n\n    Example: Get next page of results:\n        get_objects(offset=50, limit=50)\n    ",
+      "description": "\n    Query objects in the Rhino document with filtering and pagination.\n\n    Use this tool to retrieve specific subsets of objects after first calling\n    get_context (or get_document_summary for per-layer counts) to understand\n    the model composition.\n\n    Parameters:\n    - offset: Number of objects to skip (default: 0)\n    - limit: Maximum objects to return (default: 50, max: 200)\n    - layer_filter: Return only objects on this layer (name or full path)\n    - type_filter: Return only objects of this type:\n        POINT, LINE, POLYLINE, CIRCLE, ARC, CURVE,\n        BOX, SPHERE, CONE, CYLINDER, SURFACE, BREP, EXTRUSION, MESH\n    - bbox_filter: Return objects within bounding box [[min_x,min_y,min_z],[max_x,max_y,max_z]]\n    - include_geometry: Include detailed geometry data (default: true, false for lightweight listing)\n    - ids: Return only objects with these ids; ids not in the document are simply absent\n    - selected_only: Return only objects that are currently selected (default: false)\n    - include_hidden: Also return hidden objects and objects on hidden layers (default: false)\n    - include_locked: Also return locked objects and objects on locked layers\n      (default: true; set false to list only what select_objects can select)\n\n    A layer_filter naming a layer that does not exist returns an empty listing.\n\n    Returns:\n    - objects: Array of object information\n    - total_matching: Total count matching filters\n    - offset, limit: Applied pagination\n    - has_more: Whether more objects are available\n    - filters: The filters that were applied\n\n    Example: Get all curves on layer \"Walls\":\n        get_objects(layer_filter=\"Walls\", type_filter=\"CURVE\")\n\n    Example: List what is selected right now, hidden objects included:\n        get_objects(selected_only=True, include_hidden=True)\n\n    Example: Get next page of results:\n        get_objects(offset=50, limit=50)\n    ",
       "inputSchema": {
         "properties": {
           "offset": {
@@ -879,10 +991,40 @@
             "default": true,
             "title": "Include Geometry",
             "type": "boolean"
+          },
+          "ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ids"
+          },
+          "selected_only": {
+            "default": false,
+            "title": "Selected Only",
+            "type": "boolean"
+          },
+          "include_hidden": {
+            "default": false,
+            "title": "Include Hidden",
+            "type": "boolean"
+          },
+          "include_locked": {
+            "default": true,
+            "title": "Include Locked",
+            "type": "boolean"
           }
         },
-        "title": "get_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_objectsArguments"
       },
       "annotations": {
         "title": null,
@@ -908,8 +1050,8 @@
             "type": "string"
           }
         },
-        "title": "get_or_set_current_layerArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_or_set_current_layerArguments"
       },
       "annotations": {
         "title": null,
@@ -942,8 +1084,8 @@
         "required": [
           "topic"
         ],
-        "title": "get_rhinoscript_docsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_rhinoscript_docsArguments"
       },
       "annotations": {
         "title": null,
@@ -964,8 +1106,8 @@
             "type": "boolean"
           }
         },
-        "title": "get_selected_objects_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "get_selected_objects_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -1121,8 +1263,8 @@
             "title": "Text"
           }
         },
-        "title": "gh_add_componentArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_add_componentArguments"
       },
       "annotations": {
         "title": null,
@@ -1151,8 +1293,8 @@
         "required": [
           "components"
         ],
-        "title": "gh_batch_get_component_type_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_batch_get_component_type_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -1183,8 +1325,8 @@
         "required": [
           "queries"
         ],
-        "title": "gh_batch_search_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_batch_search_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -1348,8 +1490,8 @@
         "required": [
           "components"
         ],
-        "title": "gh_build_graphArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_build_graphArguments"
       },
       "annotations": {
         "title": null,
@@ -1442,8 +1584,8 @@
             "type": "number"
           }
         },
-        "title": "gh_capture_previewArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_capture_previewArguments"
       },
       "annotations": {
         "title": null,
@@ -1469,8 +1611,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_clear_canvasArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_clear_canvasArguments"
       },
       "annotations": {
         "title": null,
@@ -1503,8 +1645,8 @@
         "required": [
           "graph_id"
         ],
-        "title": "gh_clear_graphArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_clear_graphArguments"
       },
       "annotations": {
         "title": null,
@@ -1616,8 +1758,8 @@
             "title": "Target Input Name"
           }
         },
-        "title": "gh_connect_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_connect_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -1648,8 +1790,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_create_documentArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_create_documentArguments"
       },
       "annotations": {
         "title": null,
@@ -1689,8 +1831,8 @@
             "title": "Nickname"
           }
         },
-        "title": "gh_delete_componentArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_delete_componentArguments"
       },
       "annotations": {
         "title": null,
@@ -1807,8 +1949,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_disconnect_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_disconnect_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -1873,8 +2015,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_expire_solutionArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_expire_solutionArguments"
       },
       "annotations": {
         "title": null,
@@ -1912,8 +2054,8 @@
             "type": "integer"
           }
         },
-        "title": "gh_get_available_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_available_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -1944,8 +2086,8 @@
             "type": "integer"
           }
         },
-        "title": "gh_get_canvas_stateArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_canvas_stateArguments"
       },
       "annotations": {
         "title": null,
@@ -1985,8 +2127,8 @@
             "title": "Nickname"
           }
         },
-        "title": "gh_get_component_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_component_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -2026,8 +2168,8 @@
             "title": "Guid"
           }
         },
-        "title": "gh_get_component_type_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_component_type_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -2042,8 +2184,8 @@
       "description": "Get information about the active Grasshopper document.",
       "inputSchema": {
         "properties": {},
-        "title": "gh_get_document_infoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_document_infoArguments"
       },
       "annotations": {
         "title": null,
@@ -2076,8 +2218,8 @@
         "required": [
           "graph_id"
         ],
-        "title": "gh_get_graphArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_graphArguments"
       },
       "annotations": {
         "title": null,
@@ -2139,8 +2281,8 @@
             "type": "integer"
           }
         },
-        "title": "gh_get_parameter_valueArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_get_parameter_valueArguments"
       },
       "annotations": {
         "title": null,
@@ -2206,8 +2348,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_layout_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_layout_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -2222,8 +2364,8 @@
       "description": "List installed Grasshopper component categories and subcategories.",
       "inputSchema": {
         "properties": {},
-        "title": "gh_list_component_categoriesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_list_component_categoriesArguments"
       },
       "annotations": {
         "title": null,
@@ -2268,8 +2410,8 @@
             "type": "integer"
           }
         },
-        "title": "gh_list_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_list_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -2383,8 +2525,8 @@
         "required": [
           "operations"
         ],
-        "title": "gh_mutate_graphArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_mutate_graphArguments"
       },
       "annotations": {
         "title": null,
@@ -2405,8 +2547,8 @@
             "type": "boolean"
           }
         },
-        "title": "gh_run_solutionArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_run_solutionArguments"
       },
       "annotations": {
         "title": null,
@@ -2451,8 +2593,8 @@
             "type": "integer"
           }
         },
-        "title": "gh_search_componentsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_search_componentsArguments"
       },
       "annotations": {
         "title": null,
@@ -2573,8 +2715,8 @@
         "required": [
           "value"
         ],
-        "title": "gh_set_parameter_valueArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_set_parameter_valueArguments"
       },
       "annotations": {
         "title": null,
@@ -2665,8 +2807,8 @@
             "title": "Preview"
           }
         },
-        "title": "gh_update_componentArguments",
-        "type": "object"
+        "type": "object",
+        "title": "gh_update_componentArguments"
       },
       "annotations": {
         "title": null,
@@ -2718,8 +2860,8 @@
           "curve_id_a",
           "curve_id_b"
         ],
-        "title": "intersect_curvesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "intersect_curvesArguments"
       },
       "annotations": {
         "title": null,
@@ -2734,8 +2876,8 @@
       "description": "\n    List all available RhinoScript modules and their function counts.\n\n    Use this to explore what's available in RhinoScript when you're not sure\n    what module contains the functions you need.\n\n    Returns:\n    - List of all modules with function counts and descriptions\n    ",
       "inputSchema": {
         "properties": {},
-        "title": "list_rhinoscript_modulesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "list_rhinoscript_modulesArguments"
       },
       "annotations": {
         "title": null,
@@ -2783,8 +2925,8 @@
         "required": [
           "curve_ids"
         ],
-        "title": "loftArguments",
-        "type": "object"
+        "type": "object",
+        "title": "loftArguments"
       },
       "annotations": {
         "title": null,
@@ -2810,8 +2952,8 @@
         "required": [
           "object_ids"
         ],
-        "title": "measure_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "measure_objectsArguments"
       },
       "annotations": {
         "title": null,
@@ -2935,8 +3077,8 @@
             "title": "Visible"
           }
         },
-        "title": "modify_objectArguments",
-        "type": "object"
+        "type": "object",
+        "title": "modify_objectArguments"
       },
       "annotations": {
         "title": null,
@@ -2975,8 +3117,8 @@
         "required": [
           "objects"
         ],
-        "title": "modify_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "modify_objectsArguments"
       },
       "annotations": {
         "title": null,
@@ -3036,8 +3178,8 @@
           "curve_id",
           "distance"
         ],
-        "title": "offset_curveArguments",
-        "type": "object"
+        "type": "object",
+        "title": "offset_curveArguments"
       },
       "annotations": {
         "title": null,
@@ -3087,8 +3229,8 @@
           "curve_id",
           "radius"
         ],
-        "title": "pipeArguments",
-        "type": "object"
+        "type": "object",
+        "title": "pipeArguments"
       },
       "annotations": {
         "title": null,
@@ -3139,8 +3281,8 @@
           "target_ids",
           "direction"
         ],
-        "title": "project_curveArguments",
-        "type": "object"
+        "type": "object",
+        "title": "project_curveArguments"
       },
       "annotations": {
         "title": null,
@@ -3161,8 +3303,8 @@
             "type": "integer"
           }
         },
-        "title": "redoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "redoArguments"
       },
       "annotations": {
         "title": null,
@@ -3190,8 +3332,8 @@
         "required": [
           "command"
         ],
-        "title": "run_commandArguments",
-        "type": "object"
+        "type": "object",
+        "title": "run_commandArguments"
       },
       "annotations": {
         "title": null,
@@ -3219,8 +3361,8 @@
         "required": [
           "query"
         ],
-        "title": "search_rhinoscript_functionsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "search_rhinoscript_functionsArguments"
       },
       "annotations": {
         "title": null,
@@ -3306,8 +3448,8 @@
             "title": "Profile"
           }
         },
-        "title": "section_profileArguments",
-        "type": "object"
+        "type": "object",
+        "title": "section_profileArguments"
       },
       "annotations": {
         "title": null,
@@ -3319,16 +3461,13 @@
     },
     {
       "name": "select_objects",
-      "description": "\n    Select objects in the Rhino document.\n    \n    Parameters:\n    - filters: A dictionary containing the filters. The filters parameter is necessary, unless it's empty, in which case all objects will be selected.\n    - filters_type: The type of the filters, it's \"and\" or \"or\", default is \"and\"\n\n    Note:\n    Name and custom attribute filter values are lists of strings (even if there's only one value).\n    `color` is a single RGB triplet (not a list of triplets).\n\n    Filter semantics:\n    - With filters_type=\"and\", an object matches when every filter key matches at least one\n      of that key's listed values.\n    - With filters_type=\"or\", an object matches when any filter key matches any listed value.\n    - Name and custom-attribute string matches are exact (case-sensitive).\n\n    Keys:\n    - name: list of object names, e.g. [\"Box1\", \"Box2\"]\n    - color: single RGB triplet, e.g. [255, 0, 0]\n    - any other key is treated as a user custom attribute and the value is a list of strings.\n\n    Example:\n    filters = {\n        \"name\": [\"object_name1\", \"object_name2\"],\n        \"category\": [\"custom_attribute_value\"]\n    },\n    filters_type = \"or\"\n    \n\n    Returns:\n    A number indicating the number of objects that have been selected.\n    ",
+      "description": "\n    Select objects in the Rhino document. Replaces the current selection.\n\n    Parameters:\n    - filters: A dictionary containing the filters. The filters parameter is necessary, unless it's empty, in which case all objects will be selected.\n    - filters_type: The type of the filters, it's \"and\" or \"or\", default is \"and\"\n\n    Filter semantics:\n    - With filters_type=\"and\", an object matches when every filter key matches.\n    - With filters_type=\"or\", an object matches when any filter key matches.\n    - Name and custom-attribute string matches are exact (case-sensitive).\n\n    Keys:\n    - name: list of object names, e.g. [\"Box1\", \"Box2\"]\n    - color: single RGB triplet, e.g. [255, 0, 0]\n    - ids: list of object ids; an id not in the document is refused with not_found\n    - layer: full layer path, e.g. \"Furniture::Chairs\"; an unknown layer is refused\n      with not_found\n    - type: one type name or a list, e.g. \"CURVE\" or [\"BREP\", \"EXTRUSION\"]\n      (POINT, LINE, POLYLINE, CIRCLE, ARC, CURVE, SURFACE, BREP, EXTRUSION, ...)\n    - hidden: true matches hidden objects, false matches visible ones\n    - locked: true matches locked objects, false matches unlocked ones\n    - any other key is treated as a user custom attribute and the value is a list\n      of strings, so the names above cannot be used as custom attribute keys.\n\n    Hidden and locked objects (or objects on hidden or locked layers) are only\n    considered when hidden=true or locked=true is given. Rhino cannot select an\n    object that is itself hidden or locked, so those count as matched but not\n    selected; show or unlock them first.\n\n    Example:\n    filters = {\n        \"layer\": \"Walls\",\n        \"type\": \"EXTRUSION\",\n        \"name\": [\"object_name1\", \"object_name2\"],\n        \"category\": [\"custom_attribute_value\"]\n    },\n    filters_type = \"and\"\n\n\n    Returns:\n    How many objects were selected, and how many matched but could not be selected.\n    ",
       "inputSchema": {
         "properties": {
           "filters": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "items": {},
-                  "type": "array"
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -3344,8 +3483,110 @@
             "type": "string"
           }
         },
-        "title": "select_objectsArguments",
-        "type": "object"
+        "type": "object",
+        "title": "select_objectsArguments"
+      },
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "set_camera",
+      "description": "\n    Point a viewport's camera. Changes what the user sees, never the document:\n    no undo record is created, so undo still reverts the last geometry edit.\n\n    Parameters (pass at least one besides viewport; fields left out keep\n    their current value):\n    - viewport: viewport name such as \"Perspective\" or \"Top\"; default active\n    - location: camera location [x, y, z]\n    - target: point the camera looks at [x, y, z]\n    - up: camera up vector [x, y, z]\n    - lens_length: 35 mm equivalent lens length in millimetres (perspective)\n    - projection: \"perspective\" or \"parallel\"\n\n    Returns the viewport's state afterwards: viewport_name, projection,\n    display_mode, camera_location, camera_target, camera_up, lens_length.\n    To frame objects without computing a camera, use zoom_to.\n    ",
+      "inputSchema": {
+        "properties": {
+          "viewport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Viewport"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Location"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Target"
+          },
+          "up": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Up"
+          },
+          "lens_length": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Lens Length"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "enum": [
+                  "perspective",
+                  "parallel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Projection"
+          }
+        },
+        "type": "object",
+        "title": "set_cameraArguments"
       },
       "annotations": {
         "title": null,
@@ -3415,8 +3656,8 @@
         "required": [
           "curve_id"
         ],
-        "title": "split_curveArguments",
-        "type": "object"
+        "type": "object",
+        "title": "split_curveArguments"
       },
       "annotations": {
         "title": null,
@@ -3469,8 +3710,8 @@
           "rail_id",
           "profile_ids"
         ],
-        "title": "sweep1Arguments",
-        "type": "object"
+        "type": "object",
+        "title": "sweep1Arguments"
       },
       "annotations": {
         "title": null,
@@ -3491,8 +3732,8 @@
             "type": "integer"
           }
         },
-        "title": "undoArguments",
-        "type": "object"
+        "type": "object",
+        "title": "undoArguments"
       },
       "annotations": {
         "title": null,
@@ -3658,8 +3899,77 @@
             "type": "boolean"
           }
         },
-        "title": "update_object_attributesArguments",
-        "type": "object"
+        "type": "object",
+        "title": "update_object_attributesArguments"
+      },
+      "annotations": {
+        "title": null,
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "zoom_to",
+      "description": "\n    Frame a viewport on objects. Changes what the user sees, never the\n    document: no undo record is created, so undo still reverts the last\n    geometry edit.\n\n    Parameters:\n    - target: \"all\" (every visible object), \"selection\" (the current\n      selection), \"object_ids\" (needs object_ids) or \"layer\" (needs layer)\n    - viewport: viewport name such as \"Perspective\" or \"Top\"; default active\n    - object_ids: ids of the objects to frame, when target is \"object_ids\"\n    - layer: layer name or full path, when target is \"layer\"\n\n    Returns the viewport's state afterwards (viewport_name, projection,\n    display_mode, camera_location, camera_target, camera_up, lens_length) plus the\n    bounding_box {min, max} it framed and the object_count inside it.\n    ",
+      "inputSchema": {
+        "properties": {
+          "target": {
+            "enum": [
+              "all",
+              "selection",
+              "object_ids",
+              "layer"
+            ],
+            "title": "Target",
+            "type": "string"
+          },
+          "viewport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Viewport"
+          },
+          "object_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Object Ids"
+          },
+          "layer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Layer"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "type": "object",
+        "title": "zoom_toArguments"
       },
       "annotations": {
         "title": null,

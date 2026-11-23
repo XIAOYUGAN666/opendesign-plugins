@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Rhino;
 using Rhino.Runtime;
 
 namespace RhinoMcpBridge.Functions;
@@ -10,57 +11,72 @@ internal static class ExecuteRhinoscript
     internal static object Execute(RequestContext context, JsonElement parameters)
     {
         var code = NativeFunctions.Text(parameters, "code");
-        if (code is null || code.Length == 0)
-        {
-            throw new NativeCommandException("invalidParameters", "Python code is required.");
-        }
+        if (string.IsNullOrEmpty(code))
+            throw new NativeCommandException("invalid_argument", "Python code is required.");
 
-        var output = new StringBuilder();
-        try
+        return NativeFunctions.Mutate(context, "Execute MCP RhinoScript Python code", () =>
         {
-            return NativeFunctions.Mutate(context, "Execute MCP RhinoScript Python code", () =>
+            var script = PythonScript.Create()
+                ?? throw new NativeCommandException("scriptRuntimeUnavailable", "Rhino's Python scripting runtime is unavailable.");
+            var printed = new StringBuilder();
+            script.Output = text => printed.Append(text);
+            script.SetupScriptContext(context.RhinoDocument);
+            var previousCapture = RhinoApp.CommandWindowCaptureEnabled;
+            RhinoApp.CommandWindowCaptureEnabled = true;
+            string[] commandLines;
+            bool success;
+            string? message = null;
+            try
             {
-                var script = PythonScript.Create();
-                if (script is null)
+                try
                 {
-                    throw new NativeCommandException(
-                        "scriptRuntimeUnavailable",
-                        "Rhino's Python scripting runtime is unavailable."
-                    );
+                    success = script.ExecuteScript(code);
+                    if (!success)
+                        message = "Script execution returned false (no exception raised).";
                 }
-
-                script.Output = text => output.Append(text);
-                script.SetupScriptContext(context.RhinoDocument);
-                if (!script.ExecuteScript(code))
+                catch (Exception)
                 {
-                    throw new NativeCommandException(
-                        "scriptExecutionFailed",
-                        "Python execution failed; Rhino changes were rolled back."
-                    );
+                    success = false;
+                    message = "Python execution failed.";
                 }
+                commandLines = RhinoApp.CapturedCommandWindowStrings(true) ?? Array.Empty<string>();
+            }
+            finally
+            {
+                RhinoApp.CommandWindowCaptureEnabled = previousCapture;
+            }
 
-                return Result(true, output, "Python code executed successfully.");
-            });
-        }
-        catch (OperationCanceledException)
-        {
-            return Result(false, output, "Python execution was cancelled; Rhino changes were rolled back.");
-        }
-        catch (NativeCommandException exception)
-        {
-            return Result(false, output, exception.SafeMessage);
-        }
-        catch
-        {
-            return Result(false, output, "Python execution failed; Rhino changes were rolled back.");
-        }
+            var commandOutput = WithoutEchoedPrints(commandLines, printed.ToString());
+            if (commandOutput.Length > 0)
+            {
+                if (printed.Length > 0 && printed[printed.Length - 1] != '\n')
+                    printed.Append('\n');
+                printed.Append(string.Join("\n", commandOutput));
+            }
+
+            var result = new Dictionary<string, object?> { ["success"] = success, ["output"] = printed.ToString() };
+            if (message is not null)
+                result["message"] = message;
+            return result;
+        });
     }
 
-    private static Dictionary<string, object?> Result(bool success, StringBuilder output, string message) =>
-        new()
+    internal static string[] WithoutEchoedPrints(string[] commandLines, string printOutput)
+    {
+        var printed = printOutput.Split('\n').Select(line => line.TrimEnd('\r'))
+            .Where(line => line.Length > 0).ToArray();
+        var remaining = new List<string>(commandLines.Length);
+        var next = 0;
+        foreach (var line in commandLines)
         {
-            ["success"] = success,
-            ["output"] = output.ToString(),
-            ["message"] = message,
-        };
+            if (next < printed.Length && line.TrimEnd('\r', '\n') == printed[next])
+            {
+                next++;
+                continue;
+            }
+
+            remaining.Add(line);
+        }
+        return remaining.ToArray();
+    }
 }

@@ -9,13 +9,15 @@ internal static class DeleteObject
         NativeFunctions.Mutate(context, "Delete MCP object", () =>
         {
             var all = NativeFunctions.Boolean(parameters, "all");
+            if (all && (ViewportNavigation.Given(parameters, "id") || ViewportNavigation.Given(parameters, "name")))
+                throw new NativeCommandException("invalid_argument", "all cannot be combined with id or name.");
             var targets = all
                 ? NativeFunctions.Objects(context).ToArray()
                 : new[] { NativeFunctions.RequireObject(context, parameters) };
             // Rhino invalidates object metadata after deletion. Capture the
             // receipt identity before the first engineering mutation.
             var targetIds = targets.Select(target => target.Id).ToArray();
-            var name = all ? null : targets[0].Attributes.Name ?? string.Empty;
+            var name = all ? null : targets[0].Attributes.Name ?? "(unnamed)";
             var deleted = 0;
             var errors = new List<string>();
             foreach (var targetId in targetIds)
@@ -30,26 +32,26 @@ internal static class DeleteObject
                 }
             }
 
-            if (deleted == 0 && errors.Count > 0)
-            {
-                throw new NativeCommandException("objectDeleteFailed", "Rhino could not delete the requested object.");
-            }
-
-            var result = new Dictionary<string, object?>
-            {
-                ["deleted"] = deleted > 0,
-                ["count"] = deleted,
-                ["failed_ids"] = errors,
-            };
             if (all)
             {
-                result["scope"] = "all";
+                var result = new Dictionary<string, object?>
+                {
+                    ["deleted"] = true,
+                    ["count"] = deleted,
+                    ["scope"] = "all",
+                };
+                if (errors.Count > 0)
+                    result["skipped_count"] = errors.Count;
+                return result;
             }
-            else
+            if (deleted == 0)
+                throw new NativeCommandException("objectDeleteFailed", "Rhino could not delete the requested object.");
+
+            return new Dictionary<string, object?>
             {
-                result["id"] = targetIds[0].ToString("D");
-                result["name"] = name;
-            }
-            return result;
+                ["deleted"] = true,
+                ["id"] = targetIds[0].ToString("D"),
+                ["name"] = name,
+            };
         });
 }

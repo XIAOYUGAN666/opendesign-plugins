@@ -38,7 +38,7 @@ async def test_mcp_discovery_matches_the_frozen_tool_catalog() -> None:
         )
 
         assert actual == expected["tools"]
-        assert len(tools) == 70
+        assert len(tools) == 73
 
         resources = (await client.list_resources()).resources
         templates = (await client.list_resource_templates()).resource_templates

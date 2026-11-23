@@ -50,6 +50,9 @@ def check_source_closure(plugin_root):
         copied.append(skills)
     if (plugin_root / "assets").exists():
         copied.append(plugin_root / "assets")
+    notice = plugin_root / "LICENSE.upstream"
+    if notice.exists() or notice.is_symlink() or notice.is_junction():
+        copied.append(notice)
     for source in copied:
         check(source)
         if source.is_dir():

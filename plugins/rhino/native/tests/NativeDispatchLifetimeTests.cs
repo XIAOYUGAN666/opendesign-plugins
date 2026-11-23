@@ -330,7 +330,7 @@ public sealed class NativeDispatchLifetimeTests
         {
             "describe_capabilities", "get_document_summary", "get_objects", "get_object_info",
             "get_commands", "get_selected_objects_info", "analyze_objects",
-            "measure_objects", "section_profile", "capture_viewport",
+            "measure_objects", "section_profile", "capture_viewport", "get_context", "set_camera", "zoom_to",
             "boolean_union", "boolean_difference", "boolean_intersection",
             "loft", "extrude_curve", "sweep1", "offset_curve", "pipe", "create_objects",
             "project_curve", "intersect_curves", "split_curve", "create_planar_region",

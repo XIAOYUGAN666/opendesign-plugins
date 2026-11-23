@@ -47,9 +47,9 @@ internal static class ExecuteRhinoCommonCSharp
         }
 
         var output = new StringBuilder();
-        try
+        return NativeFunctions.Mutate(context, "Execute MCP RhinoCommon C# code", () =>
         {
-            return NativeFunctions.Mutate(context, "Execute MCP RhinoCommon C# code", () =>
+            try
             {
                 CSharpScript
                     .RunAsync(
@@ -60,22 +60,21 @@ internal static class ExecuteRhinoCommonCSharp
                     )
                     .GetAwaiter()
                     .GetResult();
-
                 return Result(success: true, output, "C# code executed successfully.");
-            });
-        }
-        catch (CompilationErrorException exception)
-        {
-            return Result(false, output, CompilationMessage(exception));
-        }
-        catch (OperationCanceledException)
-        {
-            return Result(false, output, "C# execution was cancelled; Rhino changes were rolled back.");
-        }
-        catch
-        {
-            return Result(false, output, "C# execution failed; Rhino changes were rolled back.");
-        }
+            }
+            catch (CompilationErrorException exception)
+            {
+                return Result(false, output, CompilationMessage(exception));
+            }
+            catch (OperationCanceledException)
+            {
+                return Result(false, output, "C# execution was cancelled.");
+            }
+            catch
+            {
+                return Result(false, output, "C# execution failed.");
+            }
+        });
     }
 
     private static string CompilationMessage(CompilationErrorException exception)
@@ -86,8 +85,8 @@ internal static class ExecuteRhinoCommonCSharp
             .Take(8)
             .ToArray();
         return errors.Length == 0
-            ? "C# compilation failed; Rhino changes were rolled back."
-            : "C# compilation failed; Rhino changes were rolled back. " + string.Join(" ", errors);
+            ? "C# compilation failed."
+            : "C# compilation failed. " + string.Join(" ", errors);
     }
 
     private static Dictionary<string, object?> Result(bool success, StringBuilder output, string message) =>

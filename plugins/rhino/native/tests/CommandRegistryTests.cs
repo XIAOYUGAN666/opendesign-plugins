@@ -46,9 +46,9 @@ public sealed class CommandRegistryTests
             })
             .ToArray();
 
-        Assert.Equal(65, handlers.Length);
+        Assert.Equal(68, handlers.Length);
         Assert.All(handlers, handler => Assert.False(string.IsNullOrWhiteSpace(handler.Name)));
-        Assert.Equal(65, handlers.Select(handler => handler.Name).Distinct().Count());
+        Assert.Equal(68, handlers.Select(handler => handler.Name).Distinct().Count());
         Assert.Equal(
             native.ReadProtocolCommandNames().Order(StringComparer.Ordinal),
             handlers.Select(handler => handler.Name!).Order(StringComparer.Ordinal)

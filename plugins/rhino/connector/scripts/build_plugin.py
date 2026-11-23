@@ -159,6 +159,9 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
         shutil.copyfile(plugin_root / "connector" / name, staging / name)
     if (plugin_root / "skills").exists():
         shutil.copytree(plugin_root / "skills", staging / "skills")
+    notice = plugin_root / "LICENSE.upstream"
+    if notice.is_file():
+        shutil.copyfile(notice, staging / notice.name)
     if (plugin_root / "assets").exists():
         shutil.copytree(plugin_root / "assets", staging / "assets")
     site_packages = source_root.parent
@@ -184,7 +187,7 @@ def convert_stage(staging: Path, plugin_root: Path) -> None:
     for name, schema in declarations.items():
         (staging / name).write_bytes(canonical(schema))
     preview, counts = probe_managed_runtime(staging, build_id)
-    if counts != {"tools": 70, "resourcesAndTemplates": 4, "prompts": 2}:
+    if counts != {"tools": 73, "resourcesAndTemplates": 4, "prompts": 2}:
         raise release.ReleaseBuildError(
             "The staged MCP census differs from its frozen contract."
         )

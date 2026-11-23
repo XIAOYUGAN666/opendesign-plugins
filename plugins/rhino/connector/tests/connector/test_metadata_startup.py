@@ -36,7 +36,7 @@ async def test_no_rhino_or_bridge_metadata_is_discoverable():
     from tests.fixtures.mcp_client import connected_client
 
     async with connected_client(create_mcp_server()) as client:
-        assert len((await client.list_tools()).tools) == 70
+        assert len((await client.list_tools()).tools) == 73
         assert len((await client.list_resources()).resources) == 1
         assert len((await client.list_resource_templates()).resource_templates) == 3
         assert len((await client.list_prompts()).prompts) == 2
@@ -111,7 +111,7 @@ async def test_stdio_sessions_discover_independently_without_holding_the_bridge(
     first = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     second = create_mcp_server(stdio_bridge=stdio_bridge.StdioBridgeSlot())
     async with connected_client(first) as one, connected_client(second) as two:
-        assert len((await one.list_tools()).tools) == len((await two.list_tools()).tools) == 70
+        assert len((await one.list_tools()).tools) == len((await two.list_tools()).tools) == 73
         assert not attempts
         result = await two.call_tool("get_document_summary", {})
         assert result.is_error
@@ -132,7 +132,7 @@ async def test_managed_metadata_never_constructs_bridge(monkeypatch):
     server, bridge = managed_bootstrap.create_managed_server(envelope)
     assert bridge is None
     async with connected_client(server) as client:
-        assert len((await client.list_tools()).tools) == 70
+        assert len((await client.list_tools()).tools) == 73
         assert (await client.call_tool("get_document_summary", {})).is_error
 
 

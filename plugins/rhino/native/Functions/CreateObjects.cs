@@ -22,10 +22,6 @@ internal static class CreateObjects
                     var geometry = NativeFunctions.CreateGeometry(context, type, NativeFunctions.Property(item, "params"));
                     NativeFunctions.ApplyTransforms(geometry, item, Point3d.Origin);
                     var attributes = NativeFunctions.Attributes(context, item);
-                    if (string.IsNullOrWhiteSpace(attributes.Name))
-                    {
-                        attributes.Name = entry.Name;
-                    }
 
                     created.Add(NativeFunctions.AddGeometry(context, geometry, attributes).ToString("D"));
                 }

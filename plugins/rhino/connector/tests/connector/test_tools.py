@@ -219,7 +219,7 @@ class TestCreateObjectsTool:
                 },
                 {
                     "type": "BOX",
-                    "name": "Box2",
+                    "name": "Box1",
                     "params": {"width": 2, "length": 2, "height": 2},
                 },
             ],
@@ -228,6 +228,8 @@ class TestCreateObjectsTool:
         mock_conn.send_command.assert_called_once()
         call_args = mock_conn.send_command.call_args
         assert call_args[0][0] == "create_objects"
+        assert list(call_args[0][1]) == ["object_0", "object_1"]
+        assert [item["name"] for item in call_args[0][1].values()] == ["Box1", "Box1"]
         assert "2" in result
 
 

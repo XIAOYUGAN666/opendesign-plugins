@@ -654,6 +654,7 @@ _TOOL_REGISTRATION_SOURCES: tuple[tuple[str, str], ...] = (
     ),
     ("extrude_curve", "rhino_mcp.tools.advanced_geometry"),
     ("get_commands", "rhino_mcp.tools.get_commands"),
+    ("get_context", "rhino_mcp.tools.get_context"),
     ("get_document_summary", "rhino_mcp.tools.get_document_summary"),
     ("get_modeling_guidance", "rhino_mcp.tools.get_modeling_guidance"),
     ("get_module_functions", "rhino_mcp.tools.rhinoscript_docs"),
@@ -704,10 +705,12 @@ _TOOL_REGISTRATION_SOURCES: tuple[tuple[str, str], ...] = (
     ("search_rhinoscript_functions", "rhino_mcp.tools.rhinoscript_docs"),
     ("section_profile", "rhino_mcp.tools.section_profile"),
     ("select_objects", "rhino_mcp.tools.select_objects"),
+    ("set_camera", "rhino_mcp.tools.set_camera"),
     ("split_curve", "rhino_mcp.tools.curve_operations"),
     ("sweep1", "rhino_mcp.tools.advanced_geometry"),
     ("undo", "rhino_mcp.tools.undo"),
     ("update_object_attributes", "rhino_mcp.tools.object_attributes"),
+    ("zoom_to", "rhino_mcp.tools.zoom_to"),
 )
 
 
@@ -716,7 +719,7 @@ def _load_tool_registrations() -> tuple[ToolRegistration, ...]:
         (name, getattr(import_module(module_name), name))
         for name, module_name in _TOOL_REGISTRATION_SOURCES
     )
-    if len(registrations) != 70:
+    if len(registrations) != 73:
         raise RuntimeError("The explicit MCP tool registration table is incomplete.")
     return registrations
 
@@ -729,6 +732,7 @@ READ_ONLY_TOOL_NAMES = frozenset(
         "capture_viewport",
         "describe_capabilities",
         "get_commands",
+        "get_context",
         "get_document_summary",
         "get_modeling_guidance",
         "get_module_functions",
@@ -857,7 +861,7 @@ def create_mcp_server(bridge_client: BridgeClient | None = None, *, stdio_bridge
             raise RuntimeError("The explicit MCP tool registration table is invalid.")
         registered_names.add(name)
         server.add_tool(tool, name=name, annotations=_tool_annotations(name))
-    if len(registered_names) != 70:
+    if len(registered_names) != 73:
         raise RuntimeError("The explicit MCP tool registration table is incomplete.")
 
     for uri, resource, mime_type in RESOURCE_REGISTRATIONS:

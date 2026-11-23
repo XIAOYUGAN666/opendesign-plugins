@@ -76,7 +76,7 @@ async def test_tool_declarations_need_no_engineering_connection(monkeypatch):
     )["tools"]
     async with connected_client(create_mcp_server()) as client:
         tools = (await client.list_tools()).tools
-        assert len(tools) == 70
+        assert len(tools) == 73
         actual = sorted(
             [
                 {
