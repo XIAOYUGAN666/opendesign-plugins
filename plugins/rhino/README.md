@@ -1,6 +1,6 @@
 # Rhino plugin development source
 
-`plugin.json` is the sole human-maintained plugin identity. This root contains the independent [Connector](connector/README.md), its project and lock, [native Bridge](native/), typed contracts and the static [workflow Skill](skills/rhino-workflow/SKILL.md). This repository is the sole connector and Bridge source owner; the duplicate main-repository source has been retired. A development checkout is separate from an installed signed artifact.
+`plugin.json` is the sole human-maintained plugin identity. This root contains the independent [Connector](connector/README.md), its project and lock, [native Bridge](native/), typed contracts and the bundled [modeling guide](skills/rhino-modeling-guide/SKILL.md), [scene summary](skills/rhino-scene/SKILL.md), and [viewport snapshot](skills/rhino-snapshot/SKILL.md) Skills. This repository is the sole connector and Bridge source owner; the duplicate main-repository source has been retired. A development checkout is separate from an installed signed artifact.
 
 The common builder stages `runtime/python/python.exe` with `rhino_mcp` under its isolated site-packages and packages the actual dual-target Bridge Yak. Native inventory and archive hashes are generated from real frozen build inputs and checked against both assemblies, never placeholders. connector configuration, lifecycle schemas and MCP preview are generated from connector-owned declarations.
 
