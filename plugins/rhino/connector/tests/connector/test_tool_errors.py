@@ -72,3 +72,16 @@ async def test_create_layer_native_failure_is_an_official_mcp_tool_error():
         with pytest.raises(ToolError, match="Layer already exists"):
             await rhino_mcp.mcp.call_tool("create_layer", {"name": "existing"})
     assert connection.return_value.send_command.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_missing_current_layer_target_is_an_official_mcp_tool_error():
+    with patch("rhino_mcp.tools.get_or_set_current_layer.get_rhino_connection") as connection:
+        connection.return_value.send_command.side_effect = RhinoCommandError(
+            "The Rhino layer was not found."
+        )
+        with pytest.raises(ToolError, match="Rhino layer was not found"):
+            await rhino_mcp.mcp.call_tool("get_or_set_current_layer", {"name": "missing"})
+    connection.return_value.send_command.assert_called_once_with(
+        "get_or_set_current_layer", {"name": "missing"}
+    )

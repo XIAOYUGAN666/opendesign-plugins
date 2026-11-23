@@ -18,7 +18,7 @@ def undo(ctx: Context, steps: int = 1) -> str:
         return result["message"]
     except Exception as e:
         logger.error(f"Error undoing: {str(e)}")
-        return f"Error undoing: {str(e)}"
+        raise
 
 
 def redo(ctx: Context, steps: int = 1) -> str:
@@ -37,4 +37,4 @@ def redo(ctx: Context, steps: int = 1) -> str:
         return result["message"]
     except Exception as e:
         logger.error(f"Error redoing: {str(e)}")
-        return f"Error redoing: {str(e)}"
+        raise

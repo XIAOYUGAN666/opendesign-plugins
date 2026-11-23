@@ -50,4 +50,4 @@ def create_layer(
         raise
     except Exception as e:
         logger.error(f"Error creating layer: {str(e)}")
-        return f"Error creating layer: {str(e)}"
+        raise

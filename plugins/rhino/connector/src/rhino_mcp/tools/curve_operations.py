@@ -54,7 +54,7 @@ def project_curve(
         }
     except Exception as e:
         logger.error(f"Error in project_curve: {str(e)}")
-        return {"success": False, "message": str(e)}
+        raise
 
 
 def intersect_curves(
@@ -97,7 +97,7 @@ def intersect_curves(
         }
     except Exception as e:
         logger.error(f"Error in intersect_curves: {str(e)}")
-        return {"success": False, "message": str(e)}
+        raise
 
 
 def split_curve(
@@ -148,4 +148,4 @@ def split_curve(
         }
     except Exception as e:
         logger.error(f"Error in split_curve: {str(e)}")
-        return {"success": False, "message": str(e)}
+        raise

@@ -85,6 +85,14 @@ def test_source_tree_contains_no_upstream_or_legacy_runtime_metadata() -> None:
             if path.suffix.lower() in {".py", ".toml", ".json", ".md", ".yml", ".yaml"}:
                 contents = path.read_text(encoding="utf-8").casefold()
                 contents = contents.replace(native_assembly, "")
+                if path.relative_to(PROJECT_ROOT).as_posix() == "src/rhino_mcp/guidance.py":
+                    # The v3 server prompt retains the upstream product name in prose.
+                    # The rest of the module still excludes legacy runtime references.
+                    contents = contents.replace(
+                        "rhino" + "mcp provides rhino modeling tools and bundled workflow guidance.",
+                        "",
+                        1,
+                    )
                 native_actions = {"mcp" + name for name in ("start", "stop", "test", "version")}
                 is_settings_adapter = path.relative_to(PROJECT_ROOT).as_posix() == "src/rhino_mcp/instance_management.py"
                 for token in forbidden:

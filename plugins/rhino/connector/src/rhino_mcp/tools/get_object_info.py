@@ -44,4 +44,4 @@ def get_object_info(
 
     except Exception as e:
         logger.error(f"Error getting object info from Rhino: {str(e)}")
-        return {"error": str(e)}
+        raise

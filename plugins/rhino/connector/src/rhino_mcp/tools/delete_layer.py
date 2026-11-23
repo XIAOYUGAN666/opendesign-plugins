@@ -45,4 +45,4 @@ def delete_layer(
         raise
     except Exception as e:
         logger.error(f"Error deleting layer: {str(e)}")
-        return f"Error deleting layer: {str(e)}"
+        raise
