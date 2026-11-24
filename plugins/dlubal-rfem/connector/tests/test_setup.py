@@ -1,11 +1,41 @@
 import json
 from pathlib import Path
+from zipfile import ZipFile
 
 import httpx
 import pytest
 
 from dlubal_mcp import sdk, setup
 from dlubal_mcp.plugin_stdio import read_connection_settings
+
+
+def test_prepare_sdk_extracts_long_wheel_members_and_reuses_binding(
+    tmp_path, monkeypatch
+):
+    # The SDK has deeply nested generated protobuf modules. Installation stages
+    # them under an additional directory before exposing the prepared SDK.
+    data = tmp_path / ("local-plugin-state-" * 5)
+    wheel = tmp_path / "fixture.whl"
+    sdk_version = "2.16.5"
+    member = (
+        "dlubal/api/rfem/"
+        + ("generated/" * 7)
+        + "joint_stiffness_analysis_configuration_pb2.py"
+    )
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr("dlubal/api/rfem/application.py", "")
+        archive.writestr(member, "fixture byte content")
+        archive.writestr(
+            f"dlubal_api-{sdk_version}.dist-info/METADATA",
+            f"Metadata-Version: 2.1\nName: dlubal-api\nVersion: {sdk_version}\n",
+        )
+    monkeypatch.setattr(sdk, "_release_record", lambda *_: {})
+    monkeypatch.setattr(sdk, "_download_wheel", lambda *_: wheel)
+    executable = tmp_path / "RFEM6.exe"
+    assert sdk.prepare_sdk(data, executable, "6.16.0005.287") == sdk_version
+    assert sdk.read_binding(data)["sdkVersion"] == sdk_version
+    assert sdk.prepare_sdk(data, executable, "6.16.0005.287") == sdk_version
+    assert not list(data.glob(".rfem-prepare-*"))
 
 
 def test_prepare_selects_highest_installed_rfem_without_contacting_rfem(

@@ -20,6 +20,20 @@ ENVIRONMENT = "rfem-sdk"
 _BINDING = "binding.json"
 
 
+def _filesystem_path(path: Path) -> Path:
+    if sys.platform != "win32":
+        return path
+    # Windows can enforce MAX_PATH independently of the Python version.
+    # Nested SDK modules and the temporary staging directory exceed that limit.
+    prefix = "\\\\?\\"
+    value = str(path.absolute())
+    if value.startswith(prefix):
+        return Path(value)
+    if value.startswith("\\\\"):
+        return Path(prefix + "UNC\\" + value[2:])
+    return Path(prefix + value)
+
+
 def build_parts(build: str) -> tuple[int, ...]:
     if not re.fullmatch(r"6\.\d{1,3}\.\d{1,4}\.\d{1,6}", build):
         raise ValueError("invalidRfemBuild")
@@ -170,6 +184,7 @@ def _extract_wheel(wheel: Path, target: Path, sdk: str) -> None:
 
 
 def prepare_sdk(data: Path, executable: Path, build: str) -> str:
+    data = _filesystem_path(data)
     sdk = select_sdk(build)
     environment = data / ENVIRONMENT
     existing = read_binding(data)
@@ -183,11 +198,11 @@ def prepare_sdk(data: Path, executable: Path, build: str) -> str:
         raise ValueError("rfemReinstallRequired")
     data.mkdir(parents=True, exist_ok=True)
     # The Host serializes prepare and may have terminated its previous process.
-    root = data.resolve(strict=True)
+    root = _filesystem_path(data.resolve(strict=True))
     for abandoned in root.glob(".rfem-prepare-*"):
         if (
             abandoned.is_dir()
-            and abandoned.resolve() == abandoned
+            and _filesystem_path(abandoned.resolve()) == abandoned
             and not abandoned.is_junction()
         ):
             rmtree(abandoned)
@@ -226,8 +241,12 @@ def prepare_sdk(data: Path, executable: Path, build: str) -> str:
 
 def read_binding(data: Path) -> dict | None:
     try:
+        data = _filesystem_path(data)
         root = data / ENVIRONMENT
-        if root.resolve() != data.resolve() / ENVIRONMENT:
+        if (
+            _filesystem_path(root.resolve())
+            != _filesystem_path(data.resolve()) / ENVIRONMENT
+        ):
             return None
         binding = json.loads((root / _BINDING).read_bytes())
         sdk = binding["sdkVersion"]
@@ -239,4 +258,4 @@ def read_binding(data: Path) -> dict | None:
 
 
 def activate_sdk(data: Path) -> None:
-    sys.path.insert(0, str(data / ENVIRONMENT))
+    sys.path.insert(0, str(_filesystem_path(data) / ENVIRONMENT))
