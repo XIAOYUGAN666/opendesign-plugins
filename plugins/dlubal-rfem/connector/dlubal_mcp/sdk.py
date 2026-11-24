@@ -7,7 +7,7 @@ import stat
 import sys
 from importlib.metadata import PathDistribution, version
 from pathlib import Path, PurePosixPath
-from shutil import copyfileobj
+from shutil import copyfileobj, rmtree
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 from zipfile import ZipFile
@@ -93,8 +93,14 @@ def _download_wheel(
 ) -> Path:
     target = cache / record["filename"]
     if target.exists():
-        _verify_wheel(target, record)
-        return target
+        try:
+            _verify_wheel(target, record)
+        except ValueError:
+            # Keep the bad bytes out of the environment. Replace the cache entry
+            # only once a new download has passed the publisher digest.
+            pass
+        else:
+            return target
     download = staging / record["filename"]
     with client.stream("GET", record["url"]) as response, download.open("xb") as stream:
         response.raise_for_status()
@@ -131,6 +137,7 @@ def _check_dependencies(distribution: PathDistribution, sdk: str) -> None:
 
 def _extract_wheel(wheel: Path, target: Path, sdk: str) -> None:
     seen = set()
+    expanded_size = 0
     with ZipFile(wheel) as archive:
         for member in archive.infolist():
             name = member.orig_filename.rstrip("/")
@@ -148,6 +155,9 @@ def _extract_wheel(wheel: Path, target: Path, sdk: str) -> None:
                 or name.casefold() in seen
                 or stat.S_ISLNK(member.external_attr >> 16)
             ):
+                raise ValueError("invalidRfemSdkArchive")
+            expanded_size += member.file_size
+            if expanded_size > 256 * 1024 * 1024:
                 raise ValueError("invalidRfemSdkArchive")
             seen.add(name.casefold())
             destination = target.joinpath(*parts)
@@ -172,6 +182,15 @@ def prepare_sdk(data: Path, executable: Path, build: str) -> str:
     if environment.exists():
         raise ValueError("rfemReinstallRequired")
     data.mkdir(parents=True, exist_ok=True)
+    # The Host serializes prepare and may have terminated its previous process.
+    root = data.resolve(strict=True)
+    for abandoned in root.glob(".rfem-prepare-*"):
+        if (
+            abandoned.is_dir()
+            and abandoned.resolve() == abandoned
+            and not abandoned.is_junction()
+        ):
+            rmtree(abandoned)
     cache = data / "sdk-cache"
     cache.mkdir(exist_ok=True)
     record_path = cache / f"{build}.json"
