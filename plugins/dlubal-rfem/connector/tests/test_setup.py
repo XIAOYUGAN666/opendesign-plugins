@@ -32,6 +32,66 @@ def test_prepare_selects_highest_installed_rfem_without_contacting_rfem(
     assert len(calls) == 1
 
 
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        (404, "rfemSdkUnavailable"),
+        (503, "rfemSdkDownloadFailed"),
+        (None, "rfemSdkDownloadFailed"),
+    ],
+)
+def test_failed_sdk_download_does_not_create_an_environment(
+    tmp_path, monkeypatch, status, reason
+):
+    monkeypatch.setattr(
+        setup, "installed_rfem", lambda: ((Path("rfem.exe"), "6.16.0005.287"),)
+    )
+    http_client = httpx.Client
+
+    def respond(request):
+        if status is None:
+            raise httpx.ConnectError("fixture connection refused", request=request)
+        return httpx.Response(status)
+
+    monkeypatch.setattr(
+        sdk.httpx,
+        "Client",
+        lambda **kwargs: http_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    result = setup.prepare(tmp_path)
+    assert result["type"] == "failed"
+    assert result["reason"] == reason
+    assert not (tmp_path / sdk.ENVIRONMENT).exists()
+    assert not list(tmp_path.glob(".rfem-prepare-*"))
+
+
+def test_newer_rfem_does_not_replace_the_existing_environment(tmp_path, monkeypatch):
+    previous = tmp_path / sdk.ENVIRONMENT
+    previous.mkdir()
+    marker = previous / "previous-environment"
+    marker.write_bytes(b"test")
+    monkeypatch.setattr(
+        sdk,
+        "read_binding",
+        lambda _: {
+            "build": "6.14.0013.249",
+            "executable": "older.exe",
+            "sdkVersion": "2.14.13",
+        },
+    )
+    monkeypatch.setattr(
+        setup, "installed_rfem", lambda: ((Path("newer.exe"), "6.16.0005.287"),)
+    )
+    monkeypatch.setattr(
+        sdk.httpx,
+        "Client",
+        lambda **_: pytest.fail("must not download into the existing environment"),
+    )
+    assert setup.prepare(tmp_path)["reason"] == "rfemSdkPreparationFailed"
+    assert list(previous.iterdir()) == [marker]
+    assert marker.read_bytes() == b"test"
+
+
 def test_release_record_requires_exact_dlubal_build_and_official_wheel():
     name = "dlubal_api-2.16.5-py3-none-any.whl"
     record = {
