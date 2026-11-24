@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rfem",
-  "version": "0.1.6",
-  "description": "RFEM 6 local engineering tools and workflow skills.",
+  "version": "0.2.0",
+  "description": "Local RFEM 6 structural modeling, calculation and results tools.",
   "author": {
     "name": "OpenDesign team"
   },
@@ -10,11 +10,20 @@
     "ai.opendesign.desktop": {
       "setup": {
         "command": "runtime/python/python.exe",
-        "args": ["-m", "dlubal_rfem_mcp.setup"],
+        "args": [
+          "-m",
+          "dlubal_mcp.setup"
+        ],
         "diagnostics": true,
-        "credentialSlots": {"diagnose": "dlubal-api-key"}
+        "credentialSlots": {
+          "diagnose": "dlubal-api-key"
+        }
       },
-      "credentialEnvironment": {"rfem": {"PLUGIN_RFEM_API_KEY": "dlubal-api-key"}}
+      "credentialEnvironment": {
+        "rfem": {
+          "PLUGIN_RFEM_API_KEY": "dlubal-api-key"
+        }
+      }
     },
     "io.github.xiaoyugan666.native": {
       "platform": {
@@ -30,7 +39,7 @@
         "max": 1
       },
       "entrypoint": "runtime/python/python.exe",
-      "module": "dlubal_rfem_mcp.managed_bootstrap",
+      "module": "dlubal_mcp.plugin_stdio",
       "components": [
         {
           "kind": "connector",
@@ -38,19 +47,17 @@
         }
       ],
       "mcp": {
-        "transport": "streamable-http",
-        "path": "/mcp"
+        "transport": "stdio",
+        "path": ""
       },
       "software": {
         "product": "dlubal-rfem",
         "major": 6,
-        "supportedBuilds": [
-          "6.14.0013.249"
-        ]
+        "supportedBuilds": []
       },
       "adapter": {
         "distribution": "dlubal.api",
-        "version": "2.14.13"
+        "version": "prepared-at-installation"
       },
       "configurationSchemaVersion": 1,
       "protocolVersion": 1,
@@ -71,7 +78,7 @@
       "interface": {
         "displayName": "Dlubal RFEM",
         "shortDescription": "RFEM 6 structural modeling, calculation and results tools.",
-        "longDescription": "Connect RFEM 6 through a managed connector. Includes workflow skills for structural modeling, calculation and results; engineering operations follow the existing permissions and approval flow.",
+        "longDescription": "Connect to local RFEM 6 for structural modeling, calculation and results. Use the plugin settings for the RFEM API connection and the connector's tool preferences for approval.",
         "developerName": "OpenDesign team",
         "category": "Engineering Design",
         "capabilities": [
