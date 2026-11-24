@@ -1,14 +1,162 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "rhino",
-  "version": "0.1.21",
+  "version": "0.1.28",
   "description": "Rhino 8 local engineering tools and workflow skills.",
   "author": {
     "name": "OpenDesign team"
   },
   "extensions": {
     "ai.opendesign.desktop": {
-      "setup": {"command": "runtime/python/python.exe", "args": ["-m", "rhino_mcp.setup"], "diagnostics": true}
+      "agents": {
+        "schemaVersion": 1,
+        "files": [
+          "agents/rhino-inspector.md",
+          "agents/rhino-modeler.md",
+          "agents/grasshopper-builder.md"
+        ]
+      },
+      "setup": {
+        "command": "runtime/python/python.exe",
+        "args": [
+          "-m",
+          "rhino_mcp.setup"
+        ],
+        "diagnostics": true,
+        "settings": {
+          "connectionLabel": "连接",
+          "commandsLabel": "原生命令",
+          "statusAction": "status",
+          "locateAction": {
+            "id": "locate",
+            "label": "定位窗口"
+          },
+          "fields": [
+            {
+              "id": "softwareVersion",
+              "label": "软件版本"
+            },
+            {
+              "id": "connectionScope",
+              "label": "连接范围"
+            },
+            {
+              "id": "port",
+              "label": "监听端口"
+            },
+            {
+              "id": "portSource",
+              "label": "端口来源"
+            },
+            {
+              "id": "bridgeLoaded",
+              "label": "Bridge 已加载"
+            },
+            {
+              "id": "bridgeVersion",
+              "label": "Bridge 版本"
+            },
+            {
+              "id": "grasshopperLoaded",
+              "label": "Grasshopper 已加载"
+            },
+            {
+              "id": "grasshopperDocumentName",
+              "label": "Grasshopper 定义"
+            },
+            {
+              "id": "startedAt",
+              "label": "监听开始时间"
+            },
+            {
+              "id": "lastCommand",
+              "label": "最近命令"
+            },
+            {
+              "id": "lastCommandAt",
+              "label": "末次命令时间"
+            },
+            {
+              "id": "commandCount",
+              "label": "命令计数"
+            }
+          ],
+          "commands": [
+            {
+              "id": "mcpstart",
+              "label": "mcpstart",
+              "arguments": [
+                {
+                  "id": "port",
+                  "label": "Port（0 为自动）",
+                  "type": "integer",
+                  "default": 0,
+                  "minimum": 0,
+                  "maximum": 65535
+                }
+              ]
+            },
+            {
+              "id": "mcpstop",
+              "label": "mcpstop"
+            },
+            {
+              "id": "mcpversion",
+              "label": "mcpversion"
+            },
+            {
+              "id": "mcptest",
+              "label": "mcptest",
+              "timeoutSeconds": 600,
+              "arguments": [
+                {
+                  "id": "visual",
+                  "label": "Visual",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "id": "grasshopper",
+                  "label": "Grasshopper",
+                  "type": "boolean",
+                  "default": false
+                },
+                {
+                  "id": "delay",
+                  "label": "Delay（毫秒）",
+                  "type": "integer",
+                  "default": 500,
+                  "minimum": 0,
+                  "maximum": 5000
+                }
+              ]
+            }
+          ],
+          "clientFields": [
+            {
+              "id": "connectedAt",
+              "label": "连接时间"
+            },
+            {
+              "id": "commandCount",
+              "label": "命令计数"
+            },
+            {
+              "id": "lastCommand",
+              "label": "最近命令"
+            },
+            {
+              "id": "lastCommandAt",
+              "label": "末次命令时间"
+            }
+          ],
+          "toolSettings": [
+            "run_command",
+            "execute_rhinoscript_python_code",
+            "execute_rhinocommon_csharp_code"
+          ]
+        }
+      }
     },
     "io.github.xiaoyugan666.native": {
       "platform": {
@@ -60,14 +208,14 @@
       "configurationSchemaPath": "configuration.schema.json",
       "secretSlots": [],
       "native": {
-        "capabilityDigest": "sha256:31deb833e6191571e9e05103f5af047347d685a020d129ed983b1a365b8dfab6",
-        "contractDigest": "sha256:3deffd5de2f9f7b44a968b63aaad67334cdf7a1f6c9a6bc847b914d8b615c9a9",
+        "capabilityDigest": "sha256:e32b954fc765d516ab298e34299ee8124b7ceca626fc3e55a64775f48990816d",
+        "contractDigest": "sha256:d812a4d350684dc64f7ff8b2307290d88e3ae702a00f2a85d48a64cecaf1e3e5",
         "contractVersion": 1,
         "packageId": "rhino-mcp-bridge",
         "pluginId": "74a1e8f4-1134-4686-a3e5-ee8bf393dec9",
-        "relativePath": "native/rhino-mcp-bridge-0.1.21-rh8-win.yak",
-        "sha256": "sha256:98f9a1830f537a50f7f3a177374df6f92a749c2f132d3a3dc88d925a92615a90",
-        "version": "0.1.21"
+        "relativePath": "native/rhino-mcp-bridge-0.1.28-rh8-win.yak",
+        "sha256": "sha256:73ec2237156d016fbba5ae2d41a774526834ca0888c0fe573cd37618d819da0d",
+        "version": "0.1.28"
       }
     },
     "com.openai": {
