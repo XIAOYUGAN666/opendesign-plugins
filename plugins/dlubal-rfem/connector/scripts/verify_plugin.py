@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from dlubal_rfem_mcp.core.catalog import canonical_json
+from dlubal_mcp.core.catalog import canonical_json
 from scripts.build_plugin import extract_verified_zip
 
 EXPECTED_TOOLS = {
@@ -93,7 +93,7 @@ def verify(archive: Path) -> dict:
                 "-I",
                 "-s",
                 "-c",
-                "import importlib.metadata as m,json,platform,sys; print(json.dumps({'executable':sys.executable,'isolated':sys.flags.isolated,'no_site':sys.flags.no_site,'architecture':platform.machine(),'fastmcp':m.version('fastmcp'),'mcp':m.version('mcp'),'dlubal.api':m.version('dlubal.api')}))",
+                "import importlib.metadata as m,json,platform,sys; print(json.dumps({'executable':sys.executable,'isolated':sys.flags.isolated,'no_site':sys.flags.no_site,'architecture':platform.machine(),'fastmcp':m.version('fastmcp'),'mcp':m.version('mcp'),'dlubal.api':any(d.metadata.get('Name','').lower().replace('-','.')=='dlubal.api' for d in m.distributions())}))",
             ],
             cwd=root,
             env=environment,
@@ -106,9 +106,9 @@ def verify(archive: Path) -> dict:
         if (
             runtime["isolated"] != 1
             or runtime["architecture"].upper() != "AMD64"
-            or runtime["fastmcp"] != "4.0.3"
-            or runtime["mcp"] != "2.2.0"
-            or runtime["dlubal.api"] != "2.14.13"
+            or not runtime["fastmcp"].startswith("2.")
+            or not runtime["mcp"].startswith("1.")
+            or runtime["dlubal.api"] is not False
             or not Path(runtime["executable"]).is_relative_to(root)
         ):
             raise ValueError("runtimeIsolationMismatch")

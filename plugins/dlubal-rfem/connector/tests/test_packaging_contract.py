@@ -9,7 +9,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from dlubal_rfem_mcp.core.catalog import canonical_json
+from dlubal_mcp.core.catalog import canonical_json
 from scripts.build_plugin import extract_verified_zip, verify_download
 from scripts.sign_catalog import sign
 

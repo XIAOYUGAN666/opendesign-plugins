@@ -5,8 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from dlubal_rfem_mcp.rfem.execution import ExecutionUncertain
-from dlubal_rfem_mcp.rfem.model_binding import bound_connection
+from dlubal_mcp.rfem.execution import ExecutionUncertain
+from dlubal_mcp.rfem.model_binding import bound_connection
 
 
 def test_journal_failure_after_model_creation_remains_unknown():

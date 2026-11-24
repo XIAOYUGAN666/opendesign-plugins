@@ -5,8 +5,8 @@ from uuid import uuid4
 import pytest
 from fastmcp import Client, FastMCP
 
-from dlubal_rfem_mcp.rfem.execution import ExecutionManager
-from dlubal_rfem_mcp.rfem.model_operations import (
+from dlubal_mcp.rfem.execution import ExecutionManager
+from dlubal_mcp.rfem.model_operations import (
     ModelObject,
     prepare_objects,
     register_model_operations,

@@ -4,7 +4,10 @@
     "rfem": {
       "type": "stdio",
       "command": "./runtime/python/python.exe",
-      "args": ["-m", "dlubal_rfem_mcp", "--stdio"]
+      "args": [
+        "-m",
+        "dlubal_mcp.plugin_stdio"
+      ]
     }
   }
 }

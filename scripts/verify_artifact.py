@@ -276,11 +276,81 @@ except Exception as error:
 '''
 
 
+STDIO_PROBE = r'''
+import asyncio
+import json
+import os
+import platform
+import sys
+from importlib.metadata import version
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from mcp.types import PaginatedRequestParams
+
+async def probe():
+    root = Path(sys.argv[1])
+    release = json.loads((root / "release.json").read_bytes())
+    servers = json.loads((root / "mcp.json").read_bytes())["mcpServers"]
+    declaration, = servers.values()
+    if declaration != {
+        "type": "stdio",
+        "command": "./" + release["entrypoint"],
+        "args": ["-m", release["module"]],
+    }:
+        raise ValueError("invalidStdioDeclaration")
+    with TemporaryDirectory(prefix="candidate-stdio-") as data:
+        env = {key: os.environ[key] for key in ("SystemRoot", "WINDIR", "TEMP", "TMP") if key in os.environ}
+        env["PLUGIN_DATA"] = data
+        params = StdioServerParameters(
+            command=sys.executable, args=["-I", "-B", *declaration["args"], "--metadata"],
+            cwd=str(root), env=env,
+        )
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as client:
+                await client.initialize()
+                tools, seen = [], set()
+                cursor = None
+                while True:
+                    page = await client.list_tools(params=PaginatedRequestParams(cursor=cursor) if cursor else None)
+                    tools.extend(tool.model_dump(mode="json", by_alias=True, exclude_none=True) for tool in page.tools)
+                    cursor = page.nextCursor
+                    if cursor is None:
+                        break
+                    if cursor in seen or len(seen) >= 1024:
+                        raise ValueError("invalidToolPagination")
+                    seen.add(cursor)
+                if len({tool["name"] for tool in tools}) != len(tools):
+                    raise ValueError("duplicateToolIdentity")
+                for tool in tools:
+                    if (await client.call_tool(tool["name"], {})).isError is not True:
+                        raise ValueError("metadataToolDispatched")
+    locked = json.loads((root / "runtime-lock.json").read_bytes())
+    return {
+        "preview": {"normalizationVersion": 1, "tools": sorted(tools, key=lambda tool: tool["name"])},
+        "runtime": {
+            "python": platform.python_version(), "architecture": platform.machine(),
+            "isolated": sys.flags.isolated, "executable": sys.executable,
+            "packages": {wheel["name"]: version(wheel["name"]) for wheel in locked["wheels"]},
+        },
+    }
+
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    print(json.dumps(asyncio.run(asyncio.wait_for(probe(), 65)), ensure_ascii=False))
+except Exception:
+    print(json.dumps({"probeFailure": "stagedProviderProbeFailed"}))
+    raise SystemExit(1) from None
+'''
+
 def discover(root):
     environment = {k: os.environ[k] for k in ("SystemRoot", "WINDIR", "TEMP", "TMP") if k in os.environ}
     release = read_json((root / "release.json").read_bytes())
     executable = root.joinpath(*safe_path(release["entrypoint"]))
-    process = subprocess.Popen([str(executable), "-I", "-s", "-B", "-c", PROBE, str(root)], cwd=root, env=environment, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    probe = STDIO_PROBE if release["mcp"]["transport"] == "stdio" else PROBE
+    process = subprocess.Popen([str(executable), "-I", "-s", "-B", "-c", probe, str(root)], cwd=root, env=environment, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     chunks = []
     oversized = threading.Event()
     def stop_tree():
@@ -600,12 +670,13 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
             raise ValueError("unsupportedPreviewNormalization")
         configuration = read_json(root.joinpath(*safe_path(identity["extensions"][NAMESPACE]["configurationSchemaPath"])).read_bytes())
         validate_configuration_declaration(configuration)
-        startup = read_json((root / "startup-envelope.schema.json").read_bytes())
-        from jsonschema import validators
-        validators.validator_for(startup).check_schema(startup)
-        version = startup.get("properties", {}).get("schemaVersion", {})
-        if release["startupEnvelopeVersion"] != 3 or version.get("minimum") != 3 or version.get("maximum") != 3:
-            raise ValueError("startupDeclarationVersionMismatch")
+        if release["mcp"]["transport"] != "stdio":
+            startup = read_json((root / "startup-envelope.schema.json").read_bytes())
+            from jsonschema import validators
+            validators.validator_for(startup).check_schema(startup)
+            version = startup.get("properties", {}).get("schemaVersion", {})
+            if release["startupEnvelopeVersion"] != 3 or version.get("minimum") != 3 or version.get("maximum") != 3:
+                raise ValueError("startupDeclarationVersionMismatch")
         if release["sbomDigest"] != digest((root / "sbom.spdx.json").read_bytes()):
             raise ValueError("sbomDigestMismatch")
         risk = read_json((root / "risk-review.json").read_bytes())
@@ -638,7 +709,8 @@ def verify_artifact(archive: Path, receipt: Path, schema_bundle: Path, *, truste
         observed = discover(root)
         if observed["preview"] != preview:
             raise ValueError("stagedToolCatalogMismatch")
-        validate(observed["ready"], read_json((root / "execution-status.schema.json").read_bytes()))
+        if release["mcp"]["transport"] != "stdio":
+            validate(observed["ready"], read_json((root / "execution-status.schema.json").read_bytes()))
         runtime = observed["runtime"]
         if runtime["python"] != "3.12.10" or runtime["architecture"].upper() != "AMD64" or runtime["isolated"] != 1 or runtime["packages"] != {w["name"]:w["version"] for w in locked["wheels"]} or not Path(runtime["executable"]).is_relative_to(root):
             raise ValueError("runtimeIsolationMismatch")

@@ -7,7 +7,6 @@ credentials, mutates a previous build, or imports the legacy Connector.
 import argparse
 import asyncio
 import hashlib
-import io
 import json
 import shutil
 import subprocess
@@ -24,14 +23,9 @@ from packaging.requirements import Requirement
 from packaging.tags import sys_tags
 from packaging.utils import canonicalize_name, parse_wheel_filename
 
-from dlubal_rfem_mcp._connector_control import bootstrap_schema, execution_status_schema
-from dlubal_rfem_mcp.core.catalog import canonical_json
-from dlubal_rfem_mcp.core.config import (
-    ConfigurationV1,
-    ConnectorExecutionStatusV1,
-)
-from dlubal_rfem_mcp.core.identity import connector_build_id, connector_build_manifest
-from dlubal_rfem_mcp.core.release import (
+from dlubal_mcp.core.catalog import canonical_json
+from dlubal_mcp.core.identity import connector_build_id, connector_build_manifest
+from dlubal_mcp.core.release import (
     InputManifestIdentityV1,
     RiskReviewV1,
     SourceFileDigestV1,
@@ -172,6 +166,8 @@ def create_lock() -> dict:
             "export",
             "--frozen",
             "--no-dev",
+            "--extra",
+            "sdk-test",
             "--no-emit-project",
             "--no-hashes",
             "--format",
@@ -185,7 +181,9 @@ def create_lock() -> dict:
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         requirement = Requirement(line)
-        if requirement.marker is None or requirement.marker.evaluate():
+        if canonicalize_name(requirement.name) != "dlubal-api" and (
+            requirement.marker is None or requirement.marker.evaluate()
+        ):
             resolved.append(requirement)
     lock = tomllib.loads((ROOT / "uv.lock").read_text("utf-8"))
     tags = {tag: index for index, tag in enumerate(sys_tags())}
@@ -226,23 +224,26 @@ def create_lock() -> dict:
 
 
 async def typed_declarations():
+    from tempfile import TemporaryDirectory
+
     from fastmcp import Client
 
-    from dlubal_rfem_mcp.core.server import build_mcp
-    from dlubal_rfem_mcp.managed_bootstrap import read_connector_envelope
-    value = {"schemaVersion":3,"binding":{"packageId":"dlubal-rfem","releaseDigest":"sha256:"+"0"*64,"connectorInstanceId":"ci_"+"0"*32,"generation":1,"configurationRevision":1,"secretRevision":0},"mode":"metadata","bind":{"host":"127.0.0.1","port":8765,"path":"/mcp"},"bearerToken":"b"*64,"connectorBuildId":connector_build_id(),"configuration":{},"secrets":[],"dataDirectory":None,"nativePeer":None}
-    envelope = read_connector_envelope(io.BytesIO(json.dumps(value).encode()))
-    async with Client(build_mcp(envelope)) as client:
-        return sorted(
-            [
-                tool.model_dump(mode="json", by_alias=True, exclude_none=True)
-                for tool in await client.list_tools()
-            ],
-            key=lambda tool: tool["name"],
-        )
+    from dlubal_mcp.plugin_stdio import build_plugin_server
+
+    with TemporaryDirectory(prefix="rfem-preview-") as data:
+        async with Client(build_plugin_server(Path(data), metadata=True)) as client:
+            return sorted(
+                [
+                    tool.model_dump(mode="json", by_alias=True, exclude_none=True)
+                    for tool in await client.list_tools()
+                ],
+                key=lambda tool: tool["name"],
+            )
 
 
 def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
+    from dlubal_mcp.plugin_stdio import ConnectionSettings
+
     plugin_root = plugin_root.resolve(strict=True)
     if plugin_root / "connector" != ROOT:
         raise ValueError("connectorRootMismatch")
@@ -264,19 +265,12 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
         archives = list(
             pool.map(lambda wheel: download(wheel, cache), locked["wheels"])
         )
-    for item, archive in zip(locked["wheels"], archives, strict=True):
-        if item["name"] != "dlubal-api":
-            extract_verified_zip(archive, site_packages, wheel=True)
-    adapter = next(
-        archive
-        for item, archive in zip(locked["wheels"], archives, strict=True)
-        if item["name"] == "dlubal-api"
-    )
-    extract_verified_zip(adapter, site_packages, wheel=True, replace_existing=True)
+    for archive in archives:
+        extract_verified_zip(archive, site_packages, wheel=True)
     (interpreter / "python312._pth").write_text(
         "python312.zip\n.\nLib/site-packages\nimport site\n", encoding="utf-8"
     )
-    for source in (ROOT / "dlubal_rfem_mcp").rglob("*.py"):
+    for source in (ROOT / "dlubal_mcp").rglob("*.py"):
         target = site_packages / source.relative_to(ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
@@ -299,10 +293,19 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
         shutil.copytree(plugin_root / "assets", staging / "assets")
     shutil.copyfile(ROOT / "README.md", staging / "README.md")
     (staging / "runtime-lock.json").write_bytes(canonical_json(locked))
+    configuration = ConnectionSettings.model_json_schema()
+    configuration["title"] = "Dlubal RFEM"
+    configuration["properties"]["dlubal-api-key"] = {
+        "type": "string",
+        "format": "password",
+        "writeOnly": True,
+        "minLength": 1,
+        "maxLength": 4096,
+        "title": "Dlubal API Key",
+        "description": "[Dlubal 官方 API Key 获取指南](https://apidocs.dlubal.com/access_control.html)",
+    }
     declarations = {
-        "startup-envelope.schema.json": bootstrap_schema(),
-        "configuration.schema.json": ConfigurationV1.model_json_schema(by_alias=True),
-        "execution-status.schema.json": execution_status_schema(ConnectorExecutionStatusV1.model_json_schema()),
+        "configuration.schema.json": configuration,
         "tool-preview.schema.json": ToolPreviewV1.model_json_schema(by_alias=True),
         "risk-review.schema.json": RiskReviewV1.model_json_schema(),
     }
@@ -312,8 +315,8 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
     if len(preview["tools"]) != 8:
         raise ValueError("incompleteToolCatalog")
     (staging / "tool-preview.json").write_bytes(canonical_json(preview))
-    build_id = connector_build_id(site_packages / "dlubal_rfem_mcp")
-    source_root = site_packages / "dlubal_rfem_mcp"
+    build_id = connector_build_id(site_packages / "dlubal_mcp")
+    source_root = site_packages / "dlubal_mcp"
     sources = [
         SourceFileDigestV1(
             path=p.relative_to(source_root).as_posix(),

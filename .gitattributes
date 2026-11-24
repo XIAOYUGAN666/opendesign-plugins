@@ -31,3 +31,6 @@
 /schemas/agent-plugin-runtime.schema.json -text
 /.agents/plugins/marketplace.agent.snapshot.json -text
 /schemas/host-publisher-policy.json whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+
+# Keep the RFEM Python source line endings stable across checkouts.
+/plugins/dlubal-rfem/connector/dlubal_mcp/**/*.py text eol=lf

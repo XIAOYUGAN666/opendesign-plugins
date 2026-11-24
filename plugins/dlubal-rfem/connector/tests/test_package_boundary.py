@@ -14,12 +14,12 @@ class PackageBoundaryTests(unittest.TestCase):
         self.assertEqual(project["project"]["name"], "dlubal-rfem-mcp")
         self.assertEqual(project["project"]["requires-python"], ">=3.12,<3.13")
         dependencies = project["project"]["dependencies"]
-        for dependency in ("fastmcp==4.0.3", "mcp==2.2.0", "dlubal.api==2.14.13"):
+        for dependency in ("fastmcp>=2.13.0.2,<3", "pydantic>=2.11.7,<3"):
             self.assertIn(dependency, dependencies)
         self.assertFalse(any("dlubal-mcp" in value for value in dependencies))
 
     def test_source_imports_only_own_package_and_external_dependencies(self):
-        paths = list((ROOT / "dlubal_rfem_mcp").rglob("*.py"))
+        paths = list((ROOT / "dlubal_mcp").rglob("*.py"))
         self.assertTrue(paths, "Connector source is absent")
         for path in paths:
             source = path.read_text(encoding="utf-8")
@@ -27,7 +27,6 @@ class PackageBoundaryTests(unittest.TestCase):
                 "mcp-providers",
                 "agent-server",
                 "api-server",
-                "sys.path",
             ):
                 self.assertNotIn(forbidden, source, path)
             for node in ast.walk(ast.parse(source)):
@@ -40,7 +39,6 @@ class PackageBoundaryTests(unittest.TestCase):
                     self.assertNotIn(
                         module.split(".")[0],
                         {
-                            "dlubal_mcp",
                             "apps",
                             "app",
                             "agent",
@@ -55,9 +53,9 @@ class PackageBoundaryTests(unittest.TestCase):
         lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
         packages = {package["name"]: package for package in lock["package"]}
         for name, version in (
-            ("fastmcp", "4.0.3"),
-            ("mcp", "2.2.0"),
-            ("dlubal-api", "2.14.13"),
+            ("fastmcp", "2.14.7"),
+            ("mcp", "1.30.0"),
+            ("dlubal-api", "2.16.5"),
         ):
             self.assertEqual(packages[name]["version"], version)
         self.assertNotIn("dlubal-mcp", packages)

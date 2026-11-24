@@ -7,7 +7,7 @@ from types import ModuleType
 
 import pytest
 
-from dlubal_rfem_mcp.rfem.results import read_results
+from dlubal_mcp.rfem.results import read_results
 
 
 class Scalar:
@@ -431,15 +431,15 @@ def test_snapshot_export_failure_never_exposes_local_exception(monkeypatch):
 async def test_mcp_schema_is_closed_to_allowlisted_result_types(tmp_path):
     from fastmcp import FastMCP
 
-    from dlubal_rfem_mcp.rfem.session import RFEMSession
-    from dlubal_rfem_mcp.rfem.tools import register_tools
+    from dlubal_mcp.rfem.session import RFEMSession
+    from dlubal_mcp.rfem.tools import register_tools
 
     mcp = FastMCP("test")
     from types import SimpleNamespace
 
     names = register_tools(
         mcp,
-        RFEMSession("fixture-key", "127.0.0.1", 9000),
+        RFEMSession("", "", "127.0.0.1", 9000),
         SimpleNamespace(execution_state_file=str(tmp_path / "state.db")),
     )
     assert "read_rfem_results" in names

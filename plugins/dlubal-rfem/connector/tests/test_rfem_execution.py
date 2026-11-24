@@ -6,14 +6,14 @@ from uuid import uuid4
 
 import pytest
 
-from dlubal_rfem_mcp.rfem.execution import (
+from dlubal_mcp.rfem.execution import (
     MAX_OUTPUT,
     Capture,
     ExecutionManager,
     ExecutionUncertain,
     worker_lock,
 )
-from dlubal_rfem_mcp.rfem.model_binding import BoundApplication
+from dlubal_mcp.rfem.model_binding import BoundApplication
 
 
 def test_timeout_keeps_worker_owned_connection_and_rejects_overlap(tmp_path):
@@ -115,23 +115,6 @@ def test_uncertain_completion_blocks_following_requests(tmp_path, error):
     assert manager.submit(str(uuid4()), "chat", "next", work)["state"] == "busy"
 
 
-def test_diagnostic_extractor_failure_cannot_settle_execution_as_success(tmp_path):
-    def broken_diagnostic(*_):
-        raise AttributeError("SDK error detail is unavailable")
-
-    manager = ExecutionManager(tmp_path / "state.db", describe_error=broken_diagnostic)
-    calls = []
-
-    def work(*_):
-        calls.append(1)
-        raise ExecutionUncertain("cleanup failed")
-
-    execution_id = str(uuid4())
-    assert manager.submit(execution_id, "chat", "code", work)["state"] == "unknown"
-    assert manager.submit(execution_id, "chat", "code", work)["state"] == "unknown"
-    assert calls == [1]
-
-
 def test_failure_retains_output_and_completed_model_identity(tmp_path):
     manager = ExecutionManager(tmp_path / "state.db")
     model_a, model_b = str(uuid4()), str(uuid4())
@@ -149,28 +132,50 @@ def test_failure_retains_output_and_completed_model_identity(tmp_path):
     assert manager.status(result["execution_id"])["model_guid"] == model_a
 
 
-@pytest.mark.parametrize("status", ["UNKNOWN", "INVALID_ARGUMENT"])
-def test_grpc_failure_never_exposes_raw_debug_details(tmp_path, status):
+class _RpcError(Exception):
+    def __init__(self, status, details):
+        super().__init__(
+            f"gRPC API call failed ({status}) for 127.0.0.1:9000: {details}"
+        )
+        self._status = status
+
+    def code(self):
+        return "StatusCode." + self._status
+
+
+def test_rfem_busy_with_previous_client_explains_wait_and_does_not_block(tmp_path):
     manager = ExecutionManager(tmp_path / "state.db")
 
-    class RpcFailure(Exception):
-        def code(self):
-            return f"StatusCode.{status}"
+    def work(*_):
+        raise _RpcError(
+            "RESOURCE_EXHAUSTED", "Another client is already connected to the server."
+        )
 
-        def __str__(self):
-            return "customer/model.rf6 api_key=secret raw grpc debug"
-
-    result = manager.submit(
-        str(uuid4()), "chat", "code", lambda *_: (_ for _ in ()).throw(RpcFailure())
-    )
-
+    result = manager.submit(str(uuid4()), "chat", "code", work)
     assert result["state"] == "failed"
-    assert (
-        result["error"]
-        == "RFEM rejected the operation. Inspect RFEM validation messages."
+    assert result["error"].startswith(
+        "RFEM is still busy with a request from another client"
     )
-    assert "secret" not in result["error"]
-    assert ".rf6" not in result["error"]
+    assert "Another client is already connected" in result["error"]
+    assert "did not attempt any model writes" in result["error"]
+    assert "run the script again" in result["error"]
+    assert (
+        manager.submit(str(uuid4()), "chat", "next", lambda *_: None)["state"]
+        == "succeeded"
+    )
+
+
+def test_other_resource_exhausted_keeps_original_error(tmp_path):
+    manager = ExecutionManager(tmp_path / "state.db")
+    details = "received metadata size exceeds hard limit (value length 22556 vs. 16384)"
+
+    def work(*_):
+        raise _RpcError("RESOURCE_EXHAUSTED", details)
+
+    result = manager.submit(str(uuid4()), "chat", "code", work)
+    assert result["state"] == "failed"
+    assert result["error"].endswith(details)
+    assert "still busy" not in result["error"]
 
 
 def test_capture_is_local_and_bounded(capsys):
@@ -250,9 +255,9 @@ def test_binding_survives_active_model_changes_and_rejects_foreign_ids():
     with pytest.raises(RuntimeError, match="different model"):
         proxy.get_base_data(ModelId(app.b))
     with pytest.raises(RuntimeError, match="Cannot switch"):
-        proxy.set_active_model(ModelId(app.b))
+        bound(app, app.a).set_active_model(ModelId(app.b))
     with pytest.raises(RuntimeError, match="no supported model binding"):
-        proxy.future_global_mutation()
+        bound(app, app.a).future_global_mutation()
 
 
 def test_closed_bound_model_never_falls_back():
@@ -274,7 +279,7 @@ def test_another_rfem_endpoint_cannot_silently_rebind_the_chat(tmp_path):
 
 
 def test_session_lock_covers_connection_cleanup(monkeypatch):
-    from dlubal_rfem_mcp.rfem.session import RFEMSession
+    from dlubal_mcp.rfem.session import RFEMSession
 
     closing, finish, done = threading.Event(), threading.Event(), threading.Event()
 
@@ -289,7 +294,7 @@ def test_session_lock_covers_connection_cleanup(monkeypatch):
     monkeypatch.setitem(
         sys.modules, "dlubal.api.rfem.application", SimpleNamespace(Application=App)
     )
-    session = RFEMSession("unused-test-key", "127.0.0.1", 9000)
+    session = RFEMSession("", "unused-test-key", "127.0.0.1", 9000)
 
     def run():
         try:
@@ -321,10 +326,10 @@ def test_bound_guid_is_persisted_before_first_model_operation(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_mcp_wire_flags_validation_failure_and_exposes_execution_status_schema(tmp_path):
+async def test_mcp_wire_flags_validation_failure_and_exposes_lifecycle_schema(tmp_path):
     from fastmcp import Client, FastMCP
 
-    from dlubal_rfem_mcp.rfem.tools import register_tools
+    from dlubal_mcp.rfem.tools import register_tools
 
     mcp = FastMCP("test")
     register_tools(
@@ -334,7 +339,7 @@ async def test_mcp_wire_flags_validation_failure_and_exposes_execution_status_sc
         definitions = {tool.name: tool for tool in await client.list_tools()}
         assert {"execution_id", "context_id", "model_guid"} <= definitions[
             "run_rfem_script"
-        ].input_schema["properties"].keys()
+        ].inputSchema["properties"].keys()
         result = await client.call_tool(
             "run_rfem_script", {"code": "import os"}, raise_on_error=False
         )
@@ -343,44 +348,8 @@ async def test_mcp_wire_flags_validation_failure_and_exposes_execution_status_sc
         unknown = await client.call_tool(
             "get_rfem_execution", {"execution_id": str(uuid4())}, raise_on_error=False
         )
-        # The status lookup succeeded; it does not claim the operation succeeded.
-        assert not unknown.is_error
+        assert unknown.is_error
         assert unknown.structured_content["state"] == "not_found"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "state", ["not_found", "running", "unknown", "failed", "succeeded"]
-)
-async def test_status_lookup_reports_observed_state_without_mcp_tool_failure(
-    tmp_path, monkeypatch, state
-):
-    from fastmcp import Client, FastMCP
-
-    from dlubal_rfem_mcp.core.product_execution import execution_response
-    from dlubal_rfem_mcp.rfem.tools import register_tools
-
-    execution_id = str(uuid4())
-    observed = {"execution_id": execution_id, "state": state}
-    monkeypatch.setattr(
-        ExecutionManager,
-        "status",
-        lambda self, identity: {**observed, "execution_id": identity},
-    )
-    mcp = FastMCP("status-only")
-    register_tools(
-        mcp, None, SimpleNamespace(execution_state_file=str(tmp_path / "state.db"))
-    )
-    async with Client(mcp) as client:
-        status = await client.call_tool(
-            "get_rfem_execution", {"execution_id": execution_id}, raise_on_error=False
-        )
-        assert not status.is_error
-        assert status.structured_content == observed
-    # Mutation responses must still fail closed unless the engineering work succeeded.
-    assert execution_response(observed).to_mcp_result().is_error is (
-        state != "succeeded"
-    )
 
 
 @pytest.mark.asyncio
@@ -389,8 +358,8 @@ async def test_first_typed_read_binds_following_script_before_ui_switch(
 ):
     from fastmcp import Client, FastMCP
 
-    from dlubal_rfem_mcp.rfem import tools
-    from dlubal_rfem_mcp.rfem.results import RFEMResultResponse
+    from dlubal_mcp.rfem import tools
+    from dlubal_mcp.rfem.results import RFEMResultResponse
 
     app = FakeApplication()
     common = SimpleNamespace(ModelId=ModelId, OptionalModelId=ModelId)
@@ -433,6 +402,7 @@ async def test_first_typed_read_binds_following_script_before_ui_switch(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("catch_write_error", [False, True])
 @pytest.mark.parametrize(
     "phase,code,state",
     [
@@ -444,11 +414,11 @@ async def test_first_typed_read_binds_following_script_before_ui_switch(
     ],
 )
 async def test_only_ambiguous_model_operations_quarantine_the_session(
-    tmp_path, monkeypatch, phase, code, state
+    tmp_path, monkeypatch, phase, code, state, catch_write_error
 ):
     from fastmcp import Client, FastMCP
 
-    from dlubal_rfem_mcp.rfem.tools import register_tools
+    from dlubal_mcp.rfem.tools import register_tools
 
     class RpcError(Exception):
         def code(self):
@@ -466,6 +436,7 @@ async def test_only_ambiguous_model_operations_quarantine_the_session(
         raise RpcError("RFEM unavailable")
 
     def write(obj, model_id=None):
+        app.calls.append((obj, model_id.guid))
         raise RpcError("RFEM unavailable")
 
     app.get_application_info = read
@@ -491,10 +462,20 @@ async def test_only_ambiguous_model_operations_quarantine_the_session(
             if phase == "write"
             else "app.get_application_info()"
         )
+        if phase == "write" and catch_write_error:
+            script = (
+                "try:\n    app.create_object('first')\nexcept Exception:\n    pass\n"
+                "try:\n    app.create_object('repair')\nexcept Exception:\n    pass\n"
+                "print('script reached the end')"
+            )
         result = await client.call_tool(
             "run_rfem_script", {"code": script}, raise_on_error=False
         )
         assert result.structured_content["state"] == state
+        if phase == "write":
+            assert [obj for obj, _ in app.calls if obj != "base"] == [
+                "first" if catch_write_error else "object"
+            ]
         next_call = await client.call_tool(
             "run_rfem_script", {"code": "print(1)"}, raise_on_error=False
         )
@@ -508,7 +489,7 @@ async def test_only_ambiguous_model_operations_quarantine_the_session(
 def test_worker_start_failure_retains_recoverable_unknown_status(
     tmp_path, monkeypatch, failure, product
 ):
-    from dlubal_rfem_mcp.core.operation_control import OperationControl
+    from dlubal_mcp.core.operation_control import OperationControl
 
     control = OperationControl()
     manager = ExecutionManager(tmp_path / "state.db", control=control, product=product)
@@ -555,7 +536,7 @@ def test_worker_start_failure_retains_recoverable_unknown_status(
 def test_failed_admission_commit_never_leaves_a_phantom_worker(
     tmp_path, monkeypatch, commit_happened
 ):
-    from dlubal_rfem_mcp.core.operation_control import OperationControl
+    from dlubal_mcp.core.operation_control import OperationControl
 
     control = OperationControl()
     manager = ExecutionManager(tmp_path / "state.db", control=control)

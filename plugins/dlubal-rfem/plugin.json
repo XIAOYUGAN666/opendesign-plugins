@@ -10,11 +10,20 @@
     "ai.opendesign.desktop": {
       "setup": {
         "command": "runtime/python/python.exe",
-        "args": ["-m", "dlubal_rfem_mcp.setup"],
+        "args": [
+          "-m",
+          "dlubal_mcp.setup"
+        ],
         "diagnostics": true,
-        "credentialSlots": {"diagnose": "dlubal-api-key"}
+        "credentialSlots": {
+          "diagnose": "dlubal-api-key"
+        }
       },
-      "credentialEnvironment": {"rfem": {"PLUGIN_RFEM_API_KEY": "dlubal-api-key"}}
+      "credentialEnvironment": {
+        "rfem": {
+          "PLUGIN_RFEM_API_KEY": "dlubal-api-key"
+        }
+      }
     },
     "io.github.xiaoyugan666.native": {
       "platform": {
@@ -30,7 +39,7 @@
         "max": 1
       },
       "entrypoint": "runtime/python/python.exe",
-      "module": "dlubal_rfem_mcp.managed_bootstrap",
+      "module": "dlubal_mcp.plugin_stdio",
       "components": [
         {
           "kind": "connector",
@@ -38,19 +47,17 @@
         }
       ],
       "mcp": {
-        "transport": "streamable-http",
-        "path": "/mcp"
+        "transport": "stdio",
+        "path": ""
       },
       "software": {
         "product": "dlubal-rfem",
         "major": 6,
-        "supportedBuilds": [
-          "6.14.0013.249"
-        ]
+        "supportedBuilds": []
       },
       "adapter": {
         "distribution": "dlubal.api",
-        "version": "2.14.13"
+        "version": "prepared-at-installation"
       },
       "configurationSchemaVersion": 1,
       "protocolVersion": 1,

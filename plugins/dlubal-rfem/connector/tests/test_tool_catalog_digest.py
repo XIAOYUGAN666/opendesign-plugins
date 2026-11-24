@@ -2,7 +2,7 @@ import copy
 import json
 from pathlib import Path
 
-from dlubal_rfem_mcp.core.catalog import catalog_digest
+from dlubal_mcp.core.catalog import catalog_digest
 
 
 def test_catalog_digest_is_order_independent_and_covers_entire_contract():
