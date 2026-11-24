@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rfem",
-  "version": "0.1.6",
-  "description": "RFEM 6 local engineering tools and workflow skills.",
+  "version": "0.2.0",
+  "description": "Local RFEM 6 structural modeling, calculation and results tools.",
   "author": {
     "name": "OpenDesign team"
   },
@@ -78,7 +78,7 @@
       "interface": {
         "displayName": "Dlubal RFEM",
         "shortDescription": "RFEM 6 structural modeling, calculation and results tools.",
-        "longDescription": "Connect RFEM 6 through a managed connector. Includes workflow skills for structural modeling, calculation and results; engineering operations follow the existing permissions and approval flow.",
+        "longDescription": "Connect to local RFEM 6 for structural modeling, calculation and results. Use the plugin settings for the RFEM API connection and the connector's tool preferences for approval.",
         "developerName": "OpenDesign team",
         "category": "Engineering Design",
         "capabilities": [

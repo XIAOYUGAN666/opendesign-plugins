@@ -287,14 +287,13 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
         shutil.copyfile(ROOT / name, staging / name)
     shutil.copyfile(plugin_root / "plugin.json", staging / "plugin.json")
     shutil.copyfile(plugin_root / "mcp.json", staging / "mcp.json")
-    if (plugin_root / "skills").exists():
-        shutil.copytree(plugin_root / "skills", staging / "skills")
     if (plugin_root / "assets").exists():
         shutil.copytree(plugin_root / "assets", staging / "assets")
     shutil.copyfile(ROOT / "README.md", staging / "README.md")
     (staging / "runtime-lock.json").write_bytes(canonical_json(locked))
     configuration = ConnectionSettings.model_json_schema()
     configuration["title"] = "Dlubal RFEM"
+    configuration["required"] = ["dlubal-api-key"]
     configuration["properties"]["dlubal-api-key"] = {
         "type": "string",
         "format": "password",

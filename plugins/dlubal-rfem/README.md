@@ -1,6 +1,6 @@
 # RFEM plugin development source
 
-`plugin.json` is the sole human-maintained plugin identity. This development root contains the independent [RFEM Connector](connector/README.md), its frozen dependency inputs, tests and build tooling, plus the standard [workflow skill](skills/rfem-workflow/SKILL.md). Migration provenance is recorded in [ORIGIN.md](connector/ORIGIN.md). This repository is the sole connector source owner; the duplicate main-repository connector has been retired. A development checkout is separate from an installed signed artifact.
+`plugin.json` is the sole human-maintained plugin identity. This development root contains the independent [RFEM Connector](connector/README.md), its frozen dependency inputs, tests and build tooling. Migration provenance is recorded in [ORIGIN.md](connector/ORIGIN.md). This repository is the sole connector source owner; the duplicate main-repository connector has been retired. A development checkout is separate from an installed signed artifact.
 
 The common repository builder stages a self-contained Windows artifact from these sources. It includes the root manifest, runtime, generated configuration/startup/lifecycle schemas, actual standard MCP declarations, inventory, SBOM and risk evidence. The typed configuration source owns the safe display annotations and required Dlubal secret declaration. The native extension requires the compatible Windows Host; other Agent Plugins clients can consume only their supported standard components, without a claim of portable engineering execution.
 

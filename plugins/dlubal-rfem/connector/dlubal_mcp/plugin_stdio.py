@@ -57,6 +57,8 @@ class ConnectionGate(Middleware):
             return await call_next(context)
         if self.build is None:
             raise ToolError("softwarePreparationRequired")
+        if context.message.name == "inspect_rfem_api":
+            return await call_next(context)
         if not self.key:
             raise ToolError("credentialMissing")
         if context.message.name != "get_rfem_application_info" and not self.verified:
