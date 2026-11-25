@@ -1,13 +1,17 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "dlubal-rfem",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Local RFEM 6 structural modeling, calculation and results tools.",
   "author": {
     "name": "OpenDesign team"
   },
   "extensions": {
     "ai.opendesign.desktop": {
+      "agents": {
+        "schemaVersion": 1,
+        "files": ["agents/rfem-analyst.md"]
+      },
       "setup": {
         "command": "runtime/python/python.exe",
         "args": [
@@ -78,7 +82,7 @@
       "interface": {
         "displayName": "Dlubal RFEM",
         "shortDescription": "RFEM 6 structural modeling, calculation and results tools.",
-        "longDescription": "Connect to local RFEM 6 for structural modeling, calculation and results. Use the plugin settings for the RFEM API connection and the connector's tool preferences for approval.",
+        "longDescription": "Connect to local RFEM 6 for structural modeling, calculation and results. Delegate RFEM work to rfem-analyst or select it in chat. Use the plugin settings for the RFEM API connection and the connector's tool preferences for approval.",
         "developerName": "OpenDesign team",
         "category": "Engineering Design",
         "capabilities": [

@@ -4,6 +4,10 @@ This package serves eight Dlubal RFEM tools over local MCP stdio. It includes th
 RFEM source from [Dlubal MCP 1.0.28](ORIGIN.md). The signed OpenDesign entry uses
 the official tool registry and keeps the execution journal in plugin data.
 
+In OpenDesign, select `rfem-analyst` in chat or
+delegate RFEM work to it. The role covers all eight RFEM tools and follows the
+plugin's tool preferences and approval settings.
+
 Install RFEM 6 before installing the plugin. Installation prepares a private
 Python 3.12 environment for the newest installed RFEM, even when RFEM is closed.
 The installer checks the exact RFEM build against Dlubal's PyPI SDK compatibility
