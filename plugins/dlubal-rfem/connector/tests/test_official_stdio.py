@@ -1,9 +1,11 @@
+import json
 import os
 import sys
 from importlib.metadata import version
 from pathlib import Path
 
 import pytest
+import yaml
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
@@ -44,3 +46,19 @@ async def test_official_tools_are_listed_without_credentials(tmp_path):
         assert result.is_error
     assert version("fastmcp").startswith("2.")
     assert not (tmp_path / "config.ini").exists()
+
+
+def test_rfem_analyst_declares_all_rfem_tools():
+    root = Path(__file__).resolve().parents[2]
+    manifest = json.loads((root / "plugin.json").read_bytes())
+    role_path = "agents/rfem-analyst.md"
+    assert manifest["extensions"]["ai.opendesign.desktop"].get("agents") == {
+        "schemaVersion": 1,
+        "files": [role_path],
+    }
+    role = (root / role_path).read_text(encoding="utf-8")
+    metadata = yaml.safe_load(role.split("---", 2)[1])
+    assert metadata["name"] == "rfem-analyst"
+    assert metadata["model"] == "inherit"
+    references = [reference.strip() for reference in metadata["tools"].split(",")]
+    assert sorted(references) == sorted(f"mcp__rfem__{name}" for name in RFEM_TOOLS)

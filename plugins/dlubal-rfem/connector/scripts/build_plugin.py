@@ -287,6 +287,8 @@ def stage(plugin_root: Path, output: Path, cache: Path) -> Path:
         shutil.copyfile(ROOT / name, staging / name)
     shutil.copyfile(plugin_root / "plugin.json", staging / "plugin.json")
     shutil.copyfile(plugin_root / "mcp.json", staging / "mcp.json")
+    if (plugin_root / "agents").is_dir():
+        shutil.copytree(plugin_root / "agents", staging / "agents")
     if (plugin_root / "assets").exists():
         shutil.copytree(plugin_root / "assets", staging / "assets")
     shutil.copyfile(ROOT / "README.md", staging / "README.md")
