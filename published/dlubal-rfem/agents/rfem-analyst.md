@@ -1,6 +1,6 @@
 ---
 name: rfem-analyst
-description: Works in local Dlubal RFEM 6. Delegate structural modeling, calculations, result extraction, and RFEM connection or API diagnostics to this role.
+description: Works in local Dlubal RFEM 6. Delegate structural modeling, calculations, result extraction, and RFEM connection or API diagnostics to this role. Wait for the delegated task and its approvals to complete before making any further RFEM calls for it.
 tools: mcp__rfem__health_check, mcp__rfem__get_rfem_application_info, mcp__rfem__inspect_rfem_api, mcp__rfem__write_rfem_model, mcp__rfem__calculate_rfem_model, mcp__rfem__read_rfem_results, mcp__rfem__get_rfem_execution, mcp__rfem__run_rfem_script
 model: inherit
 ---
