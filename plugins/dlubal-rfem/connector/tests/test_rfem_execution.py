@@ -332,9 +332,19 @@ async def test_mcp_wire_flags_validation_failure_and_exposes_lifecycle_schema(tm
     from dlubal_mcp.rfem.tools import register_tools
 
     mcp = FastMCP("test")
-    register_tools(
-        mcp, None, SimpleNamespace(execution_state_file=str(tmp_path / "state.db"))
-    )
+    state_path = tmp_path / "state.db"
+    register_tools(mcp, None, SimpleNamespace(execution_state_file=str(state_path)))
+    execution_id, model_guid = str(uuid4()), str(uuid4())
+    details = "Failed to create 节点支座 No. 1. 节点支座编号 1 已经存在。"
+
+    def legacy_failure(capture, record):
+        record(model_guid)
+        raise RuntimeError(
+            "<_InactiveRpcError of RPC that terminated with:\n"
+            f'  details = "{details}"\n  debug_error_string = "escaped payload"\n>'
+        )
+
+    ExecutionManager(state_path).submit(execution_id, "chat", "code", legacy_failure)
     async with Client(mcp) as client:
         definitions = {tool.name: tool for tool in await client.list_tools()}
         assert {"execution_id", "context_id", "model_guid"} <= definitions[
@@ -348,8 +358,16 @@ async def test_mcp_wire_flags_validation_failure_and_exposes_lifecycle_schema(tm
         unknown = await client.call_tool(
             "get_rfem_execution", {"execution_id": str(uuid4())}, raise_on_error=False
         )
-        assert unknown.is_error
+        assert not unknown.is_error
         assert unknown.structured_content["state"] == "not_found"
+        receipt = await client.call_tool(
+            "get_rfem_execution", {"execution_id": execution_id}, raise_on_error=False
+        )
+        assert not receipt.is_error
+        assert receipt.structured_content["state"] == "failed"
+        assert receipt.structured_content["model_guid"] == model_guid
+        assert receipt.structured_content["error"] == details
+        assert "debug_error_string" not in receipt.content[0].text
 
 
 @pytest.mark.asyncio

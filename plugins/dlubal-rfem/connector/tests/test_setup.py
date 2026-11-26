@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from zipfile import ZipFile
 
+import grpc
 import httpx
 import pytest
 
@@ -197,6 +198,52 @@ def test_diagnostic_port_does_not_change_sdk_choice(monkeypatch):
     monkeypatch.setenv("PLUGIN_CONFIGURATION", '{"address":"192.168.0.2"}')
     with pytest.raises(ValueError):
         read_connection_settings()
+
+
+@pytest.mark.parametrize(
+    ("details", "reason"),
+    [
+        (
+            "API Subscription: Your company used all 588 of your 500 requests. gRPC API access has paused.",
+            "quotaExceeded",
+        ),
+        (
+            "API access has been restricted. Your company does not have permission, or the subscription limit was exceeded.",
+            "apiAccessRestricted",
+        ),
+        (
+            "The API key is either missing or invalid. Access to the API is denied.",
+            "authenticationFailed",
+        ),
+    ],
+)
+def test_diagnose_classifies_sdk_wrapped_authentication_failure(
+    tmp_path, monkeypatch, details, reason
+):
+    class Rejected(grpc.RpcError):
+        def code(self):
+            return grpc.StatusCode.UNAUTHENTICATED
+
+        def details(self):
+            return details
+
+    def rejected(*_):
+        try:
+            raise Rejected()
+        except grpc.RpcError:
+            raise RuntimeError("SDK connection check failed") from None
+
+    monkeypatch.setattr(
+        setup, "bound_installation", lambda _: {"build": "6.16.0005.287"}
+    )
+    monkeypatch.setattr(setup, "activate_sdk", lambda _: None)
+    monkeypatch.setattr("dlubal_mcp.core.products.api_port_open", lambda *_: True)
+    monkeypatch.setattr(
+        "dlubal_mcp.core.product_execution.read_application_info", rejected
+    )
+    result = setup.diagnose(tmp_path, "fixture-credential")
+    assert result["reason"] == reason
+    assert details not in result["message"]
 
 
 def test_service_version_checks_only_versions_returned_by_rfem():

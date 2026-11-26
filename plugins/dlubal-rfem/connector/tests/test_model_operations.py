@@ -45,11 +45,11 @@ def test_installed_sdk_validates_fields_and_support_infinity():
 
 @pytest.mark.asyncio
 async def test_typed_worker_creates_once_and_calculates_only_the_exact_model(tmp_path):
-    pytest.importorskip("dlubal.api.rfem")
+    rfem = pytest.importorskip("dlubal.api.rfem")
     from dlubal.api.common import ModelId, OperationResult
     from dlubal.api.rfem import BaseData
 
-    models, writes, calculations = [], [], []
+    models, writes, updates, calculations = [], [], [], []
     base = BaseData()
 
     class App:
@@ -70,7 +70,22 @@ async def test_typed_worker_creates_once_and_calculates_only_the_exact_model(tmp
             base.CopyFrom(base_data)
 
         def create_object(self, obj, model_id=None):
+            assert obj.DESCRIPTOR.name != "NodalSupport", "RFEM already seeds support 1"
             writes.append((obj.no, model_id.guid))
+
+        def get_object_id_list(self, model_id=None):
+            assert model_id.guid == models[0].guid
+            return SimpleNamespace(
+                object_id=[
+                    rfem.ObjectId(
+                        object_type=rfem.ObjectType.OBJECT_TYPE_NODAL_SUPPORT,
+                        no=1,
+                    )
+                ]
+            )
+
+        def update_object(self, obj, model_id=None):
+            updates.append((list(obj.nodes), model_id.guid))
 
         def calculate_all(self, *, skip_warnings, model_id=None):
             assert not skip_warnings
@@ -90,7 +105,10 @@ async def test_typed_worker_creates_once_and_calculates_only_the_exact_model(tmp
         args = {
             "model_name": "test",
             "z_axis": "up",
-            "objects": [{"kind": "Node", "no": 1}],
+            "objects": [
+                {"kind": "Node", "no": 1},
+                {"kind": "NodalSupport", "no": 1, "fields": {"nodes": [1]}},
+            ],
             "execution_id": execution,
             "context_id": "chat",
         }
@@ -101,6 +119,7 @@ async def test_typed_worker_creates_once_and_calculates_only_the_exact_model(tmp
         assert again.structured_content["execution_id"] == execution
         assert len(models) == len(writes) == 1
         assert writes[0][1] == guid
+        assert updates == [([1], guid)]
         assert (
             base.general_settings.global_axes_orientation
             == BaseData.GeneralSettings.GLOBAL_AXES_ORIENTATION_ZUP

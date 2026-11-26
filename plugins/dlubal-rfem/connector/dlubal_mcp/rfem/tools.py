@@ -1,6 +1,7 @@
 """RFEM MCP tools."""
 
 import ast
+import json
 import logging
 import sqlite3
 import time
@@ -85,14 +86,20 @@ def register_tools(
 
     @mcp.tool(
         annotations={"readOnlyHint": True, "destructiveHint": False},
-        description="Read the durable status and bounded output of an RFEM execution by execution_id. Does not connect to RFEM, wait for the session lock, or repeat a script. running is not a completed calculation; unknown requires operator inspection before further scripts.",
+        description="Read the durable status and bounded output of an RFEM execution by execution_id. A successful lookup can return state=failed with the original error and model_guid. Does not connect to RFEM, wait for the session lock, or repeat a script. running is not a completed calculation; unknown requires operator inspection before further scripts.",
     )
     @off_event_loop
     def get_rfem_execution(execution_id: str) -> ToolResult:
-        return response(executions.status(execution_id))
+        result = executions.status(execution_id)
+        return ToolResult(
+            content=[
+                TextContent(type="text", text=json.dumps(result, ensure_ascii=False))
+            ],
+            structured_content=result,
+        )
 
     @mcp.tool(
-        description="""Executes Python code against RFEM 6. Use this as the FIRST tool for any RFEM interaction — it connects internally and returns a clear error if RFEM is unreachable.
+        description="""Executes Python code against RFEM 6 for operations without a typed tool. For input inspection, pass the exact model_guid and use only read methods such as get_object_id_list, get_object_list and has_results.
 
 Available objects: 'app' (RFEM Application), 'rfem' (dlubal.api.rfem module), 'math'.
 No imports or 'with' blocks needed.
@@ -106,17 +113,17 @@ CRITICAL DATA TYPES (Protobuf gRPC):
 - Enum fields: full label string e.g. "ANALYSIS_TYPE_GEOMETRICALLY_LINEAR", "TYPE_BEAM"
 - load_direction: "LOAD_DIRECTION_GLOBAL_Z_OR_USER_DEFINED_W_TRUE_LENGTH"
 
-Example — populate a model you are authorized to modify. Inspect existing objects first; never delete them merely to recover from a failed script:
+Example — populate a model you are authorized to modify. Read existing identifiers first. The example updates support 1, support 2, analysis settings 1 and load case 1 after confirming RFEM already created them. Use create_object only for identifiers that are absent:
   app.create_object(rfem.structure_core.Material(no=1, name="S235"))
   app.create_object(rfem.structure_core.CrossSection(no=1, name="IPE 240", material=1))
   app.create_object(rfem.structure_core.Node(no=1, coordinate_1=0.0, coordinate_2=0.0, coordinate_3=0.0))
   app.create_object(rfem.structure_core.Node(no=2, coordinate_1=6.0, coordinate_2=0.0, coordinate_3=0.0))
   app.create_object(rfem.structure_core.Line(no=1, definition_nodes=[1, 2]))
   app.create_object(rfem.structure_core.Member(no=1, line=1, cross_section_start=1))
-  app.create_object(rfem.types_for_nodes.NodalSupport(no=1, nodes=[1], spring_x=float('inf'), spring_y=float('inf'), spring_z=float('inf')))
-  app.create_object(rfem.types_for_nodes.NodalSupport(no=2, nodes=[2], spring_y=float('inf'), spring_z=float('inf')))
-  app.create_object(rfem.loading.StaticAnalysisSettings(no=1, analysis_type="ANALYSIS_TYPE_GEOMETRICALLY_LINEAR"))
-  app.create_object(rfem.loading.LoadCase(no=1, name="LC1", static_analysis_settings=1, to_solve=True))
+  app.update_object(rfem.types_for_nodes.NodalSupport(no=1, nodes=[1], spring_x=float('inf'), spring_y=float('inf'), spring_z=float('inf')))
+  app.update_object(rfem.types_for_nodes.NodalSupport(no=2, nodes=[2], spring_y=float('inf'), spring_z=float('inf')))
+  app.update_object(rfem.loading.StaticAnalysisSettings(no=1, analysis_type="ANALYSIS_TYPE_GEOMETRICALLY_LINEAR"))
+  app.update_object(rfem.loading.LoadCase(no=1, name="LC1", static_analysis_settings=1, to_solve=True))
   app.create_object(rfem.loads.MemberLoad(no=1, load_type="LOAD_TYPE_FORCE", members=[1], load_case=1, load_distribution="LOAD_DISTRIBUTION_UNIFORM", load_direction="LOAD_DIRECTION_GLOBAL_Z_OR_USER_DEFINED_W_TRUE_LENGTH", magnitude=-10000))
 """
     )

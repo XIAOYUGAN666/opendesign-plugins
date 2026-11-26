@@ -1,6 +1,7 @@
 """Bounded RFEM operations without caller-supplied Python or filesystem methods."""
 
 import json
+import re
 from typing import Annotated, Literal
 
 from fastmcp.tools.tool import ToolResult
@@ -67,6 +68,15 @@ def prepare_objects(objects, rfem):
     return prepared
 
 
+def object_types(rfem):
+    return {
+        kind: rfem.ObjectType.Value(
+            "OBJECT_TYPE_" + re.sub(r"(?<!^)(?=[A-Z])", "_", kind).upper()
+        )
+        for kind in OBJECT_MODULES
+    }
+
+
 def register_model_operations(mcp, session, manager, control=None):
     @mcp.tool(
         annotations={"readOnlyHint": True},
@@ -82,6 +92,7 @@ def register_model_operations(mcp, session, manager, control=None):
             "Does not execute Python, open files, delete objects or modify existing models. "
             "Use inspect_rfem_api for installed field names; fields use SDK SI units. "
             "z_axis explicitly sets and verifies the NEW model's axis before any objects are written. "
+            "Requested objects matching RFEM defaults update those defaults within the new model only. "
             "The resulting model_guid identifies the new model. Partial writes remain on failure; "
             "query get_rfem_execution with the same caller-owned execution_id, never replay. "
             "Rigid support fields accept the SDK JSON string 'Infinity'. "
@@ -132,10 +143,23 @@ def register_model_operations(mcp, session, manager, control=None):
                         raise RuntimeError(
                             "New model axis orientation could not be verified; no objects were written"
                         )
+                    defaults = {
+                        (obj.object_type, obj.no, obj.parent_no)
+                        for obj in bound.get_object_id_list().object_id
+                    }
+                    types = object_types(rfem)
                     for obj in prepared:
-                        bound.create_object(obj)
+                        identity = (
+                            types[obj.DESCRIPTOR.name],
+                            obj.no,
+                            getattr(obj, "load_case", 0),
+                        )
+                        if identity in defaults:
+                            bound.update_object(obj)
+                        else:
+                            bound.create_object(obj)
                     capture.print(
-                        f"Created {len(prepared)} objects with global Z axis {z_axis}. Calculation has not been requested."
+                        f"Wrote {len(prepared)} objects with global Z axis {z_axis}. Calculation has not been requested."
                     )
 
             return execution_response(

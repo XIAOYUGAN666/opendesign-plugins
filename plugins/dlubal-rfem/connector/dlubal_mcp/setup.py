@@ -114,6 +114,54 @@ def bound_installation(data: Path) -> dict | None:
     return None
 
 
+def _diagnose_rpc_failure(error: BaseException) -> dict:
+    import re
+
+    import grpc
+
+    # The SDK wraps Service authentication errors in RuntimeError with `from None`.
+    seen: set[int] = set()
+    while id(error) not in seen:
+        seen.add(id(error))
+        if isinstance(error, grpc.RpcError):
+            status = error.code()
+            details = (error.details() or "").casefold()
+            if status == grpc.StatusCode.UNAUTHENTICATED:
+                if details.startswith("api subscription:") and re.search(
+                    r"\bused all [\d,]+ of (?:your )?[\d,]+ requests\b", details
+                ):
+                    return {
+                        "type": "failed",
+                        "reason": "quotaExceeded",
+                        "message": "Dlubal API 本月请求配额已用完。请等待配额重置，或在 Dlubal Extranet 调整订阅。",
+                    }
+                if details.startswith("api access has been restricted"):
+                    return {
+                        "type": "failed",
+                        "reason": "apiAccessRestricted",
+                        "message": "Dlubal API 访问受限。请在 Dlubal Extranet 检查公司授权及剩余请求配额。",
+                    }
+            if status in (
+                grpc.StatusCode.UNAUTHENTICATED,
+                grpc.StatusCode.PERMISSION_DENIED,
+            ):
+                return {
+                    "type": "failed",
+                    "reason": "authenticationFailed",
+                    "message": "RFEM API 拒绝访问，请检查已保存的 API Key 和账户授权。",
+                }
+            break
+        cause = error.__cause__ or error.__context__
+        if cause is None:
+            break
+        error = cause
+    return {
+        "type": "failed",
+        "reason": "connectionFailed",
+        "message": "RFEM API Service 连接未通过验证。",
+    }
+
+
 def diagnose(data: Path, key: str) -> dict:
     from dlubal_mcp.core.product_execution import read_application_info
     from dlubal_mcp.core.products import api_port_open
@@ -146,23 +194,7 @@ def diagnose(data: Path, key: str) -> dict:
             RFEMSession("", key, connection.address, connection.port), "rfem"
         )
     except Exception as error:  # noqa: BLE001 - project only confirmed RPC categories
-        import grpc
-
-        status = error.code() if isinstance(error, grpc.RpcError) else None
-        if status in (
-            grpc.StatusCode.UNAUTHENTICATED,
-            grpc.StatusCode.PERMISSION_DENIED,
-        ):
-            return {
-                "type": "failed",
-                "reason": "authenticationFailed",
-                "message": "RFEM API 拒绝访问，请检查已保存的 API Key 和账户授权。",
-            }
-        return {
-            "type": "failed",
-            "reason": "connectionFailed",
-            "message": "RFEM API Service 连接未通过验证。",
-        }
+        return _diagnose_rpc_failure(error)
     if not service_version_matches(binding["build"], result["version"]):
         return {
             "type": "failed",

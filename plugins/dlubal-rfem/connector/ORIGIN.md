@@ -3,8 +3,10 @@
 This Connector incorporates the RFEM and shared Python source from the official
 [Dlubal MCP 1.0.28 release](https://pypi.org/project/dlubal-mcp/1.0.28/).
 The public source distribution and wheel were compared before import. The 30
-included Python files retain their original module layout and implementation.
-OpenDesign owns subsequent development of this copy.
+included Python files matched the upstream module layout and implementation at
+import. OpenDesign owns subsequent development of this copy. The RFEM adapter
+now updates matching default objects inside newly created models and returns
+recorded operation failures as execution status data.
 
 The local entry uses the official FastMCP stdio registration and logging.
 `dlubal_mcp/plugin_stdio.py`, `dlubal_mcp/setup.py` and `dlubal_mcp/sdk.py`

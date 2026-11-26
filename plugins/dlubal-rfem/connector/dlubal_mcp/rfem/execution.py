@@ -114,7 +114,8 @@ def _failure_details(exc, mutation_attempted):
             "CANCELLED",
             "UNAVAILABLE",
         }
-        error = str(exc)
+        details = getattr(exc, "details", None)
+        error = (details() if callable(details) else None) or str(exc)
         if RFEM_BUSY_MARKER in error.lower():
             guidance = (
                 RFEM_BUSY_UNSAFE_RETRY_ERROR
@@ -126,6 +127,15 @@ def _failure_details(exc, mutation_attempted):
     except Exception:
         logger.debug("Execution failure details are unavailable", exc_info=True)
         return "unknown", UNCLASSIFIED_FAILURE
+
+
+def _stored_error_text(error):
+    # Older RFEM workers persisted the full gRPC repr with its debug payload.
+    if error and "<_InactiveRpcError of RPC" in error:
+        for line in error.splitlines():
+            if line.strip().startswith('details = "'):
+                return line.strip().removeprefix('details = "').removesuffix('"')[:1024]
+    return error
 
 
 class Capture:
@@ -350,6 +360,7 @@ class ExecutionManager:
         }
         result["execution_id"] = execution_id
         result["model_guid"] = row["model_guid"]
+        result["error"] = _stored_error_text(result["error"])
         if row["state"] == "running":
             with self._lock:
                 worker = self._workers.get(execution_id)
