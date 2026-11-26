@@ -86,7 +86,8 @@ def _build_mcp(settings: DlubalMCPSettings, registry: ProductRegistry) -> FastMC
 
     # --- health_check MCP tool (AC6) ---
     @mcp.tool(
-        description="Returns server health: installed products, running state, active tools, and auth status."
+        annotations={"readOnlyHint": True, "destructiveHint": False},
+        description="Returns the MCP server version, installed products, running state, active tools and auth status. The MCP server version is the upstream runtime version.",
     )
     @off_event_loop
     def health_check() -> str:

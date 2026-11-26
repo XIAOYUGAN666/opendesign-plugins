@@ -38,7 +38,18 @@ async def test_official_tools_are_listed_without_credentials(tmp_path):
     async with Client(transport, timeout=15) as client:
         tools = {t.name: t for t in await client.list_tools()}
         assert tools.keys() == RFEM_TOOLS
-        assert tools["get_rfem_application_info"].annotations.readOnlyHint is True
+        readonly = {
+            name
+            for name, tool in tools.items()
+            if tool.annotations is not None and tool.annotations.readOnlyHint is True
+        }
+        assert readonly == {
+            "health_check",
+            "get_rfem_application_info",
+            "get_rfem_execution",
+            "inspect_rfem_api",
+            "read_rfem_results",
+        }
         assert "execution_id" in tools["run_rfem_script"].inputSchema["properties"]
         result = await client.call_tool(
             "get_rfem_application_info", {}, raise_on_error=False

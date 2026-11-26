@@ -209,9 +209,10 @@ Example — populate a model you are authorized to modify. Read existing identif
         return response(result)
 
     @mcp.tool(
+        annotations={"readOnlyHint": True, "destructiveHint": False},
         description="""Look up the EXACT RFEM API field names, types, enum values, AND app method signatures from the INSTALLED RFEM build — copy them verbatim into run_rfem_script. Deterministic and version-exact; works even when RFEM is NOT running (no connection needed).
 
-Use this to find the precise identifier/signature to type. For how a field is USED, worked examples, or what it MEANS in prose, use search_dlubal_apidocs instead.
+Use this to find the precise identifier/signature to type. The Dlubal API documentation describes how to use those fields and methods.
 
 Query forms:
 - Object:            inspect_rfem_api("LoadCase")              -> fields with types, enums, relations
@@ -271,6 +272,7 @@ Examples that prevent common mistakes:
             return f"inspect_rfem_api error: {exc}"
 
     @mcp.tool(
+        annotations={"readOnlyHint": True, "destructiveHint": False},
         description="""Reads a bounded, typed RFEM 6 result summary without executing caller-supplied Python and without changing or recalculating the model.
 
 Allowed result types only: calculation_status, member_internal_forces, node_deformations, stability_critical_load_factors, steel_member_design_ratios.
