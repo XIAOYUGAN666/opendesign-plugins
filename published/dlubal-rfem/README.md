@@ -8,6 +8,11 @@ In OpenDesign, select `rfem-analyst` in chat or
 delegate RFEM work to it. The role covers all eight RFEM tools and follows the
 plugin's tool preferences and approval settings.
 
+New model writes update matching RFEM-seeded defaults inside the model they just
+created. `get_rfem_execution` returns the recorded operation state and model GUID
+even when the operation failed. Inspect that exact model before deciding how to
+recover a partial write.
+
 Install RFEM 6 before installing the plugin. Installation prepares a private
 Python 3.12 environment for the newest installed RFEM, even when RFEM is closed.
 The installer checks the exact RFEM build against Dlubal's PyPI SDK compatibility
